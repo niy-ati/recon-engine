@@ -1,0 +1,81 @@
+invoice_id,order_ref,customer,amount,narration,gst_line
+INV-1069,order_1069,Customer 8,2499,Payment received order order_1069 - Customer 8,9.0
+INV-1064,order_1064,Customer 2,4999,Payment received order order_1064 - Customer 2,18.0
+INV-1032,order_1032,Customer 4,9999,Payment received order order_1032 - Customer 4,36.0
+INV-1045,order_1045,Customer 9,2499,Payment received order order_1045 - Customer 9,9.0
+INV-1028,order_1028,Customer 27,499,Payment received order order_1028 - Customer 27,1.8
+INV-1037,order_1037,Customer 22,2499,Payment received order order_1037 - Customer 22,9.0
+INV-1038,order_1038,Customer 22,2499,Payment received order order_1038 - Customer 22,9.0
+INV-1052,order_1052,Customer 22,999,Payment received order order_1052 - Customer 22,3.6
+INV-1057,,Customer 4,9999,pymt rcvd 4 ord#1O57 thx,36.0
+INV-1049,order_1049,Customer 3,499,Payment received order order_1049 - Customer 3,1.8
+INV-1021,order_1021,Customer 24,4999,Payment received order order_1021 - Customer 24,18.0
+INV-1079,order_1079,Customer 14,1499,Payment received order order_1079 - Customer 14,5.4
+INV-1011,order_1011,Customer 21,9999,Payment received order order_1011 - Customer 21,36.0
+INV-1020,order_1020,Customer 20,18500,Subscription renewal order order_1020 - Customer 20 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1046,order_1046,Customer 5,2499,Payment received order order_1046 - Customer 5,9.0
+INV-1073,order_1073,Customer 4,999,Payment received order order_1073 - Customer 4,3.6
+INV-1077,order_1077,Customer 24,1499,Payment received order order_1077 - Customer 24,5.4
+INV-1042,order_1042,Customer 21,18500,Subscription renewal order order_1042 - Customer 21 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1075,order_1075,Customer 1,1499,Payment received order order_1075 - Customer 1,5.4
+INV-1000,order_1000,Customer 9,9999,Payment received order order_1000 - Customer 9,36.0
+INV-1018,order_1018,Customer 25,999,Payment received order order_1018 - Customer 25,3.6
+INV-1025,order_1025,Customer 20,999,Payment received order order_1025 - Customer 20,3.6
+INV-1040,order_1040,Customer 18,499,Payment received order order_1040 - Customer 18,1.8
+INV-1036,order_1036,Customer 26,1499,Payment received order order_1036 - Customer 26,5.4
+INV-1024,order_1024,Customer 5,9999,Payment received order order_1024 - Customer 5,36.0
+INV-1051,order_1051,Customer 22,9999,Payment received order order_1051 - Customer 22,36.0
+INV-1050,order_1050,Customer 20,999,Payment received order order_1050 - Customer 20,3.6
+INV-1031,order_1031,Customer 13,18500,Subscription renewal order order_1031 - Customer 13 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1072,order_1072,Customer 29,2499,Payment received order order_1072 - Customer 29,9.0
+INV-1019,order_1019,Customer 26,499,Payment received order order_1019 - Customer 26,1.8
+INV-1056,order_1056,Customer 22,1499,Payment received order order_1056 - Customer 22,5.4
+INV-1074,order_1074,Customer 29,1499,Payment received order order_1074 - Customer 29,5.4
+INV-1068,order_1068,Customer 26,2499,Payment received order order_1068 - Customer 26,9.0
+INV-1029,order_1029,Customer 9,4999,Payment received order order_1029 - Customer 9,18.0
+INV-1013,order_1013,Customer 27,9999,Payment received order order_1013 - Customer 27,36.0
+INV-1007,order_1007,Customer 27,2499,Payment received order order_1007 - Customer 27,9.0
+INV-1055,order_1055,Customer 29,999,Payment received order order_1055 - Customer 29,3.6
+INV-1008,order_1008,Customer 22,1499,Payment received order order_1008 - Customer 22,5.4
+INV-1066,,Customer 8,2499,pymt rcvd 8 ord#1066 thx,9.0
+INV-1009,order_1009,Customer 28,1499,Payment received order order_1009 - Customer 28,5.4
+INV-1039,order_1039,Customer 24,9999,Payment received order order_1039 - Customer 24,36.0
+INV-1044,order_1044,Customer 29,2499,Payment received order order_1044 - Customer 29,9.0
+INV-1012,order_1012,Customer 13,9999,Payment received order order_1012 - Customer 13,36.0
+INV-1015,order_1015,Customer 29,4999,Payment received order order_1015 - Customer 29,18.0
+INV-1078,order_1078,Customer 11,4999,Payment received order order_1078 - Customer 11,18.0
+INV-1002,order_1002,Customer 18,499,Payment received order order_1002 - Customer 18,1.8
+INV-1063,order_1063,Customer 27,9999,Payment received order order_1063 - Customer 27,36.0
+INV-1004,order_1004,Customer 11,499,Payment received order order_1004 - Customer 11,1.8
+INV-1067,order_1067,Customer 24,999,Payment received order order_1067 - Customer 24,3.6
+INV-1014,order_1014,Customer 7,1499,Payment received order order_1014 - Customer 7,5.4
+INV-1022,order_1022,Customer 10,4999,Payment received order order_1022 - Customer 10,18.0
+INV-1003,order_1003,Customer 15,9999,Payment received order order_1003 - Customer 15,36.0
+INV-1034,order_1034,Customer 21,999,Payment received order order_1034 - Customer 21,3.6
+INV-1047,order_1047,Customer 24,999,Payment received order order_1047 - Customer 24,3.6
+INV-1001,order_1001,Customer 14,999,Payment received order order_1001 - Customer 14,3.6
+INV-1030,order_1030,Customer 18,4999,Payment received order order_1030 - Customer 18 PARTIAL REFUND 1499.7,18.0
+INV-1005,order_1005,Customer 13,999,Payment received order order_1005 - Customer 13,3.6
+INV-1061,order_1061,Customer 21,499,Payment received order order_1061 - Customer 21,1.8
+INV-1016,order_1016,Customer 8,2499,Payment received order order_1016 - Customer 8 PARTIAL REFUND 749.7,9.0
+INV-1026,order_1026,Customer 29,18500,Subscription renewal order order_1026 - Customer 29 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1053,order_1053,Customer 1,2499,Payment received order order_1053 - Customer 1,9.0
+INV-1060,order_1060,Customer 27,499,Payment received order order_1060 - Customer 27,1.8
+INV-1065,order_1065,Customer 25,499,Payment received order order_1065 - Customer 25,1.8
+INV-1035,order_1035,Customer 3,499,Payment received order order_1035 - Customer 3,1.8
+INV-1071,order_1071,Customer 12,2499,Payment received order order_1071 - Customer 12,9.0
+INV-1043,order_1043,Customer 6,499,Payment received order order_1043 - Customer 6,1.8
+INV-1070,order_1070,Customer 1,2499,Payment received order order_1070 - Customer 1,9.0
+INV-1058,order_1058,Customer 10,9999,Payment received order order_1058 - Customer 10,36.0
+INV-1027,order_1027,Customer 29,1499,Payment received order order_1027 - Customer 29,5.4
+INV-1041,,Customer 8,2499,pymt rcvd 8 ord#1O41 thx,9.0
+INV-1048,order_1048,Customer 2,499,Payment received order order_1048 - Customer 2,1.8
+INV-1033,order_1033,Customer 18,499,Payment received order order_1033 - Customer 18,1.8
+INV-1006,order_1006,Customer 15,1499,Payment received order order_1006 - Customer 15,5.4
+INV-1023,order_1023,Customer 28,2499,Payment received order order_1023 - Customer 28,9.0
+INV-1059,order_1059,Customer 29,9999,Payment received order order_1059 - Customer 29,36.0
+INV-1017,order_1017,Customer 12,4999,Payment received order order_1017 - Customer 12,18.0
+INV-1054,order_1054,Customer 7,4999,Payment received order order_1054 - Customer 7,18.0
+INV-1010,order_1010,Customer 12,1499,Payment received order order_1010 - Customer 12,5.4
+INV-9001,order_9001,Customer Trap A,2499,Payment received order order_9001 - Customer Trap A,9.0
+INV-9002,order_9002,Customer Trap B,2499,Payment received order order_9002 - Customer Trap B,9.0
