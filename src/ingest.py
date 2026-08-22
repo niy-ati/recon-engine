@@ -83,7 +83,7 @@ def fetch_live_recon(year, month, day=None):
     return _live_get("settlements/recon/combined", key_id, key_secret, params)
 
 
-def load_settlements(source="synthetic", year=None, month=None, day=None):
+def load_settlements(source="synthetic", year=None, month=None, day=None, data_dir=None):
     """source='synthetic' (default): reads the CSV, already in canonical shape.
 
     source='live': authenticated call to Razorpay's API. Test-mode keys
@@ -97,9 +97,14 @@ def load_settlements(source="synthetic", year=None, month=None, day=None):
     settlements with a second batch normalized from a different export
     shape (generic_gateway_adapter.py), proving reconcile.py's matching
     logic isn't hardcoded to one settlement source's column layout.
+
+    data_dir overrides where synthetic/with_gateway_b sources read their
+    CSVs from (defaults to DATA_DIR) -- lets callers point at an isolated
+    fixture directory instead of the shared data/ folder.
     """
+    data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
     if source == "synthetic":
-        with open(DATA_DIR / "settlement_report.csv", newline="") as f:
+        with open(data_dir / "settlement_report.csv", newline="") as f:
             rows = list(csv.DictReader(f))
         for r in rows:
             r["gross"] = float(r["gross"])
@@ -117,8 +122,8 @@ def load_settlements(source="synthetic", year=None, month=None, day=None):
         items = raw.get("items", [])
         return [normalize_recon_line(item) for item in items]
     elif source == "with_gateway_b":
-        razorpay_rows = load_settlements(source="synthetic")
-        gateway_b_rows = generic_gateway_adapter.load_gateway_b_export()
+        razorpay_rows = load_settlements(source="synthetic", data_dir=data_dir)
+        gateway_b_rows = generic_gateway_adapter.load_gateway_b_export(path=data_dir / "gateway_b_export.csv")
         return razorpay_rows + gateway_b_rows
     else:
         raise ValueError(f"unknown source: {source!r}")

@@ -45,7 +45,7 @@ def base_settlement_id(settlement_id):
 
 
 def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
-    settlements = ingest.load_settlements(source=settlement_source)
+    settlements = ingest.load_settlements(source=settlement_source, data_dir=data_dir)
     bank = load_csv(f"{data_dir}/bank_statement.csv")
     ledger = load_csv(f"{data_dir}/internal_ledger.csv")
 

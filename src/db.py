@@ -61,35 +61,41 @@ def persist_results(results, run_id):
     instead of piling up alongside it. narration_rules is untouched and
     keeps accumulating across runs as intended."""
     conn = get_connection()
-    with conn:
-        conn.execute("DELETE FROM exceptions")
-        for r in results:
-            needs_action = "yes" if r["status"] in ("EXCEPTION", "MATCHED_LOW_CONFIDENCE") else "no"
-            conn.execute(
-                """INSERT INTO exceptions
-                   (run_id, order_id, settlement_id, net_amount, status, category,
-                    reason, narration, needs_action, replay_log)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
-                 r["status"], r.get("category"), r.get("reason"), r.get("narration", ""),
-                 needs_action, json.dumps(r.get("stage", []))),
-            )
-    conn.close()
+    try:
+        with conn:
+            conn.execute("DELETE FROM exceptions")
+            for r in results:
+                needs_action = "yes" if r["status"] in ("EXCEPTION", "MATCHED_LOW_CONFIDENCE") else "no"
+                conn.execute(
+                    """INSERT INTO exceptions
+                       (run_id, order_id, settlement_id, net_amount, status, category,
+                        reason, narration, needs_action, replay_log)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
+                     r["status"], r.get("category"), r.get("reason"), r.get("narration", ""),
+                     needs_action, json.dumps(r.get("stage", []))),
+                )
+    finally:
+        conn.close()
 
 
 def get_open_exceptions():
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM exceptions WHERE needs_action = 'yes' AND resolution_status = 'OPEN' ORDER BY id"
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM exceptions WHERE needs_action = 'yes' AND resolution_status = 'OPEN' ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]
 
 
 def get_all_exceptions():
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM exceptions ORDER BY id").fetchall()
-    conn.close()
+    try:
+        rows = conn.execute("SELECT * FROM exceptions ORDER BY id").fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]
 
 
@@ -98,9 +104,11 @@ def add_note(exception_id, note):
     context without being forced into a binary confirm/reject decision.
     Row stays OPEN, stays in the queue."""
     conn = get_connection()
-    with conn:
-        conn.execute("UPDATE exceptions SET resolution_note = ? WHERE id = ?", (note, exception_id))
-    conn.close()
+    try:
+        with conn:
+            conn.execute("UPDATE exceptions SET resolution_note = ? WHERE id = ?", (note, exception_id))
+    finally:
+        conn.close()
 
 
 def resolve_exception(exception_id, action, note=None):
@@ -114,27 +122,31 @@ def resolve_exception(exception_id, action, note=None):
         raise ValueError(f"unknown action: {action}")
 
     conn = get_connection()
-    with conn:
-        row = conn.execute("SELECT * FROM exceptions WHERE id = ?", (exception_id,)).fetchone()
-        if row is None:
-            raise KeyError(f"no exception with id {exception_id}")
+    try:
+        with conn:
+            row = conn.execute("SELECT * FROM exceptions WHERE id = ?", (exception_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"no exception with id {exception_id}")
 
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        conn.execute(
-            "UPDATE exceptions SET resolution_status = ?, resolution_note = ?, resolved_at = ? WHERE id = ?",
-            (resolution_status, note, now, exception_id),
-        )
-
-        if action == "confirm" and row["category"] == "FUZZY_MATCH_NEEDS_REVIEW" and row["narration"] and row["order_id"]:
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             conn.execute(
-                "INSERT OR REPLACE INTO narration_rules (narration, order_id, confirmed_at, source) VALUES (?, ?, ?, ?)",
-                (row["narration"], row["order_id"], now, "human_review"),
+                "UPDATE exceptions SET resolution_status = ?, resolution_note = ?, resolved_at = ? WHERE id = ?",
+                (resolution_status, note, now, exception_id),
             )
-    conn.close()
+
+            if action == "confirm" and row["category"] == "FUZZY_MATCH_NEEDS_REVIEW" and row["narration"] and row["order_id"]:
+                conn.execute(
+                    "INSERT OR REPLACE INTO narration_rules (narration, order_id, confirmed_at, source) VALUES (?, ?, ?, ?)",
+                    (row["narration"], row["order_id"], now, "human_review"),
+                )
+    finally:
+        conn.close()
 
 
 def get_narration_rule(narration):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM narration_rules WHERE narration = ?", (narration,)).fetchone()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM narration_rules WHERE narration = ?", (narration,)).fetchone()
+    finally:
+        conn.close()
     return dict(row) if row else None
