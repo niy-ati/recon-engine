@@ -60,8 +60,12 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
         bank_by_utr[b["utr"]].append(i)
 
     for s in settlements:
+        # match_key identifies this logical row across separate runs of the
+        # same batch (db.py upserts on it instead of blanket-deleting, so a
+        # re-run never wipes a human's earlier confirm/reject decision).
         record = {"order_id": s["order_id"], "settlement_id": s["settlement_id"],
                   "net": float(s["net"]), "gst_on_mdr": float(s["gst_on_mdr"]),
+                  "match_key": f"settlement:{s['settlement_id']}",
                   "status": None, "category": None, "reason": None, "stage": []}
 
         candidates = bank_by_utr.get(s["utr"], [])
@@ -271,18 +275,27 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
             del r["_needs_pass3"]
 
     # ---------- Bank rows with no settlement at all ----------
+    # match_key uses the bank row's own UTR: unique per bank credit by
+    # construction, so a re-run against the same batch matches this exact
+    # orphan back up instead of inserting a lookalike duplicate.
     orphan_bank = [b for i, b in enumerate(bank) if i not in matched_bank_rows]
     for b in orphan_bank:
         results.append({"order_id": None, "settlement_id": None, "net": float(b["credited_amount"]),
+                         "match_key": f"bank_orphan:{b['utr']}",
                          "status": "EXCEPTION", "category": "UNEXPLAINED",
                          "reason": f"Bank credit of Rs.{b['credited_amount']} on {b['value_date']} has no matching settlement_id anywhere in the settlement report.",
                          "stage": ["No settlement counterpart found"]})
 
     # ---------- Ledger rows never matched at all ----------
+    # match_key falls back to invoice_id when order_ref is blank (a messy
+    # narration row that still never resolved) -- invoice_id is always
+    # present, unlike order_ref.
     for li, l in enumerate(ledger):
         if li not in matched_ledger_rows:
             is_afa = "AFA_MANDATE_HOLD" in l["narration"]
-            results.append({"order_id": l["order_ref"] or None, "settlement_id": None, "net": float(l["amount"]),
+            order_id = l["order_ref"] or None
+            results.append({"order_id": order_id, "settlement_id": None, "net": float(l["amount"]),
+                             "match_key": f"order_only:{order_id}" if order_id else f"ledger_orphan:{l['invoice_id']}",
                              "status": "EXCEPTION",
                              "category": "AFA_MANDATE_HOLD" if is_afa else "UNEXPLAINED",
                              "reason": ("Charge never settled -- ledger shows a subscription renewal that crossed the RBI e-mandate AFA threshold (>Rs.15,000) and needs a compliant step-up re-authentication, not a blind retry."

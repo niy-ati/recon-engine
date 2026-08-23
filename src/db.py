@@ -3,14 +3,23 @@ SQLite persistence layer for the reconciliation pipeline.
 
 Two tables, one file (data/reconcile.db), stdlib sqlite3 only:
 
-  exceptions      -- one row per reconciliation result that needed a
-                     decision (needs_action='yes'), with a replay_log (the
-                     stage-by-stage trace reconcile.py builds) so a reviewer
-                     can see why the pipeline landed on this outcome.
+  exceptions      -- one row per reconciliation result, keyed on match_key
+                     (stable across runs of the same batch -- see
+                     reconcile.py for how it's built), with a replay_log
+                     (the stage-by-stage trace reconcile.py builds) so a
+                     reviewer can see why the pipeline landed on this
+                     outcome.
   narration_rules -- confirmed-match memory. A human confirming a match in
                      review_server.py writes here automatically, and
                      reconcile.py's Pass 2.5 reads from here before ever
                      building a fuzzy shortlist.
+
+persist_results() upserts on match_key instead of deleting and reinserting:
+re-running the same batch (a settlement recon job runs daily against a
+growing dataset, not once) must never erase a human's earlier confirm or
+reject. Once a row has a terminal resolution_status (CONFIRMED/REJECTED),
+a later run can still see it, but its result fields stay frozen -- see
+persist_results()'s SQL for the exact mechanism.
 """
 import json
 import sqlite3
@@ -22,6 +31,7 @@ DB_PATH = Path(__file__).resolve().parent.parent / "data" / "reconcile.db"
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS exceptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_key TEXT NOT NULL,
     run_id TEXT NOT NULL,
     order_id TEXT,
     settlement_id TEXT,
@@ -46,32 +56,62 @@ CREATE TABLE IF NOT EXISTS narration_rules (
 """
 
 
+def _migrate(conn):
+    """One-time migration for a data/reconcile.db created before match_key
+    existed. New databases get match_key from SCHEMA directly; this only
+    runs the ALTER/backfill/index steps when the column is actually
+    missing, so it's a no-op on every later call."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(exceptions)")}
+    if "match_key" not in columns:
+        conn.execute("ALTER TABLE exceptions ADD COLUMN match_key TEXT")
+        conn.execute(
+            "UPDATE exceptions SET match_key = COALESCE(settlement_id, order_id, 'legacy:' || id) "
+            "WHERE match_key IS NULL"
+        )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_exceptions_match_key ON exceptions(match_key)")
+
+
 def get_connection():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 
 def persist_results(results, run_id):
-    """Writes every result row into `exceptions`, replacing whatever was
-    there before. `exceptions` represents the current batch's state, not an
-    accumulating history, so a fresh run fully replaces the prior one
-    instead of piling up alongside it. narration_rules is untouched and
-    keeps accumulating across runs as intended."""
+    """Upserts every result row into `exceptions` on match_key. A row whose
+    resolution_status is still OPEN gets its fields fully refreshed from
+    this run. A row a human already CONFIRMED or REJECTED keeps its frozen
+    fields -- the WHERE clause on the UPDATE branch below is what makes
+    that true, not application-level logic that could be skipped."""
     conn = get_connection()
     try:
         with conn:
-            conn.execute("DELETE FROM exceptions")
             for r in results:
+                match_key = r.get("match_key")
+                if not match_key:
+                    raise ValueError(f"result row missing match_key: {r}")
                 needs_action = "yes" if r["status"] in ("EXCEPTION", "MATCHED_LOW_CONFIDENCE") else "no"
                 conn.execute(
                     """INSERT INTO exceptions
-                       (run_id, order_id, settlement_id, net_amount, status, category,
+                       (match_key, run_id, order_id, settlement_id, net_amount, status, category,
                         reason, narration, needs_action, replay_log)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(match_key) DO UPDATE SET
+                           run_id = excluded.run_id,
+                           order_id = excluded.order_id,
+                           settlement_id = excluded.settlement_id,
+                           net_amount = excluded.net_amount,
+                           status = excluded.status,
+                           category = excluded.category,
+                           reason = excluded.reason,
+                           narration = excluded.narration,
+                           needs_action = excluded.needs_action,
+                           replay_log = excluded.replay_log
+                       WHERE exceptions.resolution_status = 'OPEN'""",
+                    (match_key, run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
                      r["status"], r.get("category"), r.get("reason"), r.get("narration", ""),
                      needs_action, json.dumps(r.get("stage", []))),
                 )

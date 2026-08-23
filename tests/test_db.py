@@ -13,9 +13,10 @@ sys.path.insert(0, str(SRC))
 import db  # noqa: E402
 
 
-def make_result(order_id, status, category=None, narration="", net=100.0):
+def make_result(order_id, status, category=None, narration="", net=100.0, match_key=None):
     return {
         "order_id": order_id, "settlement_id": f"setl_{order_id}", "net": net,
+        "match_key": match_key or f"settlement:setl_{order_id}",
         "status": status, "category": category, "reason": "test reason",
         "narration": narration, "stage": ["test stage"],
     }
@@ -45,22 +46,62 @@ class TestPersistResults(DbTestCase):
         self.assertEqual(len(open_rows), 1)
         self.assertEqual(open_rows[0]["order_id"], "order_2")
 
-    def test_second_run_replaces_first_run_entirely(self):
-        """Regression test: persist_results must not accumulate rows across
-        runs. A prior bug deleted only same-run_id rows (run_id is always a
-        fresh timestamp, so nothing ever matched), causing every re-run to
-        double the queue instead of replacing it."""
+    def test_rerunning_same_match_key_updates_in_place_not_duplicates(self):
+        """Regression test: an earlier version deleted the whole table on
+        every run (wiping human decisions); a version before that deleted
+        only same-run_id rows (never matched anything, so re-runs
+        duplicated instead). Neither happens now -- same match_key across
+        two runs is the same row, always."""
         db.persist_results([make_result("order_1", "EXCEPTION", category="UNEXPLAINED")], run_id="run-1")
-        db.persist_results([make_result("order_2", "EXCEPTION", category="UNEXPLAINED")], run_id="run-2")
+        db.persist_results([make_result("order_1", "EXCEPTION", category="UNEXPLAINED")], run_id="run-2")
         all_rows = db.get_all_exceptions()
         self.assertEqual(len(all_rows), 1)
-        self.assertEqual(all_rows[0]["order_id"], "order_2")
         self.assertEqual(all_rows[0]["run_id"], "run-2")
+
+    def test_open_row_is_refreshed_by_a_later_run(self):
+        db.persist_results([make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW")], run_id="run-1")
+        db.persist_results([make_result("order_1", "MATCHED_LEARNED_PATTERN")], run_id="run-2")
+        rows = db.get_all_exceptions()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "MATCHED_LEARNED_PATTERN")
+
+    def test_confirmed_row_is_frozen_against_a_later_run(self):
+        """The actual idempotency guarantee: once a human confirms a match,
+        a later run recomputing a different result for the same match_key
+        must not silently overwrite that decision."""
+        db.persist_results([make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW")], run_id="run-1")
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "confirm")
+
+        db.persist_results([make_result("order_1", "EXCEPTION", category="UNEXPLAINED")], run_id="run-2")
+
+        rows = db.get_all_exceptions()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "MATCHED_LOW_CONFIDENCE")
+        self.assertEqual(rows[0]["category"], "FUZZY_MATCH_NEEDS_REVIEW")
+        self.assertEqual(rows[0]["resolution_status"], "CONFIRMED")
+
+    def test_rejected_row_is_frozen_against_a_later_run(self):
+        db.persist_results([make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW")], run_id="run-1")
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "reject")
+
+        db.persist_results([make_result("order_1", "MATCHED_AI_ASSISTED")], run_id="run-2")
+
+        rows = db.get_all_exceptions()
+        self.assertEqual(rows[0]["status"], "MATCHED_LOW_CONFIDENCE")
+        self.assertEqual(rows[0]["resolution_status"], "REJECTED")
 
     def test_matched_rows_are_not_actionable(self):
         db.persist_results([make_result("order_1", "MATCHED")], run_id="run-1")
         self.assertEqual(db.get_open_exceptions(), [])
         self.assertEqual(len(db.get_all_exceptions()), 1)
+
+    def test_missing_match_key_raises(self):
+        bad_result = make_result("order_1", "EXCEPTION")
+        del bad_result["match_key"]
+        with self.assertRaises(ValueError):
+            db.persist_results([bad_result], run_id="run-1")
 
 
 class TestResolveException(DbTestCase):
@@ -115,6 +156,38 @@ class TestAddNote(DbTestCase):
         open_rows = db.get_open_exceptions()
         self.assertEqual(len(open_rows), 1)
         self.assertEqual(open_rows[0]["resolution_note"], "waiting on merchant reply")
+
+
+class TestMigration(DbTestCase):
+    def test_legacy_table_without_match_key_gets_migrated(self):
+        """Simulates a data/reconcile.db created before match_key existed --
+        confirms get_connection() backfills it instead of crashing."""
+        import sqlite3
+        conn = sqlite3.connect(db.DB_PATH)
+        conn.execute("""
+            CREATE TABLE exceptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL, order_id TEXT, settlement_id TEXT,
+                net_amount REAL, status TEXT NOT NULL, category TEXT,
+                reason TEXT, narration TEXT, needs_action TEXT NOT NULL,
+                replay_log TEXT NOT NULL,
+                resolution_status TEXT NOT NULL DEFAULT 'OPEN',
+                resolution_note TEXT, resolved_at TEXT
+            )
+        """)
+        conn.execute(
+            "INSERT INTO exceptions (run_id, settlement_id, status, needs_action, replay_log) "
+            "VALUES ('old-run', 'setl_legacy', 'EXCEPTION', 'yes', '[]')"
+        )
+        conn.commit()
+        conn.close()
+
+        rows = db.get_all_exceptions()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["match_key"], "setl_legacy")
+
+        db.persist_results([make_result("order_new", "EXCEPTION", category="UNEXPLAINED")], run_id="run-new")
+        self.assertEqual(len(db.get_all_exceptions()), 2)
 
 
 if __name__ == "__main__":

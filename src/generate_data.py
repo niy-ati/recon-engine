@@ -25,14 +25,15 @@ Injected failure modes:
     on_hold=true -- distinct from AFA_MANDATE_HOLD (a regulatory retry
     constraint) and from plain UNEXPLAINED (no information at all)
 
-Known limitation: the case mix is randomized per run, and the overall
-resolved percentage varies by seed (tested 82.6%-95.1% across five seeds).
-The seed is pinned to 42 for a reproducible default run, not because that
-number is a guaranteed constant.
+Known limitation: the overall resolved percentage varies by seed (an
+82.6%-95.1% range was measured across five seeds before IDs were made
+fully seed-reproducible below; the exact bounds haven't been re-measured
+since, though the underlying point -- that this number moves with the
+seed -- still holds). The seed is pinned to 42 for a reproducible default
+run, not because any specific percentage is a guaranteed constant.
 """
 import csv
 import random
-import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -57,10 +58,18 @@ def money(x):
     return round(x, 2)
 
 
+def random_hex(n):
+    # uuid.uuid4() draws from os.urandom, ignoring random.seed(), so IDs
+    # would differ on every run even under a fixed seed -- this generator
+    # uses the seeded `random` module instead, so the whole batch
+    # (including IDs) is byte-for-byte reproducible under the same seed.
+    return "".join(random.choices("0123456789abcdef", k=n))
+
+
 for i in range(N_ORDERS):
     order_id = f"order_{1000+i}"
-    payment_id = f"pay_{uuid.uuid4().hex[:14]}"
-    settlement_id = f"setl_{uuid.uuid4().hex[:14]}"
+    payment_id = f"pay_{random_hex(14)}"
+    settlement_id = f"setl_{random_hex(14)}"
     gross = random.choice([499, 999, 1499, 2499, 4999, 9999])
     mdr = money(gross * MDR_RATE)
     gst_on_mdr = money(mdr * GST_RATE)
