@@ -127,6 +127,48 @@ class TestResolveException(DbTestCase):
         self.assertEqual(rule["order_id"], "order_1")
         self.assertEqual(rule["source"], "human_review")
 
+    def test_confirming_fuzzy_match_also_writes_a_narration_template(self):
+        """Same confirm as above, checking the generalized side: the
+        order's own digit run gets replaced with {REF}, so a differently
+        numbered narration from the same recurring template can resolve
+        later without a fresh confirm (see test_reconcile.py's
+        TestNarrationTemplates for the read side)."""
+        db.persist_results(
+            [make_result("order_1042", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                          narration="pymt rcvd Alice ord#1042 thx")],
+            run_id="run-1",
+        )
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "confirm")
+        templates = db.get_narration_templates()
+        self.assertEqual(len(templates), 1)
+        self.assertEqual(templates[0]["template"], "pymt rcvd Alice ord#{REF} thx")
+        self.assertEqual(templates[0]["source"], "human_review")
+
+    def test_rejecting_fuzzy_match_does_not_write_a_narration_template(self):
+        db.persist_results(
+            [make_result("order_1042", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                          narration="pymt rcvd Alice ord#1042 thx")],
+            run_id="run-1",
+        )
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "reject")
+        self.assertEqual(db.get_narration_templates(), [])
+
+    def test_non_specific_narration_writes_neither_rule_nor_template(self):
+        """A narration that fails the specificity guard (see
+        test_confirming_fuzzy_match_with_no_digits_does_not_write_rule)
+        must not produce a template either -- the template derivation only
+        ever runs after that same guard already passed."""
+        db.persist_results(
+            [make_result("order_1042", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                          narration="payment received thanks")],
+            run_id="run-1",
+        )
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "confirm")
+        self.assertEqual(db.get_narration_templates(), [])
+
     def test_rejecting_fuzzy_match_does_not_write_narration_rule(self):
         db.persist_results(
             [make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",

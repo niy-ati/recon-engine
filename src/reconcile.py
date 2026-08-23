@@ -5,9 +5,14 @@ Pass 1   settlement <-> bank, key = UTR, tolerance = amount + date.
 Pass 2   settlement <-> ledger, key = order_id.
 Pass 2.5 narration_rules lookup (db.py) -- a narration confirmed by a human
          once via review_server.py resolves deterministically on repeat.
+Pass 2.6 narration_templates lookup (db.py) -- a differently-numbered
+         narration from the same recurring template a human already
+         confirmed once resolves too, generalizing only the digit
+         reference, never the surrounding text.
+Pass 2.75 exact digit reference (no learned pattern needed at all).
 Pass 3   fuzzy candidate narrowing (difflib) for unresolved ledger rows.
 Pass 4   LLM tie-break over that shortlist, confidence-gated
-         (validation_gate.resolve_with_gate). Only reached after 1/2/2.5/3 fail.
+         (validation_gate.resolve_with_gate). Only reached after 1/2/2.5/2.6/2.75/3 fail.
 final    anything still unresolved is bucketed into a named exception
          category with a human-readable reason.
 
@@ -18,12 +23,13 @@ live bank/Tally API is available in this environment.
 """
 import csv
 import difflib
+import re
 from datetime import date, datetime, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
 
 from validation_gate import resolve_with_gate, CONFIDENCE_AUTO_ACCEPT
-from db import get_all_narration_rules
+from db import get_all_narration_rules, get_narration_templates
 import ingest
 
 DATE_TOLERANCE_DAYS = 2
@@ -282,6 +288,56 @@ def reconcile(
                 r["status"] = "MATCHED_LEARNED_PATTERN"
                 r["narration"] = l["narration"]
                 del r["_needs_pass3"]
+                break
+
+    # ---------- PASS 2.6: narration_templates lookup ----------
+    # A human confirming order_1042's narration also generalized it into a
+    # template with the digit reference replaced by {REF} (db.py's
+    # resolve_exception). A DIFFERENT order's narration from the same
+    # recurring template (same surrounding text, a new reference) matches
+    # here -- but only resolves if the captured digits correspond to
+    # exactly one order still needing a match, the same discipline every
+    # other deterministic pass in this file holds to. This is the one
+    # place narration_rules generalizes beyond an exact string repeat --
+    # see README, 'the learned pattern store memorizes exact strings.'
+    templates = get_narration_templates()
+    compiled_templates = []
+    for t in templates:
+        parts = t["template"].split("{REF}")
+        if len(parts) != 2:
+            continue  # defensive: a template must carry exactly one placeholder
+        compiled_templates.append((re.compile(re.escape(parts[0]) + r"(\d+)" + re.escape(parts[1])), t))
+
+    if compiled_templates:
+        unmatched_order_ids = [r["order_id"] for r in results if r.get("_needs_pass3") and r["category"] is None]
+        unmatched_by_suffix = defaultdict(list)
+        for oid in unmatched_order_ids:
+            unmatched_by_suffix[oid.split("_")[1]].append(oid)
+
+        for li, l in enumerate(ledger):
+            if li in matched_ledger_rows or l["order_ref"]:
+                continue
+            for regex, t in compiled_templates:
+                match = regex.search(l["narration"])
+                if not match:
+                    continue
+                candidates = unmatched_by_suffix.get(match.group(1), [])
+                if len(candidates) != 1:
+                    continue  # zero or ambiguous -- decline, don't guess
+                oid = candidates[0]
+                matched_ledger_rows.add(li)
+                for r in results_by_order_id.get(oid, []):
+                    if r.get("_needs_pass3") and r["category"] is None:
+                        r["stage"].append(log(
+                            "2.6", "learned_template",
+                            f"narration_templates match -- narration '{l['narration']}' fits a template "
+                            f"human-confirmed on {t['confirmed_at']}, captured reference "
+                            f"{match.group(1)} uniquely identifies order {oid}",
+                        ))
+                        r["status"] = "MATCHED_LEARNED_PATTERN"
+                        r["narration"] = l["narration"]
+                        del r["_needs_pass3"]
+                        break
                 break
 
     # ---------- PASS 2.75: unambiguous exact digit reference ----------

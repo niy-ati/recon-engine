@@ -14,6 +14,7 @@ SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 
 from reconcile import reconcile, summarize  # noqa: E402
+import db  # noqa: E402
 
 
 SETTLEMENT_HEADER = ["settlement_id", "payment_id", "order_id", "gross", "mdr",
@@ -284,6 +285,78 @@ class TestExactDigitReference(unittest.TestCase):
             # pass, since the narration matched both of them.
             self.assertNotEqual(r1["status"], "MATCHED_EXACT_REFERENCE")
             self.assertNotEqual(r2["status"], "MATCHED_EXACT_REFERENCE")
+
+
+class TestNarrationTemplates(unittest.TestCase):
+    """Pass 2.6: a template learned from one confirmed narration
+    (db.resolve_exception, see test_db.py for the write side) generalizing
+    beyond the exact-string narration_rules match. Uses an isolated
+    DB_PATH, same pattern as test_db.py's DbTestCase, since reconcile()
+    reads narration_templates for real -- not mocked here, the actual
+    lookup runs against a real (temporary) SQLite file."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._original_db_path = db.DB_PATH
+        db.DB_PATH = Path(self._tmpdir.name) / "test_reconcile.db"
+
+    def tearDown(self):
+        db.DB_PATH = self._original_db_path
+        self._tmpdir.cleanup()
+
+    def _seed_template(self, template):
+        conn = db.get_connection()
+        try:
+            with conn:
+                conn.execute(
+                    "INSERT INTO narration_templates (template, confirmed_at, source) VALUES (?, ?, ?)",
+                    (template, "2026-01-01T00:00:00+00:00", "human_review"),
+                )
+        finally:
+            conn.close()
+
+    def test_template_disambiguates_a_narration_pass_2_75_would_decline(self):
+        """The exact same ambiguous narration shape as
+        test_ambiguous_double_digit_hit_falls_through_to_arbiter -- two
+        real order numbers both appear as substrings, so Pass 2.75 alone
+        would decline. A template anchored to the correct position
+        (learned from an earlier, unrelated confirm that also ended in
+        'original order 1042') disambiguates which number is actually
+        this row's reference."""
+        self._seed_template("refund for order {REF}, original order 1042")
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[
+                    ["setl_1", "pay_1", "order_1042", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False],
+                    ["setl_2", "pay_2", "order_1077", 999, 19.98, 3.60, 975.42, "UTR002", "2026-08-15", False],
+                ],
+                bank_rows=[
+                    ["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"],
+                    ["UTR002", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_2"],
+                ],
+                ledger_rows=[["INV-X", "", "Alice", 999, "refund for order 1077, original order 1042", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1077")
+            self.assertEqual(r["status"], "MATCHED_LEARNED_PATTERN")
+
+    def test_template_match_with_no_valid_candidate_does_not_guess(self):
+        """The template's fixed text matches, but the captured reference
+        doesn't correspond to any currently-unmatched order -- must not
+        invent a match."""
+        self._seed_template("pymt rcvd Alice ord#{REF} thx")
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_9999", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                # captures "1234" -- not this batch's order at all
+                ledger_rows=[["INV-1", "", "Alice", 999, "pymt rcvd Alice ord#1234 thx", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_9999")
+            self.assertNotEqual(r["status"], "MATCHED_LEARNED_PATTERN")
 
 
 class TestSummarize(unittest.TestCase):

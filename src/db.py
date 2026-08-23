@@ -54,6 +54,21 @@ CREATE TABLE IF NOT EXISTS narration_rules (
     confirmed_at TEXT NOT NULL,
     source TEXT NOT NULL
 );
+
+-- Order-independent generalization of narration_rules: the same confirmed
+-- narration with its order's own digit reference replaced by a {REF}
+-- placeholder. A recurring narration-generating system (the same customer,
+-- the same payment gateway template) produces the same surrounding text
+-- every time and only the order reference changes -- this lets a future,
+-- differently-numbered narration from that same template resolve without
+-- a fresh human confirm, which a plain exact-string narration_rules entry
+-- never could. See README, 'the learned pattern store memorizes exact
+-- strings, not a generalized template.'
+CREATE TABLE IF NOT EXISTS narration_templates (
+    template TEXT PRIMARY KEY,
+    confirmed_at TEXT NOT NULL,
+    source TEXT NOT NULL
+);
 """
 
 
@@ -183,11 +198,46 @@ def _is_narration_specific(conn: sqlite3.Connection, narration: str, order_id: s
     return True
 
 
+def _derive_template(narration: str, order_id: str) -> str | None:
+    """Replaces the FIRST occurrence of order_id's own digit suffix in
+    narration with a {REF} placeholder, so a future narration from the
+    same recurring template (same surrounding text, a different order's
+    digits) can be recognized without a fresh human confirm. Only ever
+    called after _is_narration_specific already confirmed the suffix is
+    present and uniquely identifies this order, so this never fabricates
+    a placeholder where none is warranted. Returns None if there is
+    nothing to generalize (defensive; should not happen given the caller's
+    guard)."""
+    own_digits = re.findall(r"\d+", order_id)
+    if not own_digits:
+        return None
+    own_suffix = own_digits[-1]
+    if own_suffix not in narration:
+        return None
+    template = narration.replace(own_suffix, "{REF}", 1)
+    return template if template != narration else None
+
+
+def get_narration_templates() -> list[dict]:
+    """Every learned narration template, in one query -- mirrors
+    get_all_narration_rules()'s bulk-fetch-once pattern so reconcile.py's
+    per-batch pass never opens a fresh connection per ledger row."""
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT * FROM narration_templates").fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
 def resolve_exception(exception_id: int, action: str, note: str | None = None) -> None:
     """action: 'confirm' | 'reject' -- terminal decisions only.
 
     Confirming a FUZZY_MATCH_NEEDS_REVIEW row also writes a narration_rules
-    entry, so the same narration resolves automatically next time."""
+    entry, so the same narration resolves automatically next time, and a
+    narration_templates entry generalizing that narration's own digit
+    reference to a {REF} placeholder, so a differently-numbered future
+    narration from the same recurring template also benefits."""
     status_map = {"confirm": "CONFIRMED", "reject": "REJECTED"}
     resolution_status = status_map.get(action)
     if resolution_status is None:
@@ -213,6 +263,12 @@ def resolve_exception(exception_id: int, action: str, note: str | None = None) -
                     "INSERT OR REPLACE INTO narration_rules (narration, order_id, confirmed_at, source) VALUES (?, ?, ?, ?)",
                     (row["narration"], row["order_id"], now, "human_review"),
                 )
+                template = _derive_template(row["narration"], row["order_id"])
+                if template is not None:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO narration_templates (template, confirmed_at, source) VALUES (?, ?, ?)",
+                        (template, now, "human_review"),
+                    )
     finally:
         conn.close()
 

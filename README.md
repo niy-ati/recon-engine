@@ -20,19 +20,20 @@ The governing principle: **every action the system takes must trace back to a ve
 
 ## Architecture
 
-![Architecture diagram showing data sources flowing through ingestion, six matching passes, a validation gate, persistence, and the review application](architecture.svg)
+![Architecture diagram showing data sources flowing through ingestion, seven matching passes, a validation gate, persistence, and the review application](assets/architecture.svg)
 
 The validation gate is a module **architecturally separate** from both the matching engine and the model calling logic. **The reconciliation engine has no import path to the raw model output**, checked by an automated test, not left as a convention someone could break silently. Every proposed match, deterministic or AI proposed, passes through the same gate before it can be marked resolved. This mirrors a governance principle Razorpay has [stated publicly for Agent Studio](https://razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control): **every agent action passes through a platform level validation layer before execution.**
 
 ## Reconciliation Logic
 
-Six passes run in strict order, cheapest and most certain first. A row is never sent to a more expensive pass once an earlier pass has resolved it with certainty.
+Seven passes run in strict order, cheapest and most certain first. A row is never sent to a more expensive pass once an earlier pass has resolved it with certainty.
 
 | Pass | What it matches on | Resolves without a model call |
 |---|---|---|
 | 1: Settlement to Bank | UTR, amount, value date | Yes |
 | 2: Settlement to Ledger | `order_id` | Yes |
-| 2.5: Learned Pattern | A narration a human already confirmed | Yes |
+| 2.5: Learned Pattern | A narration a human already confirmed, exact string | Yes |
+| 2.6: Learned Template | A different order's narration from the same recurring template | Yes |
 | 2.75: Exact Digit Reference | An unambiguous order number inside free text | Yes |
 | 3: Fuzzy Candidate Narrowing | Sequence similarity, builds a shortlist only | Yes, produces no decision |
 | 4: Confidence Gated Arbiter | A model picks one candidate off that shortlist | **No, the only pass that consults a model** |
@@ -40,6 +41,8 @@ Six passes run in strict order, cheapest and most certain first. A row is never 
 **Pass 1 resolves a real, underdocumented quirk in Razorpay's own settlement data.** A `settlement` is a batch carrying its own UTR. Per order detail comes from a separate [settlement recon line](https://razorpay.com/docs/api/settlements/fetch-recon/) carrying a **second, per line UTR**, `settlement_utr`, confirmed directly against [Razorpay's Route and Linked Account documentation](https://razorpay.com/docs/payments/route/linked-account/). **These two references can genuinely diverge for the same real transfer**, exactly the kind of divergence a merchant reconciling by bank statement alone would misclassify as a missing payout. When a settlement's own UTR has no matching bank row, Pass 1 checks every other unclaimed bank row for an exact amount and date match under a different UTR, and resolves it **only when exactly one such row exists.** Two or more candidates is a genuine coincidence, **left unresolved rather than guessed.**
 
 **Pass 2.5 cannot be poisoned by a careless confirmation.** A narration is only memorized for future automatic resolution if it **contains a numeric reference unique to that order among every other order the system has observed.** A generic confirmation such as "payment received, thank you" still resolves the row in front of the reviewer, but **is never written into the pattern store.**
+
+**Pass 2.6 is the one place the learned pattern store generalizes beyond an exact string repeat.** Confirming a match also stores that same narration with its order's own digit reference replaced by a placeholder. A **differently numbered narration from the same recurring template**, the same customer or the same payment gateway generating the same surrounding text every time, resolves against that template without a fresh confirm, but **only if the captured reference uniquely identifies exactly one order still needing a match**, the same discipline as every other deterministic pass here. This closes a real, previously named gap without generalizing wording it hasn't actually seen.
 
 **Pass 4 cannot introduce a candidate.** The model is restricted to the one to three orders Pass 3 already shortlisted. **It selects, it does not originate.**
 
@@ -65,13 +68,13 @@ Every metric below is computed from **one single source of truth** and read from
 
 Measured on the current **514 row synthetic batch, ten times the floor** typically used to validate a system of this kind. **A row an arbiter proposed but nobody has confirmed is real work still owed to a human, and is never counted inside the resolved figure.** Duplicate rows are **excluded from the cash figures entirely**, since that money already cleared under its sibling row and counting it again would double count cash that was never actually at risk.
 
-![Row resolution state and cash position clarity, both shown as stacked bars: resolved in green, pending human confirmation in orange, genuinely open in red](metrics.svg)
+![Row resolution state and cash position clarity, both shown as stacked bars: resolved in green, pending human confirmation in orange, genuinely open in red](assets/metrics.svg)
 
 ## Performance
 
 A 3,000 row synthetic stress test, profiled with `cProfile` rather than reasoned about, found the real bottleneck was not where intuition pointed. **The single largest cost, larger than the entire matching engine combined, was a persistence layer function reopening a fresh SQLite connection and re-running the full schema migration script once per unmatched ledger row**, instead of once per batch. Fixed with a single bulk read of every learned pattern at the start of the pass. Two additional linear scans, the settlement to ledger match and the result lookups feeding three separate passes, were each rebuilt as a dictionary index computed once per batch, mirroring an indexing pattern the first matching pass already used.
 
-![Before and after bar comparison for a 3,000 row batch, 6.6 seconds down to 0.9 seconds, and a 500 row batch, 0.51 seconds down to 0.06 seconds](performance.svg)
+![Before and after bar comparison for a 3,000 row batch, 6.6 seconds down to 0.9 seconds, and a 500 row batch, 0.51 seconds down to 0.06 seconds](assets/performance.svg)
 
 **Zero behavior change.** **All 88 tests passed unchanged before and after**, and the real 514 row batch produced **byte identical categorization and cash figures** before and after the fix. At 6,000 rows, double the original stress test ceiling, the fix held at 3.3 seconds, **confirming the correction scales** rather than just working at one measured size. This was a pure efficiency correction, not a rewrite of matching logic, **verified rather than assumed safe.**
 
@@ -99,7 +102,7 @@ Reconciliation of settlement, bank, and ledger data for a single direct to consu
 - **A second cash forecasting feature.** Razorpay already ships a [production Cashflow Forecaster](https://razorpay.com/newsroom/razorpay-launches-the-worlds-first-ai-native-agent-studio-for-payments-at-ftx26-powered-by-anthropics-claude/). This system instead **quantifies, in real rupee figures**, exactly how much cash position ambiguity it removes before that data would reach a forecaster. See [Metrics](#metrics).
 - **A metrics bug, found and corrected, not hidden.** Three places in this codebase independently computed a resolved percentage, and **all three counted an unconfirmed arbiter candidate as resolved.** Found by tracing the figure against the persistence layer's own definition of which rows require human action. **The correction moved the headline figure from 93.2% to the current, defensible 90.5%**, and is pinned down by five regression tests.
 - **Bank and ledger integrations are synthetic.** No live bank or accounting software API is connected. The settlement side has a **real, fired connection**, described under [Live Razorpay Integration](#live-razorpay-integration).
-- **The learned pattern store memorizes exact strings, not a generalized template.** A differently worded narration for the same customer next month **gets no benefit from a prior confirmation.**
+- **The learned pattern store generalizes the digit reference, not arbitrary wording.** Pass 2.6 lets a differently numbered narration from the same recurring template benefit from a prior confirmation without a fresh one. What it does **not** do: recognize a genuinely different phrasing of the same underlying event, since the surrounding text must still match exactly. **Requires at least one prior human confirm to exist at all** — on a freshly generated batch with no confirmed history, this pass has nothing to match against yet.
 - **The review application is single user, unauthenticated, local only.** A correct choice for this scope, **not a production deployment claim.**
 
 ## Setup
