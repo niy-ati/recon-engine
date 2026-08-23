@@ -32,10 +32,11 @@ checked directly against packages/blade/src/tokens/global/{colors,
 spacing,border}.ts, not approximated. Typography is a deliberate
 departure from Blade's own scale: Blade's actual heading face, TASA
 Orbiter, is a licensed commercial font with no free, legal source to
-embed here, so headings use Newsreader (a real serif) instead, sized up
-from Blade's documented scale for a more editorial, less admin-panel
-feel. This is a private, local dev tool, not an official Razorpay
-product.
+embed here, so headings use Sora (a real geometric grotesk) instead --
+closer to TASA Orbiter's own sans-serif, technical character than a
+serif substitute -- sized up from Blade's documented scale for more
+visual weight. This is a private, local dev tool, not an official
+Razorpay product.
 """
 import csv
 import json
@@ -98,10 +99,12 @@ PAGE_STYLE = """
     --font: 'Inter', 'Mulish', -apple-system, 'Segoe UI', Arial, sans-serif;
     /* Blade's real heading face, TASA Orbiter, is a licensed commercial
        font with no free, legal source to embed here -- checked directly,
-       not assumed. Newsreader is a genuine serif, freely available via
-       Google Fonts, giving headings real editorial weight and contrast
-       against the Inter body text instead of a same-family heading. */
-    --font-heading: 'Newsreader', Georgia, 'Times New Roman', serif;
+       not assumed. Sora is a genuine geometric grotesk, freely available
+       via Google Fonts, closer to TASA Orbiter's own tall-x-height,
+       technical character than a serif substitute would be -- headings
+       stay sans-serif, matching the real product, just a heavier weight
+       and different geometry than the Inter body text. */
+    --font-heading: 'Sora', 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
     --mono: 'Menlo', 'Cascadia Mono', Consolas, 'Roboto Mono', monospace;
     --shadow-low: 0px 2px 6px 0px hsla(220, 25%, 14%, 0.06);
     --shadow-mid: 0px 12px 24px -6px hsla(220, 25%, 14%, 0.10);
@@ -119,15 +122,15 @@ PAGE_STYLE = """
 
     /* Blade's real type scale, size/line-height paired exactly
        (packages/blade/.../global/typography.ts, onDesktop) */
-    --text-2xs: 13px;  --lh-2xs: 18px;
-    --text-xs:  15px;  --lh-xs:  21px;
-    --text-sm:  17px;  --lh-sm:  26px;
-    --text-md:  19px;  --lh-md:  26px;
-    --text-lg:  22px;  --lh-lg:  29px;
-    --text-xl:  27px;  --lh-xl:  35px;
-    --text-2xl: 35px;  --lh-2xl: 42px;
-    --text-3xl: 44px;  --lh-3xl: 50px;
-    --text-4xl: 54px;  --lh-4xl: 58px;
+    --text-2xs: 14px;  --lh-2xs: 19px;
+    --text-xs:  16.5px;  --lh-xs:  23px;
+    --text-sm:  18.5px;  --lh-sm:  27px;
+    --text-md:  21px;  --lh-md:  29px;
+    --text-lg:  24px;  --lh-lg:  31px;
+    --text-xl:  29px;  --lh-xl:  37px;
+    --text-2xl: 38px;  --lh-2xl: 45px;
+    --text-3xl: 47px;  --lh-3xl: 53px;
+    --text-4xl: 58px;  --lh-4xl: 62px;
     --ls-tight: -0.013em; /* Blade letterSpacings.50, -1.3% */
     --ls-tighter: -0.025em;
   }
@@ -160,7 +163,7 @@ PAGE_STYLE = """
   aside.rail nav { display:flex; flex-direction:column; gap:4px; }
   aside.rail nav a {
     display:flex; align-items:center; gap:var(--sp-4); padding:12px var(--sp-5);
-    border-radius:var(--radius-pill); color:var(--muted); text-decoration:none; font-size:15px; font-weight:600;
+    border-radius:var(--radius-pill); color:var(--muted); text-decoration:none; font-size:16.5px; font-weight:600;
     transition:background 0.14s, color 0.14s;
   }
   aside.rail nav a svg { width:18px; height:18px; flex-shrink:0; opacity:0.75; }
@@ -180,7 +183,7 @@ PAGE_STYLE = """
     font-weight:800; margin:0 0 var(--sp-3); letter-spacing:var(--ls-tighter);
   }
   h2 { font-family:var(--font-heading); font-size:var(--text-lg); line-height:var(--lh-lg); font-weight:700; margin:0 0 var(--sp-5); letter-spacing:-0.005em; }
-  p.kicker { color:var(--primary-strong); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 var(--sp-8); }
+  p.kicker { color:var(--primary-strong); font-weight:700; font-size:14.5px; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 var(--sp-8); }
 
   /* --------------------------------------------------------- Overview --- */
   .overview { display:flex; gap:var(--sp-7); margin-bottom:var(--sp-9); flex-wrap:wrap; align-items:stretch; }
@@ -196,9 +199,9 @@ PAGE_STYLE = """
     position:absolute; inset:22px; background:var(--panel); border-radius:50%;
     display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:inset 0 0 0 1px var(--border-subtle);
   }
-  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:24px; line-height:1; color:var(--primary); font-weight:800; letter-spacing:var(--ls-tighter); }
-  .donut .donut-label span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; font-weight:600; }
-  .legend { display:flex; flex-direction:column; gap:11px; font-size:14px; }
+  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:27px; line-height:1; color:var(--primary); font-weight:800; letter-spacing:var(--ls-tighter); }
+  .donut .donut-label span { font-size:12.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; font-weight:600; }
+  .legend { display:flex; flex-direction:column; gap:11px; font-size:15.5px; }
   .legend .row { display:flex; align-items:center; gap:10px; }
   .legend .swatch { width:11px; height:11px; border-radius:4px; flex-shrink:0; }
   .legend .pct { font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); margin-left:auto; padding-left:22px; font-weight:700; }
@@ -211,8 +214,8 @@ PAGE_STYLE = """
     display:flex; flex-direction:column; gap:var(--sp-5); transition:box-shadow 0.22s, transform 0.22s, border-color 0.22s;
   }
   .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); border-color:var(--primary-subtle); }
-  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:50px; line-height:1.05; color:var(--ink); font-weight:800; letter-spacing:var(--ls-tighter); }
-  .stat .stat-label { font-size:14px; color:var(--muted); font-weight:600; }
+  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:54px; line-height:1.05; color:var(--ink); font-weight:800; letter-spacing:var(--ls-tighter); }
+  .stat .stat-label { font-size:15.5px; color:var(--muted); font-weight:600; }
   .stat.tint-primary .icon-badge { background:var(--primary-subtle); color:var(--primary-strong); }
   .stat.tint-notice .icon-badge { background:var(--notice-bg); color:var(--notice); }
   .stat.tint-positive .icon-badge { background:var(--positive-bg); color:var(--positive); }
@@ -233,8 +236,8 @@ PAGE_STYLE = """
   }
   .category-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-high); }
   .category-card-text { display:flex; flex-direction:column; min-width:0; }
-  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:36px; font-weight:800; line-height:1.05; letter-spacing:var(--ls-tighter); }
-  .category-card-text span { font-size:13.5px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
+  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:39px; font-weight:800; line-height:1.05; letter-spacing:var(--ls-tighter); }
+  .category-card-text span { font-size:15px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
   .category-card.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
   .category-card.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
   .category-card.tone-positive .category-card-text b { color:var(--positive); }
@@ -254,8 +257,8 @@ PAGE_STYLE = """
   .stack-legend { display:flex; gap:var(--sp-8); margin-top:var(--sp-6); flex-wrap:wrap; }
   .stack-legend .item { display:flex; align-items:center; gap:10px; }
   .stack-legend .swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
-  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:25px; font-weight:800; color:var(--ink); }
-  .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
+  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:27px; font-weight:800; color:var(--ink); }
+  .stack-legend .item-label { font-size:14px; color:var(--muted); display:block; }
 
   /* ------------------------------------------------------------ Panels -- */
   .panel { background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l); box-shadow:var(--shadow-low); overflow:hidden; margin-bottom:var(--sp-8); }
@@ -274,22 +277,22 @@ PAGE_STYLE = """
   tbody tr { transition:background 0.12s; }
   tbody tr:hover { background:var(--primary-faint); }
   th {
-    background:var(--bg); font-size:12px; text-transform:uppercase; white-space:nowrap;
+    background:var(--bg); font-size:13.5px; text-transform:uppercase; white-space:nowrap;
     letter-spacing:0.06em; color:var(--muted); border-bottom:1px solid var(--border); font-weight:700;
   }
   th.sortable { cursor:pointer; user-select:none; }
   th.sortable:hover { color:var(--primary-strong); }
-  th.sortable .arrow { display:inline-block; margin-left:4px; opacity:0.35; font-size:10px; }
+  th.sortable .arrow { display:inline-block; margin-left:4px; opacity:0.35; font-size:11px; }
   th.sortable.sorted .arrow { opacity:1; color:var(--primary); }
   td.id-cell { overflow-wrap:anywhere; white-space:nowrap; }
-  td.amount-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; font-size:14px; font-weight:600; white-space:nowrap; }
+  td.amount-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; font-size:15.5px; font-weight:600; white-space:nowrap; }
 
   /* Order/settlement IDs as chips, not bare monospace text -- matches the
      pill/card treatment used everywhere else instead of looking like a
      leftover plain-text column. */
   .id-chip {
     display:inline-flex; align-items:center; font-family:var(--mono); font-variant-numeric:tabular-nums;
-    font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:var(--radius-s);
+    font-size:14px; font-weight:700; padding:5px 11px; border-radius:var(--radius-s);
     white-space:nowrap; letter-spacing:0.01em;
   }
   .id-chip-order { background:var(--primary-faint); color:var(--primary-strong); border:1px solid hsla(204,100%,50%,0.18); }
@@ -301,7 +304,7 @@ PAGE_STYLE = """
   td.reason-cell { min-width:320px; max-width:460px; padding:var(--sp-5) var(--sp-6); }
   .audit-box {
     background:var(--bg); border:1px solid var(--border-subtle); border-radius:var(--radius-m);
-    padding:var(--sp-5); font-size:14px; line-height:1.55; overflow-wrap:break-word;
+    padding:var(--sp-5); font-size:15.5px; line-height:1.55; overflow-wrap:break-word;
   }
   .audit-box mark {
     background:var(--primary-subtle); color:var(--primary-strong); padding:1px 5px; border-radius:4px;
@@ -309,7 +312,7 @@ PAGE_STYLE = """
   }
   .audit-box code.hl-quote {
     font-family:var(--mono); background:var(--panel); border:1px solid var(--border-subtle);
-    padding:1px 6px; border-radius:4px; font-size:12.5px; color:var(--muted);
+    padding:1px 6px; border-radius:4px; font-size:14px; color:var(--muted);
   }
   .audit-box strong.hl-point { color:var(--primary-strong); font-weight:800; }
   td.action-cell { min-width:190px; }
@@ -317,7 +320,7 @@ PAGE_STYLE = """
   td.action-cell input[type=text] { width:100%; }
 
   .pill {
-    display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
+    display:inline-flex; align-items:center; gap:5px; font-size:13.5px; font-weight:700;
     padding:4px 12px; border-radius:var(--radius-pill); letter-spacing:0.01em; white-space:nowrap;
   }
   .pill.notice { background:var(--notice-bg); color:var(--notice); }
@@ -325,18 +328,18 @@ PAGE_STYLE = """
   .pill.negative { background:var(--negative-bg); color:var(--negative); }
   .pill.positive { background:var(--positive-bg); color:var(--positive); }
   .cat {
-    font-family:var(--mono); font-size:12px; padding:4px 10px; border-radius:var(--radius-s);
+    font-family:var(--mono); font-size:13.5px; padding:4px 10px; border-radius:var(--radius-s);
     background:var(--bg); color:var(--muted); border:1px solid var(--border);
     display:inline-block; white-space:nowrap;
   }
   .cat-empty { color:var(--faint); }
 
-  .narration { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-top:6px; overflow-wrap:anywhere; }
-  .note-text { margin-top:9px; font-size:13px; color:var(--notice); background:var(--notice-bg); border-radius:var(--radius-s); padding:7px 11px; display:inline-block; }
-  details { margin-top:7px; font-size:12.5px; }
+  .narration { font-family:var(--mono); font-size:14px; color:var(--muted); margin-top:6px; overflow-wrap:anywhere; }
+  .note-text { margin-top:9px; font-size:14.5px; color:var(--notice); background:var(--notice-bg); border-radius:var(--radius-s); padding:7px 11px; display:inline-block; }
+  details { margin-top:7px; font-size:14px; }
   details summary { cursor:pointer; color:var(--primary); font-weight:600; list-style:none; }
   details summary::-webkit-details-marker { display:none; }
-  details summary:before { content:"▸ "; font-size:10px; }
+  details summary:before { content:"▸ "; font-size:11px; }
   details[open] summary:before { content:"▾ "; }
   details summary:hover { color:var(--primary-strong); }
   details > div { font-family:var(--mono); color:var(--muted); padding:4px 0 4px 16px; border-left:2px solid var(--primary-subtle); margin-top:5px; overflow-wrap:anywhere; }
@@ -380,8 +383,8 @@ PAGE_STYLE = """
     padding:var(--sp-8); transition:box-shadow 0.22s, transform 0.22s; display:flex; flex-direction:column; gap:var(--sp-5);
   }
   .source-card:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); }
-  .source-card .value { font-size:40px; font-weight:800; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
-  .source-card .label { font-size:13px; color:var(--muted); font-weight:600; }
+  .source-card .value { font-size:43px; font-weight:800; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
+  .source-card .label { font-size:14.5px; color:var(--muted); font-weight:600; }
 
   /* ------------------------------------------------------- Chat widget - */
   /* A friendlier shell over settlement_qa.py's existing deterministic
@@ -675,7 +678,7 @@ def render_shell(
 <title>{escape(title)} -- Settlement Reconciliation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Mulish:wght@400;500;600&family=Newsreader:ital,wght@0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Mulish:wght@400;500;600&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
 <style>{PAGE_STYLE}</style>
 </head>
 <body>
