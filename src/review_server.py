@@ -26,14 +26,15 @@ POST /note/<id>    -- attaches a clarification note without resolving the
 
 Stdlib-only (http.server + sqlite3): no framework, no build step.
 
-Every design token below -- color, type size/line-height/letter-spacing,
-spacing, radius, shadow -- is copied verbatim from Razorpay's open-source
-Blade design system (github.com/razorpay/blade), checked directly against
-packages/blade/src/tokens/global/{colors,typography,spacing,border}.ts and
-tokens/theme/bladeTheme.ts, not approximated. Heading typeface falls back
-to Blade's own documented fallback stack (Arial) since Blade's actual
-heading face, TASA Orbiter, is a licensed commercial font not available to
-embed here. This is a private, local dev tool, not an official Razorpay
+Color, spacing, and radius tokens below are copied verbatim from
+Razorpay's open-source Blade design system (github.com/razorpay/blade),
+checked directly against packages/blade/src/tokens/global/{colors,
+spacing,border}.ts, not approximated. Typography is a deliberate
+departure from Blade's own scale: Blade's actual heading face, TASA
+Orbiter, is a licensed commercial font with no free, legal source to
+embed here, so headings use Newsreader (a real serif) instead, sized up
+from Blade's documented scale for a more editorial, less admin-panel
+feel. This is a private, local dev tool, not an official Razorpay
 product.
 """
 import csv
@@ -48,6 +49,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import db
+import settlement_qa
 from config import load_dotenv
 
 load_dotenv()
@@ -93,12 +95,13 @@ PAGE_STYLE = """
     --information: hsl(200, 100%, 41%);
     --information-bg: hsl(198, 85%, 95%);
 
-    --font: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
-    /* 'Inter Tight' is a real, distinct heading face used on razorpay.com
-       itself (21 occurrences in the fetched page), not a substitute
-       guessed at -- freely embeddable via Google Fonts, unlike Blade's
-       actual (licensed) heading face, TASA Orbiter. */
-    --font-heading: 'Inter Tight', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    --font: 'Inter', 'Mulish', -apple-system, 'Segoe UI', Arial, sans-serif;
+    /* Blade's real heading face, TASA Orbiter, is a licensed commercial
+       font with no free, legal source to embed here -- checked directly,
+       not assumed. Newsreader is a genuine serif, freely available via
+       Google Fonts, giving headings real editorial weight and contrast
+       against the Inter body text instead of a same-family heading. */
+    --font-heading: 'Newsreader', Georgia, 'Times New Roman', serif;
     --mono: 'Menlo', 'Cascadia Mono', Consolas, 'Roboto Mono', monospace;
     --shadow-low: 0px 2px 6px 0px hsla(220, 25%, 14%, 0.06);
     --shadow-mid: 0px 12px 24px -6px hsla(220, 25%, 14%, 0.10);
@@ -116,15 +119,15 @@ PAGE_STYLE = """
 
     /* Blade's real type scale, size/line-height paired exactly
        (packages/blade/.../global/typography.ts, onDesktop) */
-    --text-2xs: 12px;  --lh-2xs: 17px;
-    --text-xs:  14px;  --lh-xs:  20px;
-    --text-sm:  16px;  --lh-sm:  24px;
-    --text-md:  18px;  --lh-md:  24px;
-    --text-lg:  20px;  --lh-lg:  26px;
-    --text-xl:  24px;  --lh-xl:  32px;
-    --text-2xl: 32px;  --lh-2xl: 38px;
-    --text-3xl: 40px;  --lh-3xl: 46px;
-    --text-4xl: 48px;  --lh-4xl: 52px;
+    --text-2xs: 13px;  --lh-2xs: 18px;
+    --text-xs:  15px;  --lh-xs:  21px;
+    --text-sm:  17px;  --lh-sm:  26px;
+    --text-md:  19px;  --lh-md:  26px;
+    --text-lg:  22px;  --lh-lg:  29px;
+    --text-xl:  27px;  --lh-xl:  35px;
+    --text-2xl: 35px;  --lh-2xl: 42px;
+    --text-3xl: 44px;  --lh-3xl: 50px;
+    --text-4xl: 54px;  --lh-4xl: 58px;
     --ls-tight: -0.013em; /* Blade letterSpacings.50, -1.3% */
     --ls-tighter: -0.025em;
   }
@@ -208,7 +211,7 @@ PAGE_STYLE = """
     display:flex; flex-direction:column; gap:var(--sp-5); transition:box-shadow 0.22s, transform 0.22s, border-color 0.22s;
   }
   .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); border-color:var(--primary-subtle); }
-  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:44px; line-height:1.05; color:var(--ink); font-weight:800; letter-spacing:var(--ls-tighter); }
+  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:50px; line-height:1.05; color:var(--ink); font-weight:800; letter-spacing:var(--ls-tighter); }
   .stat .stat-label { font-size:14px; color:var(--muted); font-weight:600; }
   .stat.tint-primary .icon-badge { background:var(--primary-subtle); color:var(--primary-strong); }
   .stat.tint-notice .icon-badge { background:var(--notice-bg); color:var(--notice); }
@@ -230,7 +233,7 @@ PAGE_STYLE = """
   }
   .category-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-high); }
   .category-card-text { display:flex; flex-direction:column; min-width:0; }
-  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:32px; font-weight:800; line-height:1.05; letter-spacing:var(--ls-tighter); }
+  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:36px; font-weight:800; line-height:1.05; letter-spacing:var(--ls-tighter); }
   .category-card-text span { font-size:13.5px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
   .category-card.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
   .category-card.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
@@ -251,7 +254,7 @@ PAGE_STYLE = """
   .stack-legend { display:flex; gap:var(--sp-8); margin-top:var(--sp-6); flex-wrap:wrap; }
   .stack-legend .item { display:flex; align-items:center; gap:10px; }
   .stack-legend .swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
-  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:22px; font-weight:800; color:var(--ink); }
+  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:25px; font-weight:800; color:var(--ink); }
   .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
   /* ------------------------------------------------------------ Panels -- */
@@ -377,12 +380,146 @@ PAGE_STYLE = """
     padding:var(--sp-8); transition:box-shadow 0.22s, transform 0.22s; display:flex; flex-direction:column; gap:var(--sp-5);
   }
   .source-card:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); }
-  .source-card .value { font-size:36px; font-weight:800; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
+  .source-card .value { font-size:40px; font-weight:800; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
   .source-card .label { font-size:13px; color:var(--muted); font-weight:600; }
+
+  /* ------------------------------------------------------- Chat widget - */
+  /* A friendlier shell over settlement_qa.py's existing deterministic
+     lookup, not a new AI surface -- see Handler._handle_ask. Same
+     grounded, keyword-matched retrieval either way; this just makes it
+     feel like a conversation instead of a CLI. */
+  .chat-toggle {
+    position:fixed; right:var(--sp-8); bottom:var(--sp-8); width:60px; height:60px;
+    border-radius:50%; background:var(--primary); color:#fff; border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px -6px var(--primary-glow);
+    transition:transform 0.18s, box-shadow 0.18s; z-index:40;
+  }
+  .chat-toggle:hover { transform:translateY(-2px) scale(1.04); box-shadow:0 14px 30px -6px var(--primary-glow); }
+  .chat-toggle svg { width:26px; height:26px; }
+  .chat-panel {
+    position:fixed; right:var(--sp-8); bottom:calc(var(--sp-8) + 76px); width:380px; max-width:calc(100vw - 40px);
+    height:520px; max-height:70vh; background:var(--panel); border-radius:var(--radius-xl);
+    box-shadow:var(--shadow-high); border:1px solid var(--border-subtle); display:none;
+    flex-direction:column; overflow:hidden; z-index:41;
+  }
+  .chat-panel.open { display:flex; }
+  .chat-panel-head {
+    background:var(--primary); color:#fff; padding:var(--sp-6) var(--sp-7); display:flex;
+    align-items:center; justify-content:space-between; flex-shrink:0;
+  }
+  .chat-panel-head .title { font-family:var(--font-heading); font-weight:700; font-size:20px; }
+  .chat-panel-head .sub { font-size:12.5px; color:#EAF6FF; margin-top:2px; }
+  .chat-panel-head button {
+    background:rgba(255,255,255,0.18); border:none; color:#fff; width:30px; height:30px; border-radius:50%;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; padding:0;
+  }
+  .chat-messages { flex:1; overflow-y:auto; padding:var(--sp-6); display:flex; flex-direction:column; gap:var(--sp-5); }
+  .chat-msg { max-width:85%; padding:11px 15px; border-radius:var(--radius-m); font-size:14.5px; line-height:1.5; white-space:pre-wrap; }
+  .chat-msg.bot { background:var(--bg); color:var(--ink); align-self:flex-start; border-bottom-left-radius:4px; }
+  .chat-msg.user { background:var(--primary); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
+  .chat-msg.pending { color:var(--faint); font-style:italic; }
+  .chat-suggestions { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--sp-6) var(--sp-5); flex-shrink:0; }
+  .chat-suggestions button {
+    background:var(--primary-faint); color:var(--primary-strong); border:1px solid var(--primary-subtle);
+    border-radius:var(--radius-pill); padding:6px 13px; font-size:12.5px; font-weight:600; cursor:pointer;
+  }
+  .chat-suggestions button:hover { background:var(--primary-subtle); }
+  .chat-input-row { display:flex; gap:10px; padding:var(--sp-5) var(--sp-6); border-top:1px solid var(--border-subtle); flex-shrink:0; }
+  .chat-input-row input { flex:1; width:auto; }
+  .chat-input-row button {
+    background:var(--primary); color:#fff; border:none; border-radius:var(--radius-pill); width:44px; height:44px;
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .chat-input-row button svg { width:18px; height:18px; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition:none !important; }
   }
+"""
+
+CHAT_WIDGET = """
+<button class="chat-toggle" id="chat-toggle" aria-label="Ask about this batch" title="Ask about this batch">
+  <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H10l-4.5 3.5V17H5.5C4.67 17 4 16.33 4 15.5v-10z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+</button>
+<div class="chat-panel" id="chat-panel">
+  <div class="chat-panel-head">
+    <div>
+      <div class="title">Ask about this batch</div>
+      <div class="sub">Reads the same persisted data as every page here</div>
+    </div>
+    <button id="chat-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-msg bot">Ask me about a specific order, a category count, how many rows are open, or the overall resolution rate. I only answer from the actual reconciliation data for this run &mdash; if I don't recognize the question, I'll say so instead of guessing.</div>
+  </div>
+  <div class="chat-suggestions">
+    <button type="button" data-q="how many are open">How many are open?</button>
+    <button type="button" data-q="what's my resolution rate">Resolution rate?</button>
+    <button type="button" data-q="exceptions by category">Breakdown by category</button>
+  </div>
+  <div class="chat-input-row">
+    <input type="text" id="chat-input" placeholder="e.g. what happened to order_1032" autocomplete="off">
+    <button id="chat-send" aria-label="Send">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-7-7 18-3-8-8-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+<script>
+(function () {
+  var toggle = document.getElementById("chat-toggle");
+  var panel = document.getElementById("chat-panel");
+  var closeBtn = document.getElementById("chat-close");
+  var messages = document.getElementById("chat-messages");
+  var input = document.getElementById("chat-input");
+  var sendBtn = document.getElementById("chat-send");
+
+  function open() { panel.classList.add("open"); input.focus(); }
+  function close() { panel.classList.remove("open"); }
+  toggle.addEventListener("click", function () {
+    panel.classList.contains("open") ? close() : open();
+  });
+  closeBtn.addEventListener("click", close);
+
+  function addMessage(text, cls) {
+    var el = document.createElement("div");
+    el.className = "chat-msg " + cls;
+    el.textContent = text;
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+  }
+
+  function ask(question) {
+    if (!question) return;
+    addMessage(question, "user");
+    input.value = "";
+    var pending = addMessage("thinking...", "bot pending");
+    fetch("/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: question })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        pending.textContent = data.answer;
+        pending.className = "chat-msg bot";
+        messages.scrollTop = messages.scrollHeight;
+      })
+      .catch(function () {
+        pending.textContent = "Could not reach the server -- is review_server.py still running?";
+        pending.className = "chat-msg bot";
+      });
+  }
+
+  sendBtn.addEventListener("click", function () { ask(input.value.trim()); });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") ask(input.value.trim());
+  });
+  Array.prototype.slice.call(document.querySelectorAll(".chat-suggestions button")).forEach(function (btn) {
+    btn.addEventListener("click", function () { ask(btn.getAttribute("data-q")); });
+  });
+})();
+</script>
 """
 
 INTERACTIVITY_SCRIPT = """
@@ -538,7 +675,7 @@ def render_shell(
 <title>{escape(title)} -- Settlement Reconciliation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Mulish:wght@400;500;600&family=Newsreader:ital,wght@0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
 <style>{PAGE_STYLE}</style>
 </head>
 <body>
@@ -557,6 +694,7 @@ def render_shell(
     {body_html}
   </main>
   {extra_script}
+  {CHAT_WIDGET}
 </body>
 </html>"""
 
@@ -1043,9 +1181,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        parts = parsed.path.strip("/").split("/")
+
+        if len(parts) == 1 and parts[0] == "ask":
+            self._handle_ask()
+            return
+
         length = int(self.headers.get("Content-Length", 0))
         fields = parse_qs(self.rfile.read(length).decode("utf-8"))
-        parts = parsed.path.strip("/").split("/")
 
         try:
             if len(parts) == 2 and parts[0] == "resolve":
@@ -1065,10 +1208,35 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Location", "/queue")
         self.end_headers()
 
+    def _handle_ask(self):
+        """The chat widget's endpoint. Reads a real question, hands it
+        straight to settlement_qa.answer() -- the same deterministic,
+        keyword-matched, hallucination-free lookup src/settlement_qa.py
+        has always used -- and returns its real answer as JSON. No model
+        is involved anywhere in this path; the "chat" is a friendlier
+        shell over the same grounded retrieval, not a new AI surface."""
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            question = str(payload.get("question", "")).strip()
+        except (ValueError, json.JSONDecodeError):
+            question = ""
+
+        answer = settlement_qa.answer(question) if question else "Type a question first."
+        self._respond_json({"answer": answer})
+
     def _respond_html(self, html):
         body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _respond_json(self, data):
+        body = json.dumps(data).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

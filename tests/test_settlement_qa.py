@@ -85,6 +85,18 @@ class TestResolutionRate(SettlementQaTestCase):
         result = qa.answer("what's my resolution rate")
         self.assertIn(f"{expected_pct}%", result)
 
+    def test_resolution_rate_excludes_unconfirmed_fuzzy_matches(self):
+        """Regression test for the same metrics bug already fixed in
+        reconcile.py and review_server.py, caught here too:
+        MATCHED_LOW_CONFIDENCE must not count as resolved. Of the 5 seeded
+        rows, only order_1 (plain MATCHED) is genuinely resolved with zero
+        human input -- 1 of 5, 20.0%, computed independently of
+        RESOLVED_STATUSES so a reintroduced bug can't pass by agreeing
+        with itself."""
+        result = qa.answer("what's my resolution rate")
+        self.assertIn("20.0%", result)
+        self.assertNotIn("MATCHED_LOW_CONFIDENCE", qa.RESOLVED_STATUSES)
+
 
 class TestUnknownQuestion(SettlementQaTestCase):
     def test_unrecognized_question_admits_it_not_guesses(self):

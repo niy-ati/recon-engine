@@ -32,9 +32,17 @@ KNOWN_CATEGORIES = [
     "FUZZY_MATCH_NEEDS_REVIEW", "AFA_MANDATE_HOLD", "ON_HOLD_BY_RAZORPAY",
 ]
 
+# MATCHED_LOW_CONFIDENCE deliberately excluded: it's an arbiter's proposed
+# candidate sitting in the human review queue, not a resolved row --
+# db.py's own needs_action rule already treats it exactly like EXCEPTION.
+# This mirrors the same fix already made in reconcile.py's summarize() and
+# review_server.py's compute_cash_clarity() / render_donut() -- catching
+# the same bug here too, since this module computes "resolved" a fourth
+# time, independently, and would otherwise disagree with what the review
+# site itself shows for the exact same batch.
 RESOLVED_STATUSES = {
     "MATCHED", "MATCHED_WITH_VARIANCE", "MATCHED_EXACT_REFERENCE",
-    "MATCHED_LEARNED_PATTERN", "MATCHED_AI_ASSISTED", "MATCHED_LOW_CONFIDENCE",
+    "MATCHED_LEARNED_PATTERN", "MATCHED_AI_ASSISTED",
 }
 
 
