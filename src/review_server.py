@@ -596,9 +596,17 @@ def render_overview():
 
 # ------------------------------------------------------------- Review queue
 
+def render_log_entry(entry):
+    if isinstance(entry, dict):
+        confidence = f" confidence={entry['confidence']:.2f}" if entry.get("confidence") is not None else ""
+        return (f"[pass {escape(str(entry.get('pass', '?')))}] {escape(entry.get('action', ''))}{confidence} "
+                f"-- {escape(entry.get('detail', ''))}")
+    return escape(str(entry))  # legacy plain-string entries from before structured logging
+
+
 def render_row(r, show_actions=True):
     replay_log = json.loads(r["replay_log"] or "[]")
-    replay_html = "".join(f"<div>{escape(s)}</div>" for s in replay_log) or "<div>(no stages recorded)</div>"
+    replay_html = "".join(f"<div>{render_log_entry(s)}</div>" for s in replay_log) or "<div>(no stages recorded)</div>"
     note_html = (f'<div class="note-text">Note: "{escape(r["resolution_note"])}"</div>'
                  if r["resolution_note"] else "")
     narration_html = (f'<div class="narration">narration: "{escape(r["narration"])}"</div>'

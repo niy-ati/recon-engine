@@ -18,7 +18,7 @@ live bank/Tally API is available in this environment.
 """
 import csv
 import difflib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
 
@@ -44,7 +44,24 @@ def base_settlement_id(settlement_id):
     return settlement_id[:-4] if settlement_id.endswith("_dup") else settlement_id
 
 
-def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
+def new_correlation_id():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic", correlation_id=None):
+    correlation_id = correlation_id or new_correlation_id()
+
+    def log(pass_name, action, detail, confidence=None):
+        # Structured, not a free-text string: machine-parseable, and
+        # correlation_id ties every entry back to the run that produced it
+        # -- the same identifier db.py stores as run_id on the row itself.
+        return {
+            "pass": pass_name, "action": action, "detail": detail,
+            "confidence": confidence,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            "correlation_id": correlation_id,
+        }
+
     settlements = ingest.load_settlements(source=settlement_source, data_dir=data_dir)
     bank = load_csv(f"{data_dir}/bank_statement.csv")
     ledger = load_csv(f"{data_dir}/internal_ledger.csv")
@@ -81,12 +98,13 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
                 break
             elif amt_diff <= AMOUNT_TOLERANCE and date_diff > DATE_TOLERANCE_DAYS:
                 bank_match = bi
-                record["stage"].append(f"date offset {date_diff}d beyond {DATE_TOLERANCE_DAYS}d tolerance")
+                record["stage"].append(log("1", "date_tolerance_exceeded",
+                                            f"date offset {date_diff}d beyond {DATE_TOLERANCE_DAYS}d tolerance"))
 
         if bank_match is not None:
             matched_bank_rows.add(bank_match)
             matched_settlement_ids.add(s["settlement_id"])
-            record["stage"].append("PASS1: settlement<->bank matched on UTR+amount+date")
+            record["stage"].append(log("1", "matched", "settlement<->bank matched on UTR+amount+date"))
         elif s.get("on_hold"):
             # Real, documented field on the settlement recon line. Checked
             # before the rounding fallback below since there's no bank
@@ -99,7 +117,7 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
                                  "books should reflect honestly, distinct from a normal T+2 pipeline "
                                  "delay or a genuinely unexplained missing settlement.")
             record["status"] = "EXCEPTION"
-            record["stage"].append("PASS1: on_hold=true on the settlement recon line")
+            record["stage"].append(log("1", "on_hold", "on_hold=true on the settlement recon line"))
         else:
             # Same UTR, amount off by a small margin -> rounding/fee drift.
             # Tracks the closest candidate by amt_diff rather than the last
@@ -161,7 +179,7 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
                 record["category"] = "PARTIAL_PAYMENT"
                 record["reason"] = "Ledger narration indicates a partial refund was netted into this settlement -- net amount is gross minus refund, not a mismatch."
                 record["status"] = "MATCHED_WITH_VARIANCE"
-            record["stage"].append("PASS2: settlement<->ledger matched on order_id")
+            record["stage"].append(log("2", "matched", "settlement<->ledger matched on order_id"))
         else:
             record["_needs_pass3"] = True
 
@@ -179,10 +197,11 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
         matched_ledger_rows.add(li)
         for r in results:
             if r["order_id"] == hit["order_id"] and r.get("_needs_pass3") and r["category"] is None:
-                r["stage"].append(
-                    f"PASS2.5: narration_rules match -- narration '{l['narration']}' was "
-                    f"human-confirmed on {hit['confirmed_at']} -> order_id {hit['order_id']}"
-                )
+                r["stage"].append(log(
+                    "2.5", "learned_pattern",
+                    f"narration_rules match -- narration '{l['narration']}' was human-confirmed "
+                    f"on {hit['confirmed_at']} -> order_id {hit['order_id']}",
+                ))
                 r["status"] = "MATCHED_LEARNED_PATTERN"
                 r["narration"] = l["narration"]
                 del r["_needs_pass3"]
@@ -212,11 +231,12 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
         matched_ledger_rows.add(li)
         for r in results:
             if r["order_id"] == oid and r.get("_needs_pass3") and r["category"] is None:
-                r["stage"].append(
-                    f"PASS2.75: unambiguous exact digit reference -- narration '{l['narration']}' "
-                    f"contains order {oid}'s number and no other unmatched order's -- resolved "
-                    f"deterministically, no arbiter call needed"
-                )
+                r["stage"].append(log(
+                    "2.75", "exact_reference",
+                    f"unambiguous exact digit reference -- narration '{l['narration']}' contains "
+                    f"order {oid}'s number and no other unmatched order's -- resolved "
+                    f"deterministically, no arbiter call needed",
+                ))
                 r["status"] = "MATCHED_EXACT_REFERENCE"
                 r["narration"] = l["narration"]
                 del r["_needs_pass3"]
@@ -251,10 +271,12 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
         matched_ledger_rows.add(li)
         for r in results:
             if r["order_id"] == arb.candidate_id and r.get("_needs_pass3") and r["category"] is None:
-                r["stage"].append(
-                    f"PASS3: shortlist={shortlist} -> PASS4 arbiter picked {arb.candidate_id} "
-                    f"(confidence={arb.confidence:.2f}, auto_applied={arb.auto_applied}) :: {arb.reason}"
-                )
+                r["stage"].append(log(
+                    "3/4", "arbiter_picked",
+                    f"shortlist={shortlist} -> arbiter picked {arb.candidate_id} "
+                    f"(auto_applied={arb.auto_applied}) :: {arb.reason}",
+                    confidence=arb.confidence,
+                ))
                 if arb.auto_applied:
                     r["status"] = "MATCHED_AI_ASSISTED"
                 else:
@@ -284,7 +306,7 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
                          "match_key": f"bank_orphan:{b['utr']}",
                          "status": "EXCEPTION", "category": "UNEXPLAINED",
                          "reason": f"Bank credit of Rs.{b['credited_amount']} on {b['value_date']} has no matching settlement_id anywhere in the settlement report.",
-                         "stage": ["No settlement counterpart found"]})
+                         "stage": [log("final", "unexplained", "no settlement counterpart found")]})
 
     # ---------- Ledger rows never matched at all ----------
     # match_key falls back to invoice_id when order_ref is blank (a messy
@@ -301,7 +323,8 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
                              "reason": ("Charge never settled -- ledger shows a subscription renewal that crossed the RBI e-mandate AFA threshold (>Rs.15,000) and needs a compliant step-up re-authentication, not a blind retry."
                                         if is_afa else
                                         "Ledger entry has no matching settlement or bank record -- possibly an invoice raised for a payment that was never actually captured."),
-                             "stage": ["No settlement or bank counterpart found"]})
+                             "stage": [log("final", "afa_mandate_hold" if is_afa else "unexplained",
+                                           "no settlement or bank counterpart found")]})
 
     return results
 

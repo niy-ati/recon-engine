@@ -6,11 +6,10 @@ from a live, inspectable database instead of a CSV re-upload.
 import argparse
 import csv
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 import db
-from reconcile import reconcile, summarize
+from reconcile import reconcile, summarize, new_correlation_id
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -23,8 +22,13 @@ def generate(settlement_source="synthetic"):
               "statement and internal ledger remain synthetic (no live "
               "bank/Tally API is available here).")
 
+    # One id generated here, before matching starts, threaded into every
+    # structured log entry reconcile() builds AND into the row's own
+    # run_id column in SQLite -- one identifier, not two competing ones.
+    run_id = new_correlation_id()
+
     start = time.perf_counter()
-    results = reconcile(settlement_source=settlement_source)
+    results = reconcile(settlement_source=settlement_source, correlation_id=run_id)
     elapsed_seconds = time.perf_counter() - start
 
     if settlement_source == "live" and not any(r.get("settlement_id") for r in results):
@@ -35,7 +39,6 @@ def generate(settlement_source="synthetic"):
 
     summary = summarize(results)
 
-    run_id = datetime.now(timezone.utc).isoformat(timespec="seconds")
     db.persist_results(results, run_id)
     print(f"Persisted {len(results)} rows to SQLite (run_id={run_id}, "
           f"settlement_source={settlement_source}) -- "

@@ -263,5 +263,56 @@ class TestSummarize(unittest.TestCase):
             self.assertEqual(summary["overall_resolved_pct"], 100.0)
 
 
+class TestStructuredLogging(unittest.TestCase):
+    def test_stage_entries_are_structured_not_strings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertGreater(len(r["stage"]), 0)
+            for entry in r["stage"]:
+                self.assertIsInstance(entry, dict)
+                for key in ("pass", "action", "detail", "confidence", "timestamp", "correlation_id"):
+                    self.assertIn(key, entry)
+
+    def test_every_row_shares_one_correlation_id_per_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[
+                    ["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False],
+                    ["setl_2", "pay_2", "order_2", 999, 19.98, 3.60, 975.42, "UTR002", "2026-08-15", False],
+                ],
+                bank_rows=[
+                    ["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"],
+                    ["UTR002", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_2"],
+                ],
+                ledger_rows=[
+                    ["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60],
+                    ["INV-2", "order_2", "Bob", 999, "Payment received order order_2 - Bob", 3.60],
+                ],
+            )
+            results = reconcile(data_dir=tmp, correlation_id="fixed-test-id")
+            ids = {entry["correlation_id"] for r in results for entry in r["stage"]}
+            self.assertEqual(ids, {"fixed-test-id"})
+
+    def test_explicit_correlation_id_is_honored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp, correlation_id="my-run-42")
+            r = find(results, "order_1")
+            self.assertEqual(r["stage"][0]["correlation_id"], "my-run-42")
+
+
 if __name__ == "__main__":
     unittest.main()
