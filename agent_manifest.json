@@ -25,7 +25,8 @@
       "Categorize an unmatched row into a named exception type with a stated reason",
       "Auto-apply a match only when both hold at once: confidence >= 0.90 AND the model tier that produced it is on an explicit trusted-tier allowlist",
       "Record a human's confirm/reject/note decision against a specific row",
-      "Answer plain-language questions about the last run (order status, category counts, resolution rate) by reading the same persisted data, never inventing a figure"
+      "Answer plain-language questions about the last run (order status, category counts, resolution rate) by reading the same persisted data, never inventing a figure",
+      "Quantify (not forecast) how much of a batch's exception-driven cash position this run resolved versus what's genuinely still open, computed from the same persisted net_amount/category/status columns"
     ],
     "will_never_do": [
       "Post an entry to a real accounting system or settlement ledger -- this agent only proposes, a human or a separate posting system commits",
@@ -39,7 +40,8 @@
     "module": "src/validation_gate.py, separate from src/reconcile.py and src/llm_matcher.py",
     "gate_rule": "auto_applied = (confidence >= CONFIDENCE_AUTO_ACCEPT) AND (tier in AUTO_APPLY_TRUSTED_TIERS); otherwise routed to human review",
     "audit_trail": "Per-row structured replay_log (pass, action, confidence, timestamp, correlation_id) recording which pass resolved it and why, visible in the review queue",
-    "idempotency": "Re-running the same batch upserts on a stable match_key instead of deleting and reinserting -- a human's earlier confirm/reject decision is never erased by a later run (src/db.py)"
+    "idempotency": "Re-running the same batch upserts on a stable match_key instead of deleting and reinserting -- a human's earlier confirm/reject decision is never erased by a later run (src/db.py)",
+    "learned_pattern_guard": "A human's confirm always succeeds, but a narration only gets memoized into the learned-pattern store if it contains a digit run unique to that order among every other order the agent has seen -- an overly generic confirm can't poison future auto-matching (src/db.py, _is_narration_specific)"
   },
 
   "human_control": {
