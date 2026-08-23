@@ -22,6 +22,7 @@ Mapping used below:
 """
 import csv
 import json
+import time
 import urllib.error
 import urllib.request
 from base64 import b64encode
@@ -33,6 +34,10 @@ import generic_gateway_adapter
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 API_BASE = "https://api.razorpay.com/v1"
+
+MAX_RETRIES = 3
+BACKOFF_BASE_SECONDS = 1
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 def normalize_recon_line(raw):
@@ -56,22 +61,43 @@ def normalize_recon_line(raw):
     }
 
 
-def _live_get(path, key_id, key_secret, params=None):
+def _live_get(path, key_id, key_secret, params=None, max_retries=MAX_RETRIES, sleep=time.sleep):
     """Authenticated GET against the Razorpay API using HTTP Basic Auth
     (key_id as username, key_secret as password). Never logs the
-    Authorization header; raises with Razorpay's own error body on failure."""
+    Authorization header; raises with Razorpay's own error body on failure.
+
+    Retries with exponential backoff on network errors and on retryable
+    HTTP statuses (429 rate-limited, 5xx server errors) -- a flaky network
+    call with no retry is a real risk during a live demo, not a
+    hypothetical one. A 4xx client error (bad credentials, bad request)
+    fails immediately instead: retrying an auth failure wastes time and
+    won't ever succeed on its own. `sleep` is injectable so tests can
+    exercise the retry loop without actually waiting."""
     url = f"{API_BASE}/{path}"
     if params:
         url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
 
     auth = b64encode(f"{key_id}:{key_secret}".encode()).decode()
     req = urllib.request.Request(url, headers={"Authorization": f"Basic {auth}"})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
-        raise RuntimeError(f"Razorpay API returned HTTP {e.code} for {path}: {body}") from None
+
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")
+            error = RuntimeError(f"Razorpay API returned HTTP {e.code} for {path}: {body}")
+            if e.code not in RETRYABLE_STATUS_CODES:
+                raise error from None
+            last_error = error
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            last_error = RuntimeError(f"Network error calling Razorpay API for {path}: {e}")
+
+        if attempt < max_retries:
+            sleep(BACKOFF_BASE_SECONDS * (2 ** attempt))
+
+    raise last_error
 
 
 def fetch_live_recon(year, month, day=None):
