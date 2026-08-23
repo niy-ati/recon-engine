@@ -47,7 +47,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 random.seed(42)
 
-N_ORDERS = 80  # keep >50 per the track's stated floor, small enough to eyeball
+N_ORDERS = 500  # well past the track's 50+ floor -- enough volume that every
+                # category has multiple real examples on the live review site,
+                # not just one of each
 MDR_RATE = 0.02
 GST_RATE = 0.18
 START = date(2026, 8, 1)
