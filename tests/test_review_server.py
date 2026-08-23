@@ -39,5 +39,32 @@ class TestRenderLogEntry(unittest.TestCase):
         self.assertNotIn("<script>", html)
 
 
+class TestSummarizeReplay(unittest.TestCase):
+    def test_builds_capitalized_semicolon_joined_line_from_details(self):
+        replay_log = [
+            {"pass": "1", "action": "matched", "detail": "settlement<->bank matched on UTR+amount+date",
+             "confidence": None, "timestamp": "x", "correlation_id": "run-1"},
+            {"pass": "2", "action": "matched", "detail": "settlement<->ledger matched on order_id",
+             "confidence": None, "timestamp": "x", "correlation_id": "run-1"},
+        ]
+        summary = review_server.summarize_replay(replay_log)
+        self.assertEqual(
+            summary,
+            "Settlement<->bank matched on UTR+amount+date; Settlement<->ledger matched on order_id",
+        )
+
+    def test_empty_replay_log_returns_empty_string(self):
+        self.assertEqual(review_server.summarize_replay([]), "")
+
+    def test_entries_with_no_detail_return_empty_string(self):
+        replay_log = [{"pass": "1", "action": "matched", "detail": "", "confidence": None,
+                        "timestamp": "x", "correlation_id": "run-1"}]
+        self.assertEqual(review_server.summarize_replay(replay_log), "")
+
+    def test_legacy_plain_string_entries_are_ignored(self):
+        replay_log = ["PASS1: settlement<->bank matched on UTR+amount+date"]
+        self.assertEqual(review_server.summarize_replay(replay_log), "")
+
+
 if __name__ == "__main__":
     unittest.main()

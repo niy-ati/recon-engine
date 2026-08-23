@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
 
-from validation_gate import resolve_with_gate
+from validation_gate import resolve_with_gate, CONFIDENCE_AUTO_ACCEPT
 from db import get_narration_rule
 import ingest
 
@@ -291,9 +291,30 @@ def reconcile(
                 ))
                 if arb.auto_applied:
                     r["status"] = "MATCHED_AI_ASSISTED"
+                    r["reason"] = (
+                        f"Narration had no exact order reference, so an AI match was used: "
+                        f"'{l['narration']}' was matched to {arb.candidate_id} at {arb.confidence:.0%} "
+                        f"confidence from a trusted model tier -- applied automatically, shown here for a spot-check."
+                    )
                 else:
                     r["status"] = "MATCHED_LOW_CONFIDENCE"
                     r["category"] = r["category"] or "FUZZY_MATCH_NEEDS_REVIEW"
+                    held_on_principle = arb.confidence >= CONFIDENCE_AUTO_ACCEPT
+                    if held_on_principle:
+                        r["reason"] = (
+                            f"AI matched '{l['narration']}' to {arb.candidate_id} at {arb.confidence:.0%} "
+                            f"confidence, but the model tier that produced it isn't on the trusted "
+                            f"auto-apply list -- held for a human to confirm on policy grounds, not because "
+                            f"the match itself looks wrong."
+                        )
+                    else:
+                        candidate_note = f"{len(shortlist)} possible orders" if len(shortlist) > 1 else f"order {shortlist[0]}"
+                        r["reason"] = (
+                            f"AI weighed {candidate_note} against narration '{l['narration']}' and leaned "
+                            f"toward {arb.candidate_id}, but only at {arb.confidence:.0%} confidence -- below "
+                            f"the {CONFIDENCE_AUTO_ACCEPT:.0%} bar to auto-apply, so a human needs to confirm "
+                            f"this is actually the right order."
+                        )
                 r["narration"] = l["narration"]
                 fuzzy_matches.append((arb.candidate_id, l["invoice_id"]))
                 del r["_needs_pass3"]

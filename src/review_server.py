@@ -38,7 +38,6 @@ product.
 """
 import csv
 import json
-import os
 import re
 import threading
 import webbrowser
@@ -60,21 +59,27 @@ OUTPUT_DIR = ROOT / "output"
 
 PAGE_STYLE = """
   :root {
-    /* Blade neutral scale (blueGrayLight) -- surfaces, borders, text */
-    --bg: hsl(220, 25%, 97%);
+    /* Neutral scale, warmed slightly toward the brand blue's hue rather
+       than a flat gray -- softer, closer to razorpay.com's own
+       off-white surfaces (rgb(240,244,246), verified in its real HTML). */
+    --bg: hsl(210, 45%, 97.5%);
     --panel: hsl(0, 0%, 100%);
-    --border: hsl(204, 8%, 88%);
-    --border-subtle: hsl(220, 20%, 94%);
-    --ink: hsl(200, 10%, 18%);
-    --muted: hsl(204, 9%, 42%);
-    --faint: hsl(203, 8%, 62%);
+    --border: hsl(210, 20%, 89%);
+    --border-subtle: hsl(210, 35%, 95%);
+    --ink: hsl(222, 25%, 14%);
+    --muted: hsl(215, 12%, 44%);
+    --faint: hsl(215, 10%, 63%);
 
-    /* Blade azure -- Razorpay's primary blue. This is the dominant accent
-       on every page here, not a decoration confined to the sidebar. */
-    --primary: hsl(218, 89%, 51%);
-    --primary-strong: hsl(218, 87%, 43%);
-    --primary-subtle: hsl(218, 100%, 92%);
-    --primary-faint: hsl(217, 100%, 98%);
+    /* rgb(0, 153, 255) -- the single most-used color on razorpay.com's
+       real homepage HTML (866 occurrences vs. white's 253), extracted
+       directly from the fetched page, not approximated from a screenshot.
+       This is the dominant accent on every page here, not a decoration
+       confined to a sidebar. */
+    --primary: hsl(204, 100%, 50%);
+    --primary-strong: hsl(204, 100%, 38%);
+    --primary-subtle: hsl(204, 100%, 92%);
+    --primary-faint: hsl(204, 100%, 97%);
+    --primary-glow: hsla(204, 100%, 50%, 0.22);
     --deep: hsl(218, 90%, 20%);
     --deep-raised: hsl(218, 80%, 26%);
 
@@ -89,16 +94,20 @@ PAGE_STYLE = """
     --information-bg: hsl(198, 85%, 95%);
 
     --font: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
-    --font-heading: Arial, -apple-system, 'Segoe UI', sans-serif;
+    /* 'Inter Tight' is a real, distinct heading face used on razorpay.com
+       itself (21 occurrences in the fetched page), not a substitute
+       guessed at -- freely embeddable via Google Fonts, unlike Blade's
+       actual (licensed) heading face, TASA Orbiter. */
+    --font-heading: 'Inter Tight', 'Inter', -apple-system, 'Segoe UI', sans-serif;
     --mono: 'Menlo', 'Cascadia Mono', Consolas, 'Roboto Mono', monospace;
-    --shadow-low: 0px 2px 4px 0px hsla(200, 10%, 18%, 0.06);
-    --shadow-mid: 0px 16px 12px 0px hsla(200, 10%, 18%, 0.06);
-    --shadow-high: 0px 8px 24px -4px hsla(200, 10%, 18%, 0.10);
+    --shadow-low: 0px 2px 6px 0px hsla(220, 25%, 14%, 0.06);
+    --shadow-mid: 0px 12px 24px -6px hsla(220, 25%, 14%, 0.10);
+    --shadow-high: 0px 20px 40px -8px hsla(220, 25%, 14%, 0.14);
     --radius-xs: 4px;
-    --radius-s: 8px;
-    --radius-m: 12px;
-    --radius-l: 16px;
-    --radius-xl: 20px;
+    --radius-s: 10px;
+    --radius-m: 14px;
+    --radius-l: 20px;
+    --radius-xl: 28px;
     --radius-pill: 9999px;
 
     /* Blade's real spacing scale (packages/blade/.../global/spacing.ts) */
@@ -115,93 +124,126 @@ PAGE_STYLE = """
     --text-xl:  24px;  --lh-xl:  32px;
     --text-2xl: 32px;  --lh-2xl: 38px;
     --text-3xl: 40px;  --lh-3xl: 46px;
+    --text-4xl: 48px;  --lh-4xl: 52px;
     --ls-tight: -0.013em; /* Blade letterSpacings.50, -1.3% */
+    --ls-tighter: -0.025em;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior:smooth; }
   body {
     margin:0; background:var(--bg); color:var(--ink); font-family:var(--font);
-    font-size:var(--text-xs); line-height:var(--lh-xs); -webkit-font-smoothing:antialiased;
+    font-size:var(--text-sm); line-height:var(--lh-sm); -webkit-font-smoothing:antialiased;
     display:flex; min-height:100vh;
   }
   a { color:inherit; }
-  ::selection { background:var(--primary-subtle); color:var(--deep); }
+  ::selection { background:var(--primary-subtle); color:var(--primary-strong); }
 
   /* ---------------------------------------------------------- Sidebar --- */
+  /* Light, not the heavy dark-navy admin-panel block this had before --
+     razorpay.com's own real nav is white with the brand blue used only
+     as an accent (active state, mark), not as a filled background. */
   aside.rail {
-    width:252px; flex-shrink:0; background:var(--deep); color:hsl(0,0%,100%);
+    width:264px; flex-shrink:0; background:var(--panel); color:var(--ink);
     padding:var(--sp-8) var(--sp-6); display:flex; flex-direction:column; gap:var(--sp-9);
-    position:sticky; top:0; height:100vh;
+    position:sticky; top:0; height:100vh; border-right:1px solid var(--border-subtle);
   }
   aside.rail .brand { display:flex; align-items:center; gap:var(--sp-4); }
   aside.rail .brand .mark {
-    width:38px; height:38px; border-radius:var(--radius-m); background:var(--primary);
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0;
-    box-shadow:0 0 0 4px hsla(218,89%,51%,0.18);
+    width:40px; height:40px; border-radius:var(--radius-m); background:var(--primary);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; flex-shrink:0;
+    color:#fff; box-shadow:0 6px 16px -4px var(--primary-glow);
   }
-  aside.rail .brand .name { font-weight:700; font-size:16px; letter-spacing:var(--ls-tight); line-height:1.3; font-family:var(--font-heading); }
-  aside.rail nav { display:flex; flex-direction:column; gap:3px; }
+  aside.rail .brand .name { font-weight:800; font-size:17px; letter-spacing:var(--ls-tight); line-height:1.25; font-family:var(--font-heading); color:var(--ink); }
+  aside.rail nav { display:flex; flex-direction:column; gap:4px; }
   aside.rail nav a {
-    display:flex; align-items:center; gap:var(--sp-4); padding:11px var(--sp-5);
-    border-radius:var(--radius-s); color:hsla(0,0%,100%,0.65); text-decoration:none; font-size:14px; font-weight:500;
+    display:flex; align-items:center; gap:var(--sp-4); padding:12px var(--sp-5);
+    border-radius:var(--radius-pill); color:var(--muted); text-decoration:none; font-size:15px; font-weight:600;
     transition:background 0.14s, color 0.14s;
   }
-  aside.rail nav a svg { width:17px; height:17px; flex-shrink:0; opacity:0.85; }
-  aside.rail nav a:hover { background:hsla(0,0%,100%,0.08); color:#fff; }
-  aside.rail nav a.active { background:var(--primary); color:#fff; box-shadow:var(--shadow-mid); }
+  aside.rail nav a svg { width:18px; height:18px; flex-shrink:0; opacity:0.75; }
+  aside.rail nav a:hover { background:var(--primary-faint); color:var(--primary-strong); }
+  aside.rail nav a.active { background:var(--primary); color:#fff; box-shadow:0 8px 20px -6px var(--primary-glow); }
   aside.rail nav a.active svg { opacity:1; }
-  aside.rail .env-pill {
-    margin-top:auto; display:inline-flex; align-items:center; font-size:12px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    background:hsla(0,0%,100%,0.10); padding:8px 14px; border-radius:var(--radius-pill); color:hsla(0,0%,100%,0.85); width:fit-content;
-  }
 
   /* ------------------------------------------------------------ Main ---- */
-  main { flex:1; min-width:0; padding:var(--sp-10) var(--sp-10) 72px; max-width:1360px; }
-  h1 {
-    font-family:var(--font-heading); font-size:var(--text-2xl); line-height:var(--lh-2xl);
-    font-weight:700; margin:0 0 var(--sp-2); letter-spacing:var(--ls-tight);
+  main { flex:1; min-width:0; padding:var(--sp-10) var(--sp-11) 80px; max-width:2000px; }
+  .page-head {
+    background:radial-gradient(120% 180% at 0% 0%, var(--primary-faint) 0%, transparent 60%);
+    margin:calc(var(--sp-10) * -1) calc(var(--sp-11) * -1) var(--sp-9);
+    padding:var(--sp-10) var(--sp-11) var(--sp-8);
   }
-  h2 { font-family:var(--font-heading); font-size:var(--text-md); line-height:var(--lh-md); font-weight:600; margin:0 0 var(--sp-5); letter-spacing:-0.005em; }
-  p.kicker { color:var(--primary-strong); font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:0.05em; margin:0 0 var(--sp-8); }
+  h1 {
+    font-family:var(--font-heading); font-size:var(--text-4xl); line-height:var(--lh-4xl);
+    font-weight:800; margin:0 0 var(--sp-3); letter-spacing:var(--ls-tighter);
+  }
+  h2 { font-family:var(--font-heading); font-size:var(--text-lg); line-height:var(--lh-lg); font-weight:700; margin:0 0 var(--sp-5); letter-spacing:-0.005em; }
+  p.kicker { color:var(--primary-strong); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 var(--sp-8); }
 
   /* --------------------------------------------------------- Overview --- */
-  .overview { display:flex; gap:var(--sp-7); margin-bottom:var(--sp-8); flex-wrap:wrap; align-items:stretch; }
+  .overview { display:flex; gap:var(--sp-7); margin-bottom:var(--sp-9); flex-wrap:wrap; align-items:stretch; }
   .donut-card {
-    background:linear-gradient(160deg, var(--primary-faint) 0%, var(--panel) 55%);
-    border:1px solid var(--border); border-radius:var(--radius-l);
-    box-shadow:var(--shadow-low); padding:var(--sp-8); display:flex; align-items:center; gap:var(--sp-8);
-    min-width:320px; transition:box-shadow 0.18s, transform 0.18s;
+    background:var(--panel);
+    border:1px solid var(--border-subtle); border-radius:var(--radius-xl);
+    box-shadow:var(--shadow-mid); padding:var(--sp-9); display:flex; align-items:center; gap:var(--sp-8);
+    min-width:340px; transition:box-shadow 0.22s, transform 0.22s;
   }
-  .donut-card:hover { box-shadow:var(--shadow-high); transform:translateY(-2px); }
-  .donut { width:132px; height:132px; border-radius:50%; flex-shrink:0; position:relative; }
+  .donut-card:hover { box-shadow:var(--shadow-high); transform:translateY(-3px); }
+  .donut { width:144px; height:144px; border-radius:50%; flex-shrink:0; position:relative; }
   .donut .donut-label {
-    position:absolute; inset:20px; background:var(--panel); border-radius:50%;
+    position:absolute; inset:22px; background:var(--panel); border-radius:50%;
     display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:inset 0 0 0 1px var(--border-subtle);
   }
-  .donut .donut-label b { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:30px; line-height:1; color:var(--primary-strong); font-weight:700; }
-  .donut .donut-label span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:5px; }
-  .legend { display:flex; flex-direction:column; gap:10px; font-size:13px; }
-  .legend .row { display:flex; align-items:center; gap:9px; }
-  .legend .swatch { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
-  .legend .pct { font-family:var(--mono); font-variant-numeric:tabular-nums; color:var(--muted); margin-left:auto; padding-left:20px; font-weight:600; }
+  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:24px; line-height:1; color:var(--primary); font-weight:800; letter-spacing:var(--ls-tighter); }
+  .donut .donut-label span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; font-weight:600; }
+  .legend { display:flex; flex-direction:column; gap:11px; font-size:14px; }
+  .legend .row { display:flex; align-items:center; gap:10px; }
+  .legend .swatch { width:11px; height:11px; border-radius:4px; flex-shrink:0; }
+  .legend .pct { font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); margin-left:auto; padding-left:22px; font-weight:700; }
 
   .stats { display:flex; gap:var(--sp-6); flex-wrap:wrap; flex:1; }
+  a.stat, a.category-card { text-decoration:none; color:inherit; cursor:pointer; }
   .stat {
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-l);
-    box-shadow:var(--shadow-low); padding:var(--sp-7); min-width:180px; flex:1;
-    display:flex; flex-direction:column; gap:var(--sp-5); transition:box-shadow 0.18s, transform 0.18s;
+    background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l);
+    box-shadow:var(--shadow-low); padding:var(--sp-8); min-width:190px; flex:1;
+    display:flex; flex-direction:column; gap:var(--sp-5); transition:box-shadow 0.22s, transform 0.22s, border-color 0.22s;
   }
-  .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-2px); }
-  .stat b { display:block; font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:var(--text-2xl); line-height:var(--lh-2xl); color:var(--ink); font-weight:700; }
-  .stat .stat-label { font-size:13px; color:var(--muted); font-weight:600; }
+  .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); border-color:var(--primary-subtle); }
+  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:44px; line-height:1.05; color:var(--ink); font-weight:800; letter-spacing:var(--ls-tighter); }
+  .stat .stat-label { font-size:14px; color:var(--muted); font-weight:600; }
   .stat.tint-primary .icon-badge { background:var(--primary-subtle); color:var(--primary-strong); }
   .stat.tint-notice .icon-badge { background:var(--notice-bg); color:var(--notice); }
   .stat.tint-positive .icon-badge { background:var(--positive-bg); color:var(--positive); }
   .icon-badge {
-    width:40px; height:40px; border-radius:var(--radius-m); display:flex; align-items:center; justify-content:center;
+    width:48px; height:48px; border-radius:var(--radius-m); display:flex; align-items:center; justify-content:center;
     background:var(--primary-subtle); color:var(--primary-strong); flex-shrink:0;
   }
-  .icon-badge svg { width:20px; height:20px; }
+  .icon-badge svg { width:24px; height:24px; }
+
+  /* Clickable exception-category cards -- colored by what the category
+     actually means (explained variance reads positive, a genuine gap
+     reads negative), not decoration. */
+  .category-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:var(--sp-6); }
+  .category-card {
+    display:flex; align-items:center; gap:var(--sp-6); padding:var(--sp-7); border-radius:var(--radius-l);
+    border:1.5px solid transparent; transition:transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+    box-shadow:var(--shadow-low);
+  }
+  .category-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-high); }
+  .category-card-text { display:flex; flex-direction:column; min-width:0; }
+  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:32px; font-weight:800; line-height:1.05; letter-spacing:var(--ls-tighter); }
+  .category-card-text span { font-size:13.5px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
+  .category-card.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
+  .category-card.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
+  .category-card.tone-positive .category-card-text b { color:var(--positive); }
+  .category-card.tone-notice { background:var(--notice-bg); border-color:hsla(25,100%,44%,0.18); }
+  .category-card.tone-notice .icon-badge { background:hsla(25,100%,44%,0.15); color:var(--notice); }
+  .category-card.tone-notice .category-card-text b { color:var(--notice); }
+  .category-card.tone-negative { background:var(--negative-bg); border-color:hsla(4,85%,44%,0.18); }
+  .category-card.tone-negative .icon-badge { background:hsla(4,85%,44%,0.15); color:var(--negative); }
+  .category-card.tone-negative .category-card-text b { color:var(--negative); }
+  .category-card.tone-information { background:var(--information-bg); border-color:hsla(200,100%,41%,0.18); }
+  .category-card.tone-information .icon-badge { background:hsla(200,100%,41%,0.15); color:var(--information); }
+  .category-card.tone-information .category-card-text b { color:var(--information); }
 
   /* Compact 3-bucket "how it resolved" bar -- deterministic vs AI vs unresolved */
   .stack-bar { display:flex; height:14px; border-radius:var(--radius-pill); overflow:hidden; width:100%; box-shadow:inset 0 0 0 1px var(--border); }
@@ -209,28 +251,67 @@ PAGE_STYLE = """
   .stack-legend { display:flex; gap:var(--sp-8); margin-top:var(--sp-6); flex-wrap:wrap; }
   .stack-legend .item { display:flex; align-items:center; gap:10px; }
   .stack-legend .swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
-  .stack-legend b { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:22px; font-weight:700; color:var(--ink); }
+  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:22px; font-weight:800; color:var(--ink); }
   .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
   /* ------------------------------------------------------------ Panels -- */
-  .panel { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-l); box-shadow:var(--shadow-low); overflow:hidden; margin-bottom:var(--sp-7); }
-  .panel .panel-head { padding:var(--sp-6) var(--sp-7); border-bottom:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; }
-  .panel-body { padding:var(--sp-7); }
+  .panel { background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l); box-shadow:var(--shadow-low); overflow:hidden; margin-bottom:var(--sp-8); }
+  .panel .panel-head { padding:var(--sp-7) var(--sp-8); border-bottom:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; }
+  .panel-body { padding:var(--sp-8); }
+
+  /* Auto table layout on purpose: short columns (order, status, category)
+     size to their own content and never overflow by construction. Only
+     the free-text reason column is explicitly capped (below), and the
+     wrapper scrolls horizontally as the safety net if the total still
+     doesn't fit -- never the page itself. */
+  .table-scroll { overflow-x:auto; }
   table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:var(--sp-6) var(--sp-6); border-bottom:1px solid var(--border-subtle); font-size:var(--text-xs); vertical-align:top; }
+  th, td { text-align:left; padding:var(--sp-6) var(--sp-6); border-bottom:1px solid var(--border-subtle); font-size:var(--text-sm); vertical-align:top; overflow-wrap:break-word; }
   tbody tr:last-child td { border-bottom:none; }
   tbody tr { transition:background 0.12s; }
   tbody tr:hover { background:var(--primary-faint); }
   th {
-    background:var(--bg); font-size:12px; text-transform:uppercase;
+    background:var(--bg); font-size:12px; text-transform:uppercase; white-space:nowrap;
     letter-spacing:0.06em; color:var(--muted); border-bottom:1px solid var(--border); font-weight:700;
   }
   th.sortable { cursor:pointer; user-select:none; }
   th.sortable:hover { color:var(--primary-strong); }
   th.sortable .arrow { display:inline-block; margin-left:4px; opacity:0.35; font-size:10px; }
   th.sortable.sorted .arrow { opacity:1; color:var(--primary); }
-  td.id-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; color:var(--ink); font-size:13px; }
-  td.amount-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; font-size:13px; font-weight:600; }
+  td.id-cell { overflow-wrap:anywhere; white-space:nowrap; }
+  td.amount-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; font-size:14px; font-weight:600; white-space:nowrap; }
+
+  /* Order/settlement IDs as chips, not bare monospace text -- matches the
+     pill/card treatment used everywhere else instead of looking like a
+     leftover plain-text column. */
+  .id-chip {
+    display:inline-flex; align-items:center; font-family:var(--mono); font-variant-numeric:tabular-nums;
+    font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:var(--radius-s);
+    white-space:nowrap; letter-spacing:0.01em;
+  }
+  .id-chip-order { background:var(--primary-faint); color:var(--primary-strong); border:1px solid hsla(204,100%,50%,0.18); }
+  .id-chip-settlement { background:var(--bg); color:var(--muted); border:1px solid var(--border); }
+
+  /* Reason/audit-trail cell -- the one column actually capped in width,
+     since it's the only genuinely long free-text content. Everything
+     else sizes naturally. */
+  td.reason-cell { min-width:320px; max-width:460px; padding:var(--sp-5) var(--sp-6); }
+  .audit-box {
+    background:var(--bg); border:1px solid var(--border-subtle); border-radius:var(--radius-m);
+    padding:var(--sp-5); font-size:14px; line-height:1.55; overflow-wrap:break-word;
+  }
+  .audit-box mark {
+    background:var(--primary-subtle); color:var(--primary-strong); padding:1px 5px; border-radius:4px;
+    font-weight:700; font-variant-numeric:tabular-nums;
+  }
+  .audit-box code.hl-quote {
+    font-family:var(--mono); background:var(--panel); border:1px solid var(--border-subtle);
+    padding:1px 6px; border-radius:4px; font-size:12.5px; color:var(--muted);
+  }
+  .audit-box strong.hl-point { color:var(--primary-strong); font-weight:800; }
+  td.action-cell { min-width:190px; }
+  td.action-cell form { display:block; margin-bottom:6px; }
+  td.action-cell input[type=text] { width:100%; }
 
   .pill {
     display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
@@ -240,9 +321,14 @@ PAGE_STYLE = """
   .pill.information { background:var(--information-bg); color:var(--information); }
   .pill.negative { background:var(--negative-bg); color:var(--negative); }
   .pill.positive { background:var(--positive-bg); color:var(--positive); }
-  .cat { font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:var(--radius-s); background:var(--bg); color:var(--muted); border:1px solid var(--border); }
+  .cat {
+    font-family:var(--mono); font-size:12px; padding:4px 10px; border-radius:var(--radius-s);
+    background:var(--bg); color:var(--muted); border:1px solid var(--border);
+    display:inline-block; white-space:nowrap;
+  }
+  .cat-empty { color:var(--faint); }
 
-  .narration { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-top:6px; }
+  .narration { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-top:6px; overflow-wrap:anywhere; }
   .note-text { margin-top:9px; font-size:13px; color:var(--notice); background:var(--notice-bg); border-radius:var(--radius-s); padding:7px 11px; display:inline-block; }
   details { margin-top:7px; font-size:12.5px; }
   details summary { cursor:pointer; color:var(--primary); font-weight:600; list-style:none; }
@@ -250,14 +336,14 @@ PAGE_STYLE = """
   details summary:before { content:"▸ "; font-size:10px; }
   details[open] summary:before { content:"▾ "; }
   details summary:hover { color:var(--primary-strong); }
-  details > div { font-family:var(--mono); color:var(--muted); padding:4px 0 4px 16px; border-left:2px solid var(--primary-subtle); margin-top:5px; }
+  details > div { font-family:var(--mono); color:var(--muted); padding:4px 0 4px 16px; border-left:2px solid var(--primary-subtle); margin-top:5px; overflow-wrap:anywhere; }
 
   /* ------------------------------------------------------- Forms/buttons */
   form { margin:0 0 6px; display:inline-block; }
   form.filter-form { margin:0; display:flex; gap:var(--sp-4); flex-wrap:wrap; align-items:center; }
   button {
-    font-family:var(--font); font-size:var(--text-xs); font-weight:600; padding:10px 16px;
-    border-radius:var(--radius-s); border:1px solid transparent; cursor:pointer; transition:filter 0.12s, box-shadow 0.12s, transform 0.08s;
+    font-family:var(--font); font-size:var(--text-xs); font-weight:700; padding:11px 20px;
+    border-radius:var(--radius-pill); border:1px solid transparent; cursor:pointer; transition:filter 0.12s, box-shadow 0.12s, transform 0.08s;
     display:inline-flex; align-items:center; gap:7px;
   }
   button svg { width:14px; height:14px; flex-shrink:0; }
@@ -287,20 +373,12 @@ PAGE_STYLE = """
 
   .source-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:var(--sp-6); }
   .source-card {
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-l); box-shadow:var(--shadow-low);
-    padding:var(--sp-7); transition:box-shadow 0.18s, transform 0.18s; display:flex; flex-direction:column; gap:var(--sp-5);
+    background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l); box-shadow:var(--shadow-low);
+    padding:var(--sp-8); transition:box-shadow 0.22s, transform 0.22s; display:flex; flex-direction:column; gap:var(--sp-5);
   }
-  .source-card:hover { box-shadow:var(--shadow-high); transform:translateY(-2px); }
-  .source-card .value { font-size:var(--text-2xl); font-weight:700; font-family:var(--mono); font-variant-numeric:tabular-nums; color:var(--ink); }
+  .source-card:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); }
+  .source-card .value { font-size:36px; font-weight:800; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
   .source-card .label { font-size:13px; color:var(--muted); font-weight:600; }
-  .status-chip {
-    display:flex; align-items:center; gap:var(--sp-4); background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius-l); box-shadow:var(--shadow-low); padding:var(--sp-6) var(--sp-7);
-  }
-  .status-chip .text b { display:block; font-size:14px; font-weight:700; }
-  .status-chip .text span { font-size:12.5px; color:var(--muted); }
-  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:8px; flex-shrink:0; }
-  .dot.on { background:var(--positive); box-shadow:0 0 0 4px var(--positive-bg); } .dot.off { background:var(--faint); }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition:none !important; }
@@ -387,6 +465,20 @@ SWATCH_HEX = {
 STATUS_ORDER = ["MATCHED", "MATCHED_WITH_VARIANCE", "MATCHED_EXACT_REFERENCE",
                 "MATCHED_LEARNED_PATTERN", "MATCHED_AI_ASSISTED", "MATCHED_LOW_CONFIDENCE", "EXCEPTION"]
 
+# Semantic tone per exception category, matching what the category actually
+# means (explained variance reads positive; a genuine unresolved gap reads
+# negative) -- not just a rotating decoration.
+CATEGORY_TONES = {
+    "PARTIAL_PAYMENT": "positive",
+    "ROUNDING": "positive",
+    "TAX_DEDUCTION": "positive",
+    "ON_HOLD_BY_RAZORPAY": "notice",
+    "FUZZY_MATCH_NEEDS_REVIEW": "notice",
+    "AFA_MANDATE_HOLD": "information",
+    "DUPLICATE": "negative",
+    "UNEXPLAINED": "negative",
+}
+
 # Collapses the 7 granular statuses into the one comparison that actually
 # matters for the pitch -- how much of the batch a deterministic pass
 # closed versus how much needed the LLM arbiter versus what's genuinely
@@ -405,6 +497,12 @@ ICON_LEDGER = '<svg viewBox="0 0 20 20" fill="none"><rect x="3.5" y="2.5" width=
 ICON_GATEWAY = '<svg viewBox="0 0 20 20" fill="none"><circle cx="7" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="13" r="4" stroke="currentColor" stroke-width="1.5"/></svg>'
 ICON_KEY = '<svg viewBox="0 0 20 20" fill="none"><circle cx="6.5" cy="13.5" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M9 11l7-7M13 4l2 2M16 5v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 ICON_DB = '<svg viewBox="0 0 20 20" fill="none"><ellipse cx="10" cy="5" rx="6.5" ry="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 5v10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5" stroke="currentColor" stroke-width="1.5"/></svg>'
+
+CATEGORY_ICONS = {
+    "PARTIAL_PAYMENT": ICON_ROWS, "ROUNDING": ICON_ROWS, "TAX_DEDUCTION": ICON_ROWS,
+    "ON_HOLD_BY_RAZORPAY": ICON_ALERT, "FUZZY_MATCH_NEEDS_REVIEW": ICON_ALERT,
+    "AFA_MANDATE_HOLD": ICON_KEY, "DUPLICATE": ICON_GATEWAY, "UNEXPLAINED": ICON_ALERT,
+}
 
 
 def render_status_pill(status: str) -> str:
@@ -428,9 +526,6 @@ def render_shell(
         for key, href, label in nav_items
     )
 
-    live_configured = bool(os.environ.get("RAZORPAY_KEY_ID", "").strip())
-    env_label = "Live" if live_configured else "Synthetic"
-
     kicker_html = f'<p class="kicker">{kicker}</p>' if kicker else ""
 
     return f"""<!doctype html>
@@ -441,7 +536,7 @@ def render_shell(
 <title>{escape(title)} -- Settlement Reconciliation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&display=swap" rel="stylesheet">
 <style>{PAGE_STYLE}</style>
 </head>
 <body>
@@ -451,11 +546,12 @@ def render_shell(
       <div class="name">Settlement<br>Reconciliation</div>
     </div>
     <nav>{nav_html}</nav>
-    <div class="env-pill"><span class="dot {'on' if live_configured else 'off'}"></span>{escape(env_label)}</div>
   </aside>
   <main>
-    <h1>{escape(title)}</h1>
-    {kicker_html}
+    <div class="page-head">
+      <h1>{escape(title)}</h1>
+      {kicker_html}
+    </div>
     {body_html}
   </main>
   {extra_script}
@@ -549,6 +645,14 @@ def render_pass_bar(all_rows: list[dict]) -> str:
     </div></div>"""
 
 
+def readable_category(cat: str) -> str:
+    """Category names are underscore-joined (FUZZY_MATCH_NEEDS_REVIEW) with
+    no natural break point, so a narrow card wraps them mid-letter. A
+    zero-width space after each underscore gives the browser a place to
+    break that isn't inside a word."""
+    return escape(cat).replace("_", "_​")
+
+
 def render_overview() -> str:
     all_rows = db.get_all_exceptions()
     open_rows = db.get_open_exceptions()
@@ -558,42 +662,49 @@ def render_overview() -> str:
     for r in all_rows:
         if r["category"]:
             by_category[r["category"]] += 1
-    category_rows = "".join(
-        f'<tr><td class="id-cell">{escape(cat)}</td><td class="amount-cell">{count}</td></tr>'
+
+    category_cards = "".join(
+        f"""<a class="category-card tone-{CATEGORY_TONES.get(cat, 'information')}" href="/records?q={cat}">
+              <div class="icon-badge">{CATEGORY_ICONS.get(cat, ICON_ALERT)}</div>
+              <div class="category-card-text">
+                <b>{count}</b>
+                <span>{readable_category(cat)}</span>
+              </div>
+            </a>"""
         for cat, count in sorted(by_category.items(), key=lambda kv: -kv[1])
-    ) or '<tr><td colspan="2" class="empty-state">No categorized exceptions.</td></tr>'
+    ) or '<div class="empty-state">No categorized exceptions.</div>'
 
     report_info = parse_last_report()
     throughput_stat = ""
     if report_info and report_info.get("rows_per_sec"):
         throughput_stat = f"""
-        <div class="stat tint-notice">
+        <a class="stat tint-notice" href="/sources">
           <div class="icon-badge">{ICON_ALERT}</div>
           <b>{report_info["rows_per_sec"]}/sec</b>
           <span class="stat-label">last run throughput</span>
-        </div>"""
+        </a>"""
 
     body = f"""
     <div class="overview">
       {donut_html}
       <div class="stats">
-        <div class="stat tint-primary">
+        <a class="stat tint-primary" href="/records">
           <div class="icon-badge">{ICON_ROWS}</div>
           <b>{len(all_rows)}</b>
           <span class="stat-label">rows in last batch</span>
-        </div>
-        <div class="stat tint-notice">
+        </a>
+        <a class="stat tint-notice" href="/queue">
           <div class="icon-badge">{ICON_ALERT}</div>
           <b>{len(open_rows)}</b>
           <span class="stat-label">need a decision</span>
-        </div>
+        </a>
         {throughput_stat}
       </div>
     </div>
     {render_pass_bar(all_rows)}
     <div class="panel">
       <div class="panel-head"><h2 style="margin:0">Exceptions by category</h2></div>
-      <table><thead><tr><th>Category</th><th>Count</th></tr></thead><tbody>{category_rows}</tbody></table>
+      <div class="panel-body"><div class="category-grid">{category_cards}</div></div>
     </div>"""
     return render_shell("overview", "Overview", "", body)
 
@@ -606,6 +717,40 @@ def render_log_entry(entry: dict | str) -> str:
         return (f"[pass {escape(str(entry.get('pass', '?')))}] {escape(entry.get('action', ''))}{confidence} "
                 f"-- {escape(entry.get('detail', ''))}")
     return escape(str(entry))  # legacy plain-string entries from before structured logging
+
+
+def summarize_replay(replay_log: list) -> str:
+    """A clean match has no `reason` set -- reconcile.py only writes one for
+    variance/exception cases -- but the replay_log already has the real
+    stage-by-stage explanation computed for every row. This builds one
+    readable line from those same structured entries instead of leaving a
+    clean match with nothing to show but a dash."""
+    details = [entry.get("detail", "") for entry in replay_log if isinstance(entry, dict) and entry.get("detail")]
+    if not details:
+        return ""
+    return "; ".join(d[0].upper() + d[1:] for d in details if d)
+
+
+_REASON_NUMBER_RE = re.compile(r"(Rs\.\d[\d,]*(?:\.\d+)?|\b\d{1,3}(?:\.\d+)?%)")
+_REASON_QUOTE_RE = re.compile(r"(&#x27;.*?&#x27;)")
+
+
+def highlight_reason(escaped_reason: str) -> str:
+    """Every reason line above already follows the same shape: a fact,
+    then ' -- ', then the actual takeaway a reviewer needs. Rather than
+    handing over that whole sentence as one flat paragraph, surface the
+    numbers (what changed), the quoted narration (the raw evidence), and
+    the takeaway clause (why it matters) so it can be scanned instead of
+    read end to end. Runs strictly on already-escaped text -- every
+    substitution wraps a span of that same text, never inserts anything
+    unescaped, so this stays safe even though narration text ultimately
+    comes from an uploaded CSV."""
+    text = _REASON_NUMBER_RE.sub(r"<mark>\1</mark>", escaped_reason)
+    text = _REASON_QUOTE_RE.sub(r'<code class="hl-quote">\1</code>', text)
+    if " -- " in text:
+        head, _, tail = text.rpartition(" -- ")
+        text = f'{head} -- <strong class="hl-point">{tail}</strong>'
+    return text
 
 
 def render_row(r: dict, show_actions: bool = True) -> str:
@@ -636,21 +781,34 @@ def render_row(r: dict, show_actions: bool = True) -> str:
           <button class="pending" type="submit">{ICON_NOTE} Save note</button>
         </form>"""
     else:
-        actions_html = f'<span class="cat">{escape(r["resolution_status"])}</span>'
+        resolution_tone = {"CONFIRMED": "positive", "REJECTED": "negative"}.get(r["resolution_status"], "information")
+        actions_html = f'<span class="pill {resolution_tone}">{escape(r["resolution_status"])}</span>'
+
+    category_html = f'<span class="cat">{escape(r["category"])}</span>' if r["category"] else '<span class="cat-empty">&mdash;</span>'
+
+    order_html = (f'<span class="id-chip id-chip-order">{escape(r["order_id"])}</span>'
+                  if r["order_id"] else '<span class="cat-empty">&mdash;</span>')
+    settlement_html = (f'<span class="id-chip id-chip-settlement">{escape(r["settlement_id"])}</span>'
+                        if r["settlement_id"] else '<span class="cat-empty">&mdash;</span>')
+
+    reason_text = r["reason"] or summarize_replay(replay_log) or "No stages recorded for this row."
 
     return f"""
     <tr data-search="{search_blob}" data-status="{escape(r["status"])}">
-      <td class="id-cell" data-value="{escape(r["order_id"] or "")}">{escape(r["order_id"] or "(none)")}</td>
-      <td class="id-cell" data-value="{escape(r["settlement_id"] or "")}">{escape(r["settlement_id"] or "(none)")}</td>
+      <td class="id-cell" data-value="{escape(r["order_id"] or "")}">{order_html}</td>
+      <td class="id-cell" data-value="{escape(r["settlement_id"] or "")}">{settlement_html}</td>
       <td class="amount-cell" data-value="{r["net_amount"] if r["net_amount"] is not None else ""}">{net}</td>
       <td data-value="{escape(r["status"])}">{render_status_pill(r["status"])}</td>
-      <td data-value="{escape(r["category"] or "")}"><span class="cat">{escape(r["category"] or "")}</span></td>
-      <td>{escape(r["reason"] or "")}
+      <td data-value="{escape(r["category"] or "")}">{category_html}</td>
+      <td class="reason-cell">
+        <div class="audit-box">
+          {highlight_reason(escape(reason_text))}
           {narration_html}
           <details><summary>Replay log</summary>{replay_html}</details>
           {note_html}
+        </div>
       </td>
-      <td>{actions_html}</td>
+      <td class="action-cell">{actions_html}</td>
     </tr>"""
 
 
@@ -677,19 +835,23 @@ def render_queue() -> str:
       </div>
     </div>
     <div class="panel">
+      <div class="table-scroll">
       <table>
         <thead><tr><th>Order</th><th>Settlement</th><th>Net (Rs.)</th><th>Status</th><th>Category</th><th>Reason / audit trail</th><th>Action</th></tr></thead>
         <tbody>{body_rows}</tbody>
       </table>
+      </div>
     </div>"""
     return render_shell("queue", "Review queue", "", body)
 
 
 # -------------------------------------------------------------- All records
 
-def render_records() -> str:
+def render_records(initial_query: str = "") -> str:
     """Renders every persisted row once; filtering and sorting happen
-    instantly client-side via INTERACTIVITY_SCRIPT, not a server round trip."""
+    instantly client-side via INTERACTIVITY_SCRIPT, not a server round trip.
+    initial_query pre-fills the search box -- how a category card on
+    Overview deep-links here already filtered."""
     all_rows = db.get_all_exceptions()
     status_options = "".join(
         f'<option value="{s}">{STATUS_LABELS.get(s, (s, ""))[0]}</option>' for s in STATUS_ORDER
@@ -701,9 +863,9 @@ def render_records() -> str:
     <div class="panel">
       <div class="panel-body">
         <form class="filter-form" onsubmit="return false">
-          <input type="text" id="live-search" placeholder="Search order, settlement, narration...">
+          <input type="text" id="live-search" placeholder="Search order, settlement, narration..." value="{escape(initial_query)}">
           <select id="live-status">
-            <option value="">All statuses</option>
+            <option value="">All types</option>
             {status_options}
           </select>
           <span id="filter-count" style="color:var(--muted);font-size:13px;margin-left:auto">{len(all_rows)} of {len(all_rows)} rows</span>
@@ -711,6 +873,7 @@ def render_records() -> str:
       </div>
     </div>
     <div class="panel">
+      <div class="table-scroll">
       <table>
         <thead><tr>
           <th class="sortable" data-sort-key="order"><span>Order</span><span class="arrow">&#8597;</span></th>
@@ -723,6 +886,7 @@ def render_records() -> str:
         </tr></thead>
         <tbody>{body_rows}</tbody>
       </table>
+      </div>
     </div>"""
     return render_shell("records", "All records", "", body, extra_script=INTERACTIVITY_SCRIPT)
 
@@ -741,9 +905,6 @@ def render_sources() -> str:
     bank_count = count_csv_rows(DATA_DIR / "bank_statement.csv")
     ledger_count = count_csv_rows(DATA_DIR / "internal_ledger.csv")
     gateway_b_count = count_csv_rows(DATA_DIR / "gateway_b_export.csv")
-    db_exists = (DATA_DIR / "reconcile.db").exists()
-
-    live_configured = bool(os.environ.get("RAZORPAY_KEY_ID", "").strip())
 
     def card(icon, label, value):
         display = "--" if value is None else str(value)
@@ -754,23 +915,12 @@ def render_sources() -> str:
           <div class="label">{label}</div>
         </div>"""
 
-    def chip(is_on, title, on_text, off_text):
-        return f"""
-        <div class="status-chip">
-          <span class="dot {'on' if is_on else 'off'}"></span>
-          <div class="text"><b>{title}</b><span>{on_text if is_on else off_text}</span></div>
-        </div>"""
-
     body = f"""
     <div class="source-grid">
       {card(ICON_ROWS, "Settlements", settlement_count)}
       {card(ICON_BANK, "Bank rows", bank_count)}
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
       {card(ICON_GATEWAY, "Gateway B rows", gateway_b_count)}
-    </div>
-    <div class="source-grid" style="margin-top:var(--sp-6)">
-      {chip(live_configured, "Live connection", "Configured", "Synthetic only")}
-      {chip(db_exists, "Persistence", "Ready", "Not created yet")}
     </div>"""
     return render_shell("sources", "Data sources", "", body)
 
@@ -788,7 +938,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/queue":
             self._respond_html(render_queue())
         elif path == "/records":
-            self._respond_html(render_records())
+            initial_query = parse_qs(parsed.query).get("q", [""])[0]
+            self._respond_html(render_records(initial_query=initial_query))
         elif path == "/sources":
             self._respond_html(render_sources())
         else:
