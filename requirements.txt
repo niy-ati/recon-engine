@@ -1,0 +1,9 @@
+# No third-party dependencies. Every module under src/, tests/, and
+# extras/ uses only the Python standard library -- confirmed by parsing
+# every import in the codebase with ast, not by memory.
+#
+# Requires Python 3.10+ (uses PEP 604 union syntax, e.g. `str | None`,
+# without `from __future__ import annotations`).
+#
+# Local model inference uses Ollama, a separate application, not a Python
+# package -- see README for install instructions.
