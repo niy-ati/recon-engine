@@ -4,7 +4,7 @@
 
 **Total rows processed:** 514
 
-**Throughput:** 514 rows in 42.13s (12.2 rows/sec) -- includes LLM arbiter call(s); Pass 1/2/2.5/2.75 alone are sub-second, the arbiter call dominates this number when present
+**Throughput:** 514 rows in 41.61s (12.4 rows/sec) -- includes LLM arbiter call(s); Pass 1/2/2.5/2.75 alone are sub-second, the arbiter call dominates this number when present
 
 **Clean deterministic match:** 78.4%
 **Matched with explained variance:** 7.4%
@@ -14,7 +14,7 @@
 **Fuzzy-matched, flagged for human review:** 2.7%
 **Unresolved exceptions:** 6.8%
 
-**Overall resolved: 93.2%** (industry baseline for manual VLOOKUP reconciliation: ~51%)
+**Overall resolved: 90.5%** (industry baseline for manual VLOOKUP reconciliation: ~51%)
 
 ## Exceptions by category
 
@@ -30,4 +30,4 @@
 
 ## Cash-position clarity (not a forecast -- this run's own numbers)
 
-Rs.314,736.72 in settlement amounts touched some exception or variance path this run -- cash position a downstream tool like Cashflow Forecaster would otherwise see as ambiguous. This engine resolved Rs.113,936.34 (36.2%) of it deterministically or via a gated match, now trustworthy cash-position input. Rs.200,800.38 remains genuinely open and is disclosed as such, not folded into the resolved figure.
+Rs.291,313.90 in settlement amounts touched some exception or variance path this run (duplicate settlement exports excluded -- that money already cleared under its sibling row) -- cash position a downstream tool like Cashflow Forecaster would otherwise see as ambiguous. This engine resolved Rs.83,681.66 (28.7%) of it deterministically or via a gated match, now trustworthy cash-position input. Rs.30,254.68 has a candidate match held for a human to confirm, not counted as done. Rs.177,377.56 remains genuinely open and is disclosed as such, not folded into the resolved figure.

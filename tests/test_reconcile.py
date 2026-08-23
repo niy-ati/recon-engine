@@ -322,6 +322,46 @@ class TestSummarize(unittest.TestCase):
                 summary["cash_resolved_pct"], round(100 * 975.42 / 1475.42, 1), places=1,
             )
 
+    def test_matched_low_confidence_is_pending_review_not_resolved(self):
+        """Regression test for a real bug: MATCHED_LOW_CONFIDENCE is an
+        unconfirmed arbiter candidate sitting in the human review queue --
+        db.py's own needs_action rule already treats it like EXCEPTION, not
+        like a resolved row. summarize() used to fold it into both
+        "resolved" (row count) and "cash_resolved" (Rs. amount), letting
+        the headline number count a human's not-yet-made decision as done.
+        Tests summarize()'s aggregation directly with constructed rows --
+        decoupled from coaxing a specific status out of the full matching
+        pipeline via a fragile fixture."""
+        results = [
+            {"status": "MATCHED_LOW_CONFIDENCE", "category": "FUZZY_MATCH_NEEDS_REVIEW", "net": 300.0},
+            {"status": "MATCHED", "category": None, "net": 100.0},
+        ]
+        summary = summarize(results)
+        self.assertEqual(summary["cash_resolved"], 0.0)
+        self.assertEqual(summary["cash_pending_review"], 300.0)
+        self.assertEqual(summary["cash_at_risk"], 300.0)
+        # Row-count "resolved" must not count the low-confidence row either --
+        # only the plain MATCHED row (category=None, never touches cash_at_risk
+        # since it never hit an exception/variance path) counts as resolved.
+        self.assertEqual(summary["overall_resolved_pct"], 50.0)
+
+    def test_duplicate_excluded_from_every_cash_bucket(self):
+        """Regression test for a real bug: a DUPLICATE row is a second
+        settlement-report ENTRY for a transaction whose real money already
+        cleared under its sibling row (see
+        test_duplicate_settlement_id_flagged_symmetrically). Counting its
+        net amount as separate at-risk cash double-counts money that
+        already landed -- the opposite of honest disclosure."""
+        results = [
+            {"status": "EXCEPTION", "category": "DUPLICATE", "net": 999.0},
+            {"status": "EXCEPTION", "category": "UNEXPLAINED", "net": 200.0},
+        ]
+        summary = summarize(results)
+        self.assertEqual(summary["cash_at_risk"], 200.0)
+        self.assertEqual(summary["cash_still_open"], 200.0)
+        self.assertEqual(summary["cash_resolved"], 0.0)
+        self.assertEqual(summary["cash_pending_review"], 0.0)
+
 
 class TestStructuredLogging(unittest.TestCase):
     def test_stage_entries_are_structured_not_strings(self):

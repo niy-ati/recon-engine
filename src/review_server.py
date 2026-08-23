@@ -604,7 +604,14 @@ def render_donut(all_rows: list[dict]) -> str:
         )
 
     gradient = ", ".join(stops)
-    resolved_pct = round(100 * sum(c for s, c in counts.items() if s != "EXCEPTION") / total, 1)
+    # MATCHED_LOW_CONFIDENCE is an unconfirmed candidate sitting in the
+    # human review queue (db.py's own needs_action rule treats it exactly
+    # like EXCEPTION) -- excluded here too, not just EXCEPTION, so this
+    # headline number can't quietly count a human's not-yet-made decision
+    # as done. Found by tracing this number against db.py's own definition,
+    # not assumed correct because it looked reasonable.
+    NOT_YET_RESOLVED = {"EXCEPTION", "MATCHED_LOW_CONFIDENCE"}
+    resolved_pct = round(100 * sum(c for s, c in counts.items() if s not in NOT_YET_RESOLVED) / total, 1)
 
     return f"""
     <div class="donut-card">
@@ -662,23 +669,38 @@ def compute_cash_clarity(all_rows: list[dict]) -> dict:
     with a number instead of just an argument: every row that hit some
     exception/variance path is cash position a downstream forecaster would
     otherwise see as ambiguous; the portion this engine explained or
-    matched is now trustworthy input, and the portion still open is
-    disclosed honestly, not folded into the resolved figure."""
-    at_risk = resolved = still_open = 0.0
+    matched is now trustworthy input, the portion pending a human's
+    confirm is disclosed as such (not counted as done), and the portion
+    still open is disclosed honestly too. Mirrors reconcile.py's
+    summarize() -- same fix applied in both places, kept in sync.
+
+    Two things this used to get wrong, found by tracing this number
+    against db.py's own needs_action rule instead of assuming it already
+    matched: MATCHED_LOW_CONFIDENCE (an unconfirmed arbiter candidate) was
+    folded into "resolved", and DUPLICATE rows (a second REPORT of a
+    transaction whose real money already cleared under its sibling row)
+    were counted as separate at-risk cash, double-counting money that
+    already landed."""
+    at_risk = resolved = pending_review = still_open = 0.0
     for r in all_rows:
         amt = r["net_amount"]
-        if amt is None or not r["category"]:
+        if amt is None or not r["category"] or r["category"] == "DUPLICATE":
             continue
         at_risk += amt
-        if r["status"] == "EXCEPTION":
+        if r["status"] == "MATCHED_LOW_CONFIDENCE":
+            pending_review += amt
+        elif r["status"] == "EXCEPTION":
             still_open += amt
         else:
             resolved += amt
     return {
         "at_risk": round(at_risk, 2),
         "resolved": round(resolved, 2),
+        "pending_review": round(pending_review, 2),
         "still_open": round(still_open, 2),
         "resolved_pct": round(100 * resolved / at_risk, 1) if at_risk else 0.0,
+        "pending_review_pct": round(100 * pending_review / at_risk, 1) if at_risk else 0.0,
+        "still_open_pct": round(100 * still_open / at_risk, 1) if at_risk else 0.0,
     }
 
 
@@ -696,7 +718,8 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
         </p>
         <div class="stack-bar">
           <span class="seg" style="width:{c['resolved_pct']:.2f}%;background:{SWATCH_HEX['positive']}" title="Resolved: Rs.{c['resolved']:,.2f}"></span>
-          <span class="seg" style="width:{100 - c['resolved_pct']:.2f}%;background:{SWATCH_HEX['negative']}" title="Still open: Rs.{c['still_open']:,.2f}"></span>
+          <span class="seg" style="width:{c['pending_review_pct']:.2f}%;background:{SWATCH_HEX['notice']}" title="Pending human review: Rs.{c['pending_review']:,.2f}"></span>
+          <span class="seg" style="width:{c['still_open_pct']:.2f}%;background:{SWATCH_HEX['negative']}" title="Still open: Rs.{c['still_open']:,.2f}"></span>
         </div>
         <div class="stack-legend">
           <div class="item">
@@ -704,14 +727,22 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
             <span><b>Rs.{c['resolved']:,.2f}</b><span class="item-label">resolved -- now trustworthy cash-position input ({c['resolved_pct']:.1f}%)</span></span>
           </div>
           <div class="item">
+            <span class="swatch" style="background:{SWATCH_HEX['notice']}"></span>
+            <span><b>Rs.{c['pending_review']:,.2f}</b><span class="item-label">pending human review -- a candidate exists, not yet confirmed ({c['pending_review_pct']:.1f}%)</span></span>
+          </div>
+          <div class="item">
             <span class="swatch" style="background:{SWATCH_HEX['negative']}"></span>
-            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open -- a forecaster would still be blind to this</span></span>
+            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open -- a forecaster would still be blind to this ({c['still_open_pct']:.1f}%)</span></span>
           </div>
         </div>
         <p style="margin:var(--sp-6) 0 0;color:var(--faint);font-size:13px">
           Of Rs.{c['at_risk']:,.2f} in settlement amounts that touched some exception or
-          variance path this run, this engine explains where {c['resolved_pct']:.1f}% of it stands
-          without guessing on the rest.
+          variance path this run, this engine fully resolved {c['resolved_pct']:.1f}% without
+          guessing, holds {c['pending_review_pct']:.1f}% for a human to confirm rather than
+          counting it as done, and discloses the remaining {c['still_open_pct']:.1f}% as
+          genuinely open. Duplicate settlement exports are excluded from every figure here --
+          that money already cleared under its sibling row, so counting it again would
+          double-count cash that isn't actually at risk.
         </p>
       </div>
     </div>"""

@@ -3,3 +3,4 @@ __pycache__/
 data/reconcile.db
 .env
 *.md
+!README.md

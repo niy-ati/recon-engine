@@ -66,6 +66,23 @@ class TestSummarizeReplay(unittest.TestCase):
         self.assertEqual(review_server.summarize_replay(replay_log), "")
 
 
+class TestRenderDonut(unittest.TestCase):
+    def test_resolved_pct_excludes_matched_low_confidence(self):
+        """Regression test for a real bug: the donut's headline resolved_pct
+        (the single most visible number on the Overview page) used to
+        exclude only EXCEPTION status, silently counting an unconfirmed
+        MATCHED_LOW_CONFIDENCE candidate as resolved. db.py's own
+        needs_action rule treats it like EXCEPTION -- this must too."""
+        rows = [
+            {"status": "MATCHED"},
+            {"status": "MATCHED"},
+            {"status": "MATCHED_LOW_CONFIDENCE"},
+            {"status": "EXCEPTION"},
+        ]
+        html = review_server.render_donut(rows)
+        self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
+
+
 class TestComputeCashClarity(unittest.TestCase):
     def _row(self, net_amount, category, status):
         return {"net_amount": net_amount, "category": category, "status": status}
@@ -87,6 +104,32 @@ class TestComputeCashClarity(unittest.TestCase):
         result = review_server.compute_cash_clarity(rows)
         self.assertEqual(result["at_risk"], 0)
         self.assertEqual(result["resolved_pct"], 0.0)
+
+    def test_matched_low_confidence_is_pending_review_not_resolved(self):
+        """Regression test for a real bug: MATCHED_LOW_CONFIDENCE (an
+        unconfirmed arbiter candidate) was folded into "resolved" here,
+        same bug as reconcile.py's summarize() -- fixed in both places,
+        kept in sync. db.py's own needs_action rule already treats this
+        status like EXCEPTION, not like done."""
+        rows = [self._row(300.0, "FUZZY_MATCH_NEEDS_REVIEW", "MATCHED_LOW_CONFIDENCE")]
+        result = review_server.compute_cash_clarity(rows)
+        self.assertEqual(result["resolved"], 0.0)
+        self.assertEqual(result["pending_review"], 300.0)
+        self.assertEqual(result["at_risk"], 300.0)
+
+    def test_duplicate_excluded_from_every_cash_bucket(self):
+        """Regression test: a DUPLICATE row's net amount already cleared
+        under its sibling row -- counting it separately double-counts
+        money that isn't actually at risk."""
+        rows = [
+            self._row(999.0, "DUPLICATE", "EXCEPTION"),
+            self._row(200.0, "UNEXPLAINED", "EXCEPTION"),
+        ]
+        result = review_server.compute_cash_clarity(rows)
+        self.assertEqual(result["at_risk"], 200.0)
+        self.assertEqual(result["still_open"], 200.0)
+        self.assertEqual(result["resolved"], 0.0)
+        self.assertEqual(result["pending_review"], 0.0)
 
 
 if __name__ == "__main__":

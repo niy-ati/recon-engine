@@ -102,10 +102,13 @@ def generate(settlement_source: str = "synthetic") -> None:
         lines.append("\n## Cash-position clarity (not a forecast -- this run's own numbers)\n")
         lines.append(
             f"Rs.{summary['cash_at_risk']:,.2f} in settlement amounts touched some exception or "
-            f"variance path this run -- cash position a downstream tool like Cashflow Forecaster "
-            f"would otherwise see as ambiguous. This engine resolved Rs.{summary['cash_resolved']:,.2f} "
-            f"({summary['cash_resolved_pct']}%) of it deterministically or via a gated match, now "
-            f"trustworthy cash-position input. Rs.{summary['cash_still_open']:,.2f} remains genuinely "
+            f"variance path this run (duplicate settlement exports excluded -- that money already "
+            f"cleared under its sibling row) -- cash position a downstream tool like Cashflow "
+            f"Forecaster would otherwise see as ambiguous. This engine resolved "
+            f"Rs.{summary['cash_resolved']:,.2f} ({summary['cash_resolved_pct']}%) of it "
+            f"deterministically or via a gated match, now trustworthy cash-position input. "
+            f"Rs.{summary['cash_pending_review']:,.2f} has a candidate match held for a human to "
+            f"confirm, not counted as done. Rs.{summary['cash_still_open']:,.2f} remains genuinely "
             f"open and is disclosed as such, not folded into the resolved figure."
         )
 

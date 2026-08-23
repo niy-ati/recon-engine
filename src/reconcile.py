@@ -79,7 +79,6 @@ def reconcile(
     ledger = load_csv(f"{data_dir}/internal_ledger.csv")
 
     results = []
-    matched_settlement_ids = set()
     matched_bank_rows = set()
     matched_ledger_rows = set()
 
@@ -133,13 +132,11 @@ def reconcile(
 
         if bank_match is not None:
             matched_bank_rows.add(bank_match)
-            matched_settlement_ids.add(s["settlement_id"])
             record["stage"].append(log("1", "matched", "settlement<->bank matched on UTR+amount+date"))
         elif s.get("on_hold"):
             # Real, documented field on the settlement recon line. Checked
             # before the rounding fallback below since there's no bank
             # credit to be "near" when the payout hasn't moved at all.
-            matched_settlement_ids.add(s["settlement_id"])
             record["category"] = "ON_HOLD_BY_RAZORPAY"
             record["reason"] = ("This payment is known to be held by Razorpay (on_hold=true in "
                                  "their own settlement recon API) -- this is not a reconciliation "
@@ -164,7 +161,6 @@ def reconcile(
             if near:
                 bi, diff = near
                 matched_bank_rows.add(bi)
-                matched_settlement_ids.add(s["settlement_id"])
                 record["category"] = "ROUNDING" if diff < 1.0 else "TAX_DEDUCTION"
                 record["reason"] = f"Bank credit found for this UTR but net amount differs by Rs.{diff:.2f} -- likely GST-on-MDR rounding drift, not a genuine mismatch."
                 record["status"] = "MATCHED_WITH_VARIANCE"
@@ -193,7 +189,6 @@ def reconcile(
                     bi = cross_utr_hits[0]
                     bank_utr = bank[bi]["utr"]
                     matched_bank_rows.add(bi)
-                    matched_settlement_ids.add(s["settlement_id"])
                     record["category"] = "UTR_LEVEL_MISMATCH"
                     record["reason"] = (
                         f"No bank row under this settlement's own UTR ({s['utr']}), but a bank credit "
@@ -458,21 +453,37 @@ def summarize(results: list[dict]) -> dict:
         if r["category"]:
             by_category[r["category"]] += 1
 
-    resolved = matched + matched_variance + exact_reference + learned + ai_assisted + low_conf
+    # MATCHED_LOW_CONFIDENCE is an unconfirmed arbiter candidate sitting in
+    # the human review queue -- db.py's own needs_action rule
+    # (needs_action = "yes" if status in (EXCEPTION, MATCHED_LOW_CONFIDENCE))
+    # already says so. It must NOT be folded into "resolved" here: doing so
+    # let the headline resolved percentage quietly count a human's
+    # not-yet-made decision as done. Caught by tracing this number against
+    # db.py's own definition instead of assuming it was already consistent.
+    resolved = matched + matched_variance + exact_reference + learned + ai_assisted
 
     # Real Rs. amounts, not a forecast: quantifies how much of the cash
     # position a downstream tool like Cashflow Forecaster would see as
-    # ambiguous (anything that hit an exception/variance path) versus how
-    # much this run explained or matched deterministically/via a gated
-    # match, versus what's honestly still open. See review_server.py's
-    # compute_cash_clarity for the same computation over persisted rows.
-    cash_at_risk = cash_resolved = cash_still_open = 0.0
+    # ambiguous versus how much this run explained or matched versus what's
+    # honestly still open or pending a human's confirm. See
+    # review_server.py's compute_cash_clarity for the same computation over
+    # persisted rows -- kept in sync, same fix applied in both places.
+    #
+    # DUPLICATE rows are excluded entirely, not counted in any bucket: a
+    # duplicate settlement export is a second REPORT of a transaction whose
+    # real money already cleared under its sibling row (see
+    # test_duplicate_settlement_id_flagged_symmetrically). Counting its net
+    # amount as separate "at-risk" cash would double-count money that
+    # already landed -- the opposite of honest disclosure.
+    cash_at_risk = cash_resolved = cash_pending_review = cash_still_open = 0.0
     for r in results:
-        if not r["category"] or r.get("net") is None:
+        if not r["category"] or r.get("net") is None or r["category"] == "DUPLICATE":
             continue
         amt = float(r["net"])
         cash_at_risk += amt
-        if r["status"] == "EXCEPTION":
+        if r["status"] == "MATCHED_LOW_CONFIDENCE":
+            cash_pending_review += amt
+        elif r["status"] == "EXCEPTION":
             cash_still_open += amt
         else:
             cash_resolved += amt
@@ -490,6 +501,7 @@ def summarize(results: list[dict]) -> dict:
         "exceptions_by_category": dict(by_category),
         "cash_at_risk": round(cash_at_risk, 2),
         "cash_resolved": round(cash_resolved, 2),
+        "cash_pending_review": round(cash_pending_review, 2),
         "cash_still_open": round(cash_still_open, 2),
         "cash_resolved_pct": round(100 * cash_resolved / cash_at_risk, 1) if cash_at_risk else 0.0,
     }
