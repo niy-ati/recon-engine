@@ -22,6 +22,7 @@ a later run can still see it, but its result fields stay frozen -- see
 persist_results()'s SQL for the exact mechanism.
 """
 import json
+import re
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
@@ -156,6 +157,32 @@ def add_note(exception_id: int, note: str) -> None:
         conn.close()
 
 
+def _is_narration_specific(conn: sqlite3.Connection, narration: str, order_id: str) -> bool:
+    """A confirm on a boilerplate narration ("payment received, thanks")
+    that could plausibly describe many orders shouldn't get memoized --
+    it would auto-apply to the next unrelated transaction carrying the
+    same generic text. Requires the narration to contain a digit run that
+    is this order's own numeric suffix AND isn't shared with any other
+    order_id already known to the exceptions table. See README, 'the
+    learned-pattern store can be poisoned by an overly generic confirm.'"""
+    own_digits = re.findall(r"\d+", order_id)
+    if not own_digits:
+        return False
+    own_suffix = own_digits[-1]
+    if own_suffix not in re.findall(r"\d+", narration):
+        return False
+
+    other_order_ids = conn.execute(
+        "SELECT DISTINCT order_id FROM exceptions WHERE order_id IS NOT NULL AND order_id != ?",
+        (order_id,),
+    ).fetchall()
+    for (other_id,) in other_order_ids:
+        other_digits = re.findall(r"\d+", other_id)
+        if other_digits and other_digits[-1] == own_suffix:
+            return False
+    return True
+
+
 def resolve_exception(exception_id: int, action: str, note: str | None = None) -> None:
     """action: 'confirm' | 'reject' -- terminal decisions only.
 
@@ -179,7 +206,9 @@ def resolve_exception(exception_id: int, action: str, note: str | None = None) -
                 (resolution_status, note, now, exception_id),
             )
 
-            if action == "confirm" and row["category"] == "FUZZY_MATCH_NEEDS_REVIEW" and row["narration"] and row["order_id"]:
+            if (action == "confirm" and row["category"] == "FUZZY_MATCH_NEEDS_REVIEW"
+                    and row["narration"] and row["order_id"]
+                    and _is_narration_specific(conn, row["narration"], row["order_id"])):
                 conn.execute(
                     "INSERT OR REPLACE INTO narration_rules (narration, order_id, confirmed_at, source) VALUES (?, ?, ?, ?)",
                     (row["narration"], row["order_id"], now, "human_review"),

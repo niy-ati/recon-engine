@@ -117,12 +117,12 @@ class TestResolveException(DbTestCase):
     def test_confirming_fuzzy_match_writes_narration_rule(self):
         db.persist_results(
             [make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
-                          narration="pymt rcvd customer thx")],
+                          narration="pymt rcvd customer ord#1 thx")],
             run_id="run-1",
         )
         row_id = db.get_open_exceptions()[0]["id"]
         db.resolve_exception(row_id, "confirm")
-        rule = db.get_narration_rule("pymt rcvd customer thx")
+        rule = db.get_narration_rule("pymt rcvd customer ord#1 thx")
         self.assertIsNotNone(rule)
         self.assertEqual(rule["order_id"], "order_1")
         self.assertEqual(rule["source"], "human_review")
@@ -130,12 +130,43 @@ class TestResolveException(DbTestCase):
     def test_rejecting_fuzzy_match_does_not_write_narration_rule(self):
         db.persist_results(
             [make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
-                          narration="pymt rcvd customer thx")],
+                          narration="pymt rcvd customer ord#1 thx")],
             run_id="run-1",
         )
         row_id = db.get_open_exceptions()[0]["id"]
         db.resolve_exception(row_id, "reject")
-        self.assertIsNone(db.get_narration_rule("pymt rcvd customer thx"))
+        self.assertIsNone(db.get_narration_rule("pymt rcvd customer ord#1 thx"))
+
+    def test_confirming_fuzzy_match_with_no_digits_does_not_write_rule(self):
+        """A narration with no digit reference at all could plausibly
+        describe any order -- refuses to memoize it rather than let it
+        auto-apply to some future unrelated transaction. See README,
+        'the learned-pattern store can be poisoned by an overly generic
+        confirm.'"""
+        db.persist_results(
+            [make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                          narration="payment received thanks")],
+            run_id="run-1",
+        )
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "confirm")
+        self.assertIsNone(db.get_narration_rule("payment received thanks"))
+
+    def test_confirming_fuzzy_match_with_shared_digit_suffix_does_not_write_rule(self):
+        """The narration's digit run matches order_1's own suffix, but
+        another order in the same batch (return_1) shares that exact
+        suffix -- no longer a unique fingerprint, so it's refused."""
+        db.persist_results(
+            [
+                make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                            narration="pymt rcvd customer ref 1 thx"),
+                make_result("return_1", "EXCEPTION", category="UNEXPLAINED"),
+            ],
+            run_id="run-1",
+        )
+        row_id = next(r["id"] for r in db.get_open_exceptions() if r["order_id"] == "order_1")
+        db.resolve_exception(row_id, "confirm")
+        self.assertIsNone(db.get_narration_rule("pymt rcvd customer ref 1 thx"))
 
     def test_unknown_action_raises(self):
         db.persist_results([make_result("order_1", "EXCEPTION")], run_id="run-1")

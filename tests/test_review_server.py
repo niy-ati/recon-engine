@@ -66,5 +66,28 @@ class TestSummarizeReplay(unittest.TestCase):
         self.assertEqual(review_server.summarize_replay(replay_log), "")
 
 
+class TestComputeCashClarity(unittest.TestCase):
+    def _row(self, net_amount, category, status):
+        return {"net_amount": net_amount, "category": category, "status": status}
+
+    def test_splits_resolved_from_still_open(self):
+        rows = [
+            self._row(975.42, "ROUNDING", "MATCHED_WITH_VARIANCE"),
+            self._row(500.00, "UNEXPLAINED", "EXCEPTION"),
+            self._row(200.00, None, "MATCHED"),  # no category -- outside the at-risk universe entirely
+        ]
+        result = review_server.compute_cash_clarity(rows)
+        self.assertAlmostEqual(result["at_risk"], 1475.42, places=2)
+        self.assertAlmostEqual(result["resolved"], 975.42, places=2)
+        self.assertAlmostEqual(result["still_open"], 500.00, places=2)
+        self.assertAlmostEqual(result["resolved_pct"], round(100 * 975.42 / 1475.42, 1), places=1)
+
+    def test_no_categorized_rows_returns_zero_without_dividing_by_zero(self):
+        rows = [self._row(100.0, None, "MATCHED")]
+        result = review_server.compute_cash_clarity(rows)
+        self.assertEqual(result["at_risk"], 0)
+        self.assertEqual(result["resolved_pct"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

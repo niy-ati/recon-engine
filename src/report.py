@@ -93,9 +93,21 @@ def generate(settlement_source: str = "synthetic") -> None:
         "FUZZY_MATCH_NEEDS_REVIEW": "Narration-based candidate match below auto-accept confidence -- human must confirm",
         "AFA_MANDATE_HOLD": "Subscription charge blocked by RBI e-mandate AFA threshold (>Rs.15,000) -- needs compliant step-up re-auth, not a blind retry",
         "ON_HOLD_BY_RAZORPAY": "Razorpay's own API reports on_hold=true for this settlement -- known, held for a reason, not a lost transaction or a normal delay",
+        "UTR_LEVEL_MISMATCH": "Money arrived, but under a different UTR than the settlement report claims -- Razorpay's UTR is two-tier (batch vs. line), not a missing payout",
     }
     for cat, count in summary["exceptions_by_category"].items():
         lines.append(f"| {cat} | {count} | {meanings.get(cat, '')} |")
+
+    if summary["cash_at_risk"] > 0:
+        lines.append("\n## Cash-position clarity (not a forecast -- this run's own numbers)\n")
+        lines.append(
+            f"Rs.{summary['cash_at_risk']:,.2f} in settlement amounts touched some exception or "
+            f"variance path this run -- cash position a downstream tool like Cashflow Forecaster "
+            f"would otherwise see as ambiguous. This engine resolved Rs.{summary['cash_resolved']:,.2f} "
+            f"({summary['cash_resolved_pct']}%) of it deterministically or via a gated match, now "
+            f"trustworthy cash-position input. Rs.{summary['cash_still_open']:,.2f} remains genuinely "
+            f"open and is disclosed as such, not folded into the resolved figure."
+        )
 
     with open(OUTPUT_DIR / "reconciliation_report.md", "w") as f:
         f.write("\n".join(lines))

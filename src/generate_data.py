@@ -24,6 +24,11 @@ Injected failure modes:
   - ON_HOLD_BY_RAZORPAY: a settlement Razorpay's own API flags
     on_hold=true -- distinct from AFA_MANDATE_HOLD (a regulatory retry
     constraint) and from plain UNEXPLAINED (no information at all)
+  - UTR_LEVEL_MISMATCH: the settlement report and the bank statement
+    disagree on the UTR for the same real transfer (Razorpay's settlement
+    UTR is genuinely two-tier -- batch-level vs. per-line -- see README)
+    -- the money arrived, just filed under a different UTR than the
+    settlement line claims
 
 Known limitation: the overall resolved percentage varies by seed (an
 82.6%-95.1% range was measured across five seeds before IDs were made
@@ -132,9 +137,20 @@ for i in range(N_ORDERS):
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
-    # --- 3%: genuinely orphan / UNEXPLAINED ---
-    elif case < 0.96:
+    # --- 1%: genuinely orphan / UNEXPLAINED ---
+    elif case < 0.94:
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
+
+    # --- 2%: two-tier UTR mismatch -- the bank posts the exact amount on
+    # the exact date, but under a different UTR than the settlement
+    # report's own reference (a real quirk of Razorpay's two-tier UTR:
+    # batch-level `utr` vs. per-line `settlement_utr` can diverge) ---
+    elif case < 0.96:
+        reported_utr = utr
+        actual_bank_utr = f"UTR{random.randint(10**9, 10**10-1)}"
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, reported_utr, settle_date, False])
+        bank_rows.append([actual_bank_utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
+        ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
     # --- 2%: on_hold=true settlement -- fulfilled but no bank credit yet ---
     elif case < 0.98:

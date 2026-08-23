@@ -472,6 +472,7 @@ CATEGORY_TONES = {
     "PARTIAL_PAYMENT": "positive",
     "ROUNDING": "positive",
     "TAX_DEDUCTION": "positive",
+    "UTR_LEVEL_MISMATCH": "positive",
     "ON_HOLD_BY_RAZORPAY": "notice",
     "FUZZY_MATCH_NEEDS_REVIEW": "notice",
     "AFA_MANDATE_HOLD": "information",
@@ -500,6 +501,7 @@ ICON_DB = '<svg viewBox="0 0 20 20" fill="none"><ellipse cx="10" cy="5" rx="6.5"
 
 CATEGORY_ICONS = {
     "PARTIAL_PAYMENT": ICON_ROWS, "ROUNDING": ICON_ROWS, "TAX_DEDUCTION": ICON_ROWS,
+    "UTR_LEVEL_MISMATCH": ICON_BANK,
     "ON_HOLD_BY_RAZORPAY": ICON_ALERT, "FUZZY_MATCH_NEEDS_REVIEW": ICON_ALERT,
     "AFA_MANDATE_HOLD": ICON_KEY, "DUPLICATE": ICON_GATEWAY, "UNEXPLAINED": ICON_ALERT,
 }
@@ -653,6 +655,68 @@ def readable_category(cat: str) -> str:
     return escape(cat).replace("_", "_​")
 
 
+def compute_cash_clarity(all_rows: list[dict]) -> dict:
+    """Real Rs. amounts computed from this run's own persisted net_amount/
+    category/status columns -- not a forecast, not a parallel calculation.
+    Quantifies the 'this build sits upstream of Cashflow Forecaster' claim
+    with a number instead of just an argument: every row that hit some
+    exception/variance path is cash position a downstream forecaster would
+    otherwise see as ambiguous; the portion this engine explained or
+    matched is now trustworthy input, and the portion still open is
+    disclosed honestly, not folded into the resolved figure."""
+    at_risk = resolved = still_open = 0.0
+    for r in all_rows:
+        amt = r["net_amount"]
+        if amt is None or not r["category"]:
+            continue
+        at_risk += amt
+        if r["status"] == "EXCEPTION":
+            still_open += amt
+        else:
+            resolved += amt
+    return {
+        "at_risk": round(at_risk, 2),
+        "resolved": round(resolved, 2),
+        "still_open": round(still_open, 2),
+        "resolved_pct": round(100 * resolved / at_risk, 1) if at_risk else 0.0,
+    }
+
+
+def render_cash_clarity(all_rows: list[dict]) -> str:
+    c = compute_cash_clarity(all_rows)
+    if c["at_risk"] == 0:
+        return ""
+    return f"""
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Cash-position clarity</h2></div>
+      <div class="panel-body">
+        <p style="margin:0 0 var(--sp-6);color:var(--muted);max-width:70ch">
+          This isn't a forecast -- it's what this run's own numbers say about the input a
+          forecaster like Razorpay's Cashflow Forecaster would actually receive.
+        </p>
+        <div class="stack-bar">
+          <span class="seg" style="width:{c['resolved_pct']:.2f}%;background:{SWATCH_HEX['positive']}" title="Resolved: Rs.{c['resolved']:,.2f}"></span>
+          <span class="seg" style="width:{100 - c['resolved_pct']:.2f}%;background:{SWATCH_HEX['negative']}" title="Still open: Rs.{c['still_open']:,.2f}"></span>
+        </div>
+        <div class="stack-legend">
+          <div class="item">
+            <span class="swatch" style="background:{SWATCH_HEX['positive']}"></span>
+            <span><b>Rs.{c['resolved']:,.2f}</b><span class="item-label">resolved -- now trustworthy cash-position input ({c['resolved_pct']:.1f}%)</span></span>
+          </div>
+          <div class="item">
+            <span class="swatch" style="background:{SWATCH_HEX['negative']}"></span>
+            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open -- a forecaster would still be blind to this</span></span>
+          </div>
+        </div>
+        <p style="margin:var(--sp-6) 0 0;color:var(--faint);font-size:13px">
+          Of Rs.{c['at_risk']:,.2f} in settlement amounts that touched some exception or
+          variance path this run, this engine explains where {c['resolved_pct']:.1f}% of it stands
+          without guessing on the rest.
+        </p>
+      </div>
+    </div>"""
+
+
 def render_overview() -> str:
     all_rows = db.get_all_exceptions()
     open_rows = db.get_open_exceptions()
@@ -705,7 +769,8 @@ def render_overview() -> str:
     <div class="panel">
       <div class="panel-head"><h2 style="margin:0">Exceptions by category</h2></div>
       <div class="panel-body"><div class="category-grid">{category_cards}</div></div>
-    </div>"""
+    </div>
+    {render_cash_clarity(all_rows)}"""
     return render_shell("overview", "Overview", "", body)
 
 

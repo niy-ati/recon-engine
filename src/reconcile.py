@@ -88,6 +88,13 @@ def reconcile(
     for i, b in enumerate(bank):
         bank_by_utr[b["utr"]].append(i)
 
+    # Every UTR a settlement claims as its own -- computed once, up front,
+    # order-independent. The cross-UTR mismatch check below must never
+    # touch a bank row whose UTR belongs to some OTHER settlement's own
+    # reference, even one not processed yet: that row is someone else's
+    # rightful primary match, not a mismatch up for grabs.
+    settlement_utrs = {s["utr"] for s in settlements}
+
     for s in settlements:
         # match_key identifies this logical row across separate runs of the
         # same batch (db.py upserts on it instead of blanket-deleting, so a
@@ -151,10 +158,47 @@ def reconcile(
                 record["reason"] = f"Bank credit found for this UTR but net amount differs by Rs.{diff:.2f} -- likely GST-on-MDR rounding drift, not a genuine mismatch."
                 record["status"] = "MATCHED_WITH_VARIANCE"
             else:
-                # Duplicate settlement_id for the same order/UTR -> compare
+                # Two-tier UTR mismatch: Razorpay's real settlement UTR is
+                # two-tier (batch-level vs. per-line, see README), so the
+                # UTR this settlement reports and the UTR the bank actually
+                # posted under can legitimately differ for the same real
+                # transfer. Before calling this a missing payout, check
+                # every OTHER unmatched bank row (not just this UTR's own
+                # candidates) for one that matches on amount+date exactly --
+                # but only resolve it if exactly one such row exists.
+                # Two-plus is a same-amount/same-day coincidence, genuinely
+                # ambiguous, and gets left for the DUPLICATE/UNEXPLAINED
+                # path below rather than guessed at.
+                cross_utr_hits = []
+                for bi, b in enumerate(bank):
+                    if bi in matched_bank_rows or b["utr"] in settlement_utrs:
+                        continue
+                    amt_diff = abs(float(b["credited_amount"]) - float(s["net"]))
+                    date_diff = abs((parse_date(b["value_date"]) - parse_date(s["settlement_date"])).days)
+                    if amt_diff <= AMOUNT_TOLERANCE and date_diff <= DATE_TOLERANCE_DAYS:
+                        cross_utr_hits.append(bi)
+
+                if len(cross_utr_hits) == 1:
+                    bi = cross_utr_hits[0]
+                    bank_utr = bank[bi]["utr"]
+                    matched_bank_rows.add(bi)
+                    matched_settlement_ids.add(s["settlement_id"])
+                    record["category"] = "UTR_LEVEL_MISMATCH"
+                    record["reason"] = (
+                        f"No bank row under this settlement's own UTR ({s['utr']}), but a bank credit "
+                        f"matching the exact amount and date was found under UTR {bank_utr} instead -- "
+                        f"Razorpay's settlement UTR is two-tier (batch-level vs. per-line), so this reads "
+                        f"as a reference mismatch, not a missing payout. The money arrived; the UTR label doesn't."
+                    )
+                    record["status"] = "MATCHED_WITH_VARIANCE"
+                    record["stage"].append(log(
+                        "1", "utr_mismatch",
+                        f"settlement UTR {s['utr']} had no bank row, but amount+date uniquely matched bank UTR {bank_utr}",
+                    ))
+                # Duplicate settlement_id for the same order/UTR -- compare
                 # base IDs both ways so the label doesn't depend on which
                 # of the pair claims the bank match first.
-                if any(
+                elif any(
                     base_settlement_id(other["settlement_id"]) == base_settlement_id(s["settlement_id"])
                     and other is not s
                     for other in settlements
@@ -381,6 +425,23 @@ def summarize(results: list[dict]) -> dict:
 
     resolved = matched + matched_variance + exact_reference + learned + ai_assisted + low_conf
 
+    # Real Rs. amounts, not a forecast: quantifies how much of the cash
+    # position a downstream tool like Cashflow Forecaster would see as
+    # ambiguous (anything that hit an exception/variance path) versus how
+    # much this run explained or matched deterministically/via a gated
+    # match, versus what's honestly still open. See review_server.py's
+    # compute_cash_clarity for the same computation over persisted rows.
+    cash_at_risk = cash_resolved = cash_still_open = 0.0
+    for r in results:
+        if not r["category"] or r.get("net") is None:
+            continue
+        amt = float(r["net"])
+        cash_at_risk += amt
+        if r["status"] == "EXCEPTION":
+            cash_still_open += amt
+        else:
+            cash_resolved += amt
+
     return {
         "total_rows": total,
         "clean_match_pct": round(100 * matched / total, 1),
@@ -392,6 +453,10 @@ def summarize(results: list[dict]) -> dict:
         "unresolved_exception_pct": round(100 * exceptions / total, 1),
         "overall_resolved_pct": round(100 * resolved / total, 1),
         "exceptions_by_category": dict(by_category),
+        "cash_at_risk": round(cash_at_risk, 2),
+        "cash_resolved": round(cash_resolved, 2),
+        "cash_still_open": round(cash_still_open, 2),
+        "cash_resolved_pct": round(100 * cash_resolved / cash_at_risk, 1) if cash_at_risk else 0.0,
     }
 
 

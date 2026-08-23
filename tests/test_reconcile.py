@@ -176,6 +176,44 @@ class TestUnexplained(unittest.TestCase):
             self.assertEqual(orphan[0]["status"], "EXCEPTION")
 
 
+class TestUTRLevelMismatch(unittest.TestCase):
+    def test_amount_date_match_under_different_utr_resolves_as_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                # Bank credit matches amount+date exactly, but under a UTR
+                # the settlement report never mentions -- the real two-tier
+                # UTR quirk, not a missing payout.
+                bank_rows=[["UTR999", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["status"], "MATCHED_WITH_VARIANCE")
+            self.assertEqual(r["category"], "UTR_LEVEL_MISMATCH")
+            self.assertIn("UTR999", r["reason"])
+
+    def test_ambiguous_cross_utr_candidates_does_not_guess(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                # TWO different bank rows match amount+date under two
+                # different UTRs -- a genuine same-amount/same-day
+                # coincidence, not a resolvable mismatch.
+                bank_rows=[
+                    ["UTR888", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT other_a"],
+                    ["UTR999", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT other_b"],
+                ],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["status"], "EXCEPTION")
+            self.assertEqual(r["category"], "UNEXPLAINED")
+
+
 class TestAfaMandateHold(unittest.TestCase):
     def test_afa_narration_categorized_distinctly(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -261,6 +299,28 @@ class TestSummarize(unittest.TestCase):
             summary = summarize(results)
             self.assertEqual(summary["total_rows"], 1)
             self.assertEqual(summary["overall_resolved_pct"], 100.0)
+
+    def test_cash_clarity_splits_resolved_from_still_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[
+                    # Rs.0.50 drift -> ROUNDING, resolved (MATCHED_WITH_VARIANCE).
+                    ["UTR001", 974.92, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"],
+                    # No matching settlement at all -> UNEXPLAINED, genuinely still open.
+                    ["UTR999", 500.00, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_ghost"],
+                ],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            summary = summarize(results)
+            self.assertAlmostEqual(summary["cash_at_risk"], 1475.42, places=2)
+            self.assertAlmostEqual(summary["cash_resolved"], 975.42, places=2)
+            self.assertAlmostEqual(summary["cash_still_open"], 500.00, places=2)
+            self.assertAlmostEqual(
+                summary["cash_resolved_pct"], round(100 * 975.42 / 1475.42, 1), places=1,
+            )
 
 
 class TestStructuredLogging(unittest.TestCase):
