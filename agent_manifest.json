@@ -24,7 +24,8 @@
       "Propose a match between a settlement, a bank credit, and a ledger entry",
       "Categorize an unmatched row into a named exception type with a stated reason",
       "Auto-apply a match only when both hold at once: confidence >= 0.90 AND the model tier that produced it is on an explicit trusted-tier allowlist",
-      "Record a human's confirm/reject/note decision against a specific row"
+      "Record a human's confirm/reject/note decision against a specific row",
+      "Answer plain-language questions about the last run (order status, category counts, resolution rate) by reading the same persisted data, never inventing a figure"
     ],
     "will_never_do": [
       "Post an entry to a real accounting system or settlement ledger -- this agent only proposes, a human or a separate posting system commits",
@@ -37,7 +38,8 @@
   "validation": {
     "module": "src/validation_gate.py, separate from src/reconcile.py and src/llm_matcher.py",
     "gate_rule": "auto_applied = (confidence >= CONFIDENCE_AUTO_ACCEPT) AND (tier in AUTO_APPLY_TRUSTED_TIERS); otherwise routed to human review",
-    "audit_trail": "Per-row replay_log recording which pass resolved it and why, visible in the review queue"
+    "audit_trail": "Per-row structured replay_log (pass, action, confidence, timestamp, correlation_id) recording which pass resolved it and why, visible in the review queue",
+    "idempotency": "Re-running the same batch upserts on a stable match_key instead of deleting and reinserting -- a human's earlier confirm/reject decision is never erased by a later run (src/db.py)"
   },
 
   "human_control": {
