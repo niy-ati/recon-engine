@@ -14,17 +14,20 @@ A result auto-applies only if both hold:
 
 Everything else returns with auto_applied=False, routed to human review.
 """
-from llm_matcher import call_llm_arbiter
+from llm_matcher import ArbiterResult, call_llm_arbiter
 
 CONFIDENCE_AUTO_ACCEPT = 0.90
 
 # Empty: Ollama showed a positional-bias failure (defaults to whichever
 # candidate is listed first while still reporting confidence >=0.90) and
 # is excluded as a result. Add a tier here once it's shown reliable.
-AUTO_APPLY_TRUSTED_TIERS = set()
+AUTO_APPLY_TRUSTED_TIERS: set[str] = set()
 
 
-def resolve_with_gate(ledger_narration: str, shortlist: list[str]):
+def resolve_with_gate(ledger_narration: str, shortlist: list[str]) -> ArbiterResult:
+    """The only way anything in this codebase gets an arbiter's opinion.
+    Sets auto_applied on the returned result -- see the module docstring
+    for the exact rule."""
     result = call_llm_arbiter(ledger_narration, shortlist)
     tier_name = result.tier.split(":")[0]
     tier_trusted = tier_name in AUTO_APPLY_TRUSTED_TIERS

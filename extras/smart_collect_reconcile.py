@@ -74,7 +74,7 @@ credits.append({"id": "cr_trapA", "payer_vpa": "unknown1@ybl", "amount": 5000, "
 credits.append({"id": "cr_trapB", "payer_vpa": "unknown2@ybl", "amount": 5000, "narration": "payment"})
 
 
-def reconcile_virtual_account():
+def reconcile_virtual_account() -> list[dict]:
     results = []
     matched_due_ids = set()
 
@@ -144,7 +144,7 @@ def reconcile_virtual_account():
     return results
 
 
-def summarize_and_print(results):
+def summarize_and_print(results: list[dict]) -> None:
     total = len(results)
     by_status = defaultdict(int)
     for r in results:

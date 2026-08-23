@@ -35,7 +35,7 @@ GATEWAY_B_CONFIG = {
 GATEWAY_B_DATE_FORMAT = "%d-%m-%Y"  # deliberately different from Razorpay's YYYY-MM-DD
 
 
-def normalize_gateway_row(raw, config, date_format="%Y-%m-%d"):
+def normalize_gateway_row(raw: dict, config: dict, date_format: str = "%Y-%m-%d") -> dict:
     """Maps one row from an arbitrary gateway's column names into the
     canonical schema reconcile.py expects. Everything gateway-specific is
     confined to the config dict, never to logic here."""
@@ -56,7 +56,7 @@ def normalize_gateway_row(raw, config, date_format="%Y-%m-%d"):
     return canonical
 
 
-def load_gateway_b_export(path=None):
+def load_gateway_b_export(path: Path | None = None) -> list[dict]:
     """Reads data/gateway_b_export.csv (Gateway B's own column names and
     date format) and returns rows normalized into the canonical schema."""
     path = path or (DATA_DIR / "gateway_b_export.csv")

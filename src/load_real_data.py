@@ -31,7 +31,7 @@ REQUIRED_COLUMNS = {
 }
 
 
-def validate_and_count(path, expected_columns):
+def validate_and_count(path: Path, expected_columns: list[str]) -> int:
     with open(path, newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
     actual_columns = list(rows[0].keys()) if rows else []
@@ -47,7 +47,7 @@ def validate_and_count(path, expected_columns):
     return len(rows)
 
 
-def load(source_path, target_filename):
+def load(source_path: Path, target_filename: str) -> None:
     target_path = DATA_DIR / target_filename
     row_count = validate_and_count(source_path, REQUIRED_COLUMNS[target_filename])
 
@@ -61,7 +61,7 @@ def load(source_path, target_filename):
     print(f"Loaded {row_count} real rows from {source_path} -> data/{target_filename}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--bank", type=Path, help="Path to your real bank statement CSV")
     parser.add_argument("--ledger", type=Path, help="Path to your real internal ledger CSV")

@@ -38,7 +38,7 @@ RESOLVED_STATUSES = {
 }
 
 
-def _find_order(question):
+def _find_order(question: str) -> str | None:
     match = ORDER_ID_PATTERN.search(question)
     if not match:
         return None
@@ -60,7 +60,7 @@ def _find_order(question):
     return "\n".join(lines)
 
 
-def _category_count(question):
+def _category_count(question: str) -> str | None:
     q = question.upper().replace(" ", "_")
     for category in KNOWN_CATEGORIES:
         if category in q or category.replace("_", " ") in question.upper():
@@ -74,7 +74,7 @@ def _category_count(question):
     return None
 
 
-def _open_count(question):
+def _open_count(question: str) -> str | None:
     ql = question.lower()
     if any(kw in ql for kw in ("how many open", "how many pending", "how many need", "how many exceptions", "how many are open")):
         open_rows = db.get_open_exceptions()
@@ -82,7 +82,7 @@ def _open_count(question):
     return None
 
 
-def _resolution_rate(question):
+def _resolution_rate(question: str) -> str | None:
     ql = question.lower()
     if any(kw in ql for kw in ("resolution rate", "how much resolved", "how much is resolved", "overall resolved", "percent resolved")):
         rows = db.get_all_exceptions()
@@ -94,7 +94,7 @@ def _resolution_rate(question):
     return None
 
 
-def _category_breakdown(question):
+def _category_breakdown(question: str) -> str | None:
     ql = question.lower()
     if any(kw in ql for kw in ("breakdown", "by category", "exceptions by")):
         rows = db.get_all_exceptions()
@@ -105,7 +105,10 @@ def _category_breakdown(question):
     return None
 
 
-def answer(question):
+def answer(question: str) -> str:
+    """Entry point: returns a plain-text answer grounded in the persisted
+    exceptions table, or an honest "don't know" if the question doesn't
+    match a recognized shape."""
     order_answer = _find_order(question)
     if order_answer is not None:
         return order_answer

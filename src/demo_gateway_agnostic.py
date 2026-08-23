@@ -34,7 +34,7 @@ GATEWAY_B_ORDERS = [
 ]
 
 
-def inject_gateway_b_orders():
+def inject_gateway_b_orders() -> None:
     """Writes data/gateway_b_export.csv in Gateway B's own column layout and
     date format, and appends the corresponding bank credit and ledger entry."""
     with open(DATA_DIR / "gateway_b_export.csv", "w", newline="") as f:
@@ -63,7 +63,7 @@ def inject_gateway_b_orders():
           f"(data/gateway_b_export.csv) -- bank and ledger entries appended.")
 
 
-def check_gateway_b_resolution(results):
+def check_gateway_b_resolution(results: list[dict]) -> None:
     target_ids = {o["order_id"] for o in GATEWAY_B_ORDERS}
     matched = {r["order_id"]: r for r in results if r.get("order_id") in target_ids}
 

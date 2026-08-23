@@ -54,11 +54,11 @@ ledger_rows = []
 customers = [f"Customer {i}" for i in range(1, 30)]
 
 
-def money(x):
+def money(x: float) -> float:
     return round(x, 2)
 
 
-def random_hex(n):
+def random_hex(n: int) -> str:
     # uuid.uuid4() draws from os.urandom, ignoring random.seed(), so IDs
     # would differ on every run even under a fixed seed -- this generator
     # uses the seeded `random` module instead, so the whole batch

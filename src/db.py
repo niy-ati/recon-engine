@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS narration_rules (
 """
 
 
-def _migrate(conn):
+def _migrate(conn: sqlite3.Connection) -> None:
     """One-time migration for a data/reconcile.db created before match_key
     existed. New databases get match_key from SCHEMA directly; this only
     runs the ALTER/backfill/index steps when the column is actually
@@ -71,7 +71,9 @@ def _migrate(conn):
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_exceptions_match_key ON exceptions(match_key)")
 
 
-def get_connection():
+def get_connection() -> sqlite3.Connection:
+    """Opens (creating if needed) data/reconcile.db, applies SCHEMA, and
+    runs the match_key migration. Callers own closing the connection."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -80,7 +82,7 @@ def get_connection():
     return conn
 
 
-def persist_results(results, run_id):
+def persist_results(results: list[dict], run_id: str) -> None:
     """Upserts every result row into `exceptions` on match_key. A row whose
     resolution_status is still OPEN gets its fields fully refreshed from
     this run. A row a human already CONFIRMED or REJECTED keeps its frozen
@@ -119,7 +121,9 @@ def persist_results(results, run_id):
         conn.close()
 
 
-def get_open_exceptions():
+def get_open_exceptions() -> list[dict]:
+    """Rows needing a human decision: needs_action='yes' and not yet
+    confirmed/rejected. What review_server.py's /queue page lists."""
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -130,7 +134,8 @@ def get_open_exceptions():
     return [dict(r) for r in rows]
 
 
-def get_all_exceptions():
+def get_all_exceptions() -> list[dict]:
+    """Every persisted row from the last run, matched and exception alike."""
     conn = get_connection()
     try:
         rows = conn.execute("SELECT * FROM exceptions ORDER BY id").fetchall()
@@ -139,7 +144,7 @@ def get_all_exceptions():
     return [dict(r) for r in rows]
 
 
-def add_note(exception_id, note):
+def add_note(exception_id: int, note: str) -> None:
     """Attaches a note without resolving the row -- lets a reviewer record
     context without being forced into a binary confirm/reject decision.
     Row stays OPEN, stays in the queue."""
@@ -151,7 +156,7 @@ def add_note(exception_id, note):
         conn.close()
 
 
-def resolve_exception(exception_id, action, note=None):
+def resolve_exception(exception_id: int, action: str, note: str | None = None) -> None:
     """action: 'confirm' | 'reject' -- terminal decisions only.
 
     Confirming a FUZZY_MATCH_NEEDS_REVIEW row also writes a narration_rules
@@ -183,7 +188,9 @@ def resolve_exception(exception_id, action, note=None):
         conn.close()
 
 
-def get_narration_rule(narration):
+def get_narration_rule(narration: str) -> dict | None:
+    """The human-confirmed order_id for this exact narration string, if
+    one was ever recorded via resolve_exception()'s confirm path."""
     conn = get_connection()
     try:
         row = conn.execute("SELECT * FROM narration_rules WHERE narration = ?", (narration,)).fetchone()

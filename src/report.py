@@ -14,7 +14,7 @@ from reconcile import reconcile, summarize, new_correlation_id
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-def generate(settlement_source="synthetic"):
+def generate(settlement_source: str = "synthetic") -> None:
     if settlement_source == "live":
         print("Using LIVE Razorpay settlement data (test-mode keys). Test-mode "
               "transactions never generate settlements, so an authenticated "

@@ -14,7 +14,7 @@ from reconcile import reconcile, summarize
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
-def inject_ambiguous_pair():
+def inject_ambiguous_pair() -> None:
     """Adds two rows to settlement + bank data with identical amount, different UTR."""
     with open(f"{DATA_DIR}/settlement_report.csv", "a", newline="") as f:
         w = csv.writer(f)
@@ -34,7 +34,7 @@ def inject_ambiguous_pair():
     print("Injected ambiguous pair: order_9001 / order_9002, both net Rs.2440.02, same date, DIFFERENT UTRs.")
 
 
-def check_trap_resolution(results):
+def check_trap_resolution(results: list[dict]) -> None:
     trap_orders = {"order_9001": None, "order_9002": None}
     for r in results:
         if r["order_id"] in trap_orders:

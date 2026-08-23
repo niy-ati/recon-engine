@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import ingest
 
 
-def main():
+def main() -> None:
     now = datetime.now(timezone.utc)
     print(f"Calling GET /v1/settlements/recon/combined?year={now.year}&month={now.month} ...")
     try:

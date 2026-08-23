@@ -18,7 +18,7 @@ live bank/Tally API is available in this environment.
 """
 import csv
 import difflib
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
 
@@ -31,24 +31,36 @@ AMOUNT_TOLERANCE = 0.01  # rupees
 DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
-def load_csv(path):
+def load_csv(path: str | Path) -> list[dict]:
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
 
 
-def parse_date(s):
+def parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def base_settlement_id(settlement_id):
+def base_settlement_id(settlement_id: str) -> str:
     return settlement_id[:-4] if settlement_id.endswith("_dup") else settlement_id
 
 
-def new_correlation_id():
+def new_correlation_id() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic", correlation_id=None):
+def reconcile(
+    data_dir: str | Path = DEFAULT_DATA_DIR,
+    settlement_source: str = "synthetic",
+    correlation_id: str | None = None,
+) -> list[dict]:
+    """Runs Pass 1 through the final categorization step over one batch and
+    returns one result dict per settlement/bank/ledger row. See the module
+    docstring above for what each pass does.
+
+    settlement_source: 'synthetic' | 'live' | 'with_gateway_b' (see
+    ingest.load_settlements). correlation_id: reused as db.py's run_id if
+    not given explicitly, one is generated for this call.
+    """
     correlation_id = correlation_id or new_correlation_id()
 
     def log(pass_name, action, detail, confidence=None):
@@ -329,7 +341,9 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic", correlat
     return results
 
 
-def summarize(results):
+def summarize(results: list[dict]) -> dict:
+    """Aggregates reconcile()'s per-row results into the percentages and
+    category counts report.py and review_server.py display."""
     total = len(results)
     matched = sum(1 for r in results if r["status"] == "MATCHED")
     matched_variance = sum(1 for r in results if r["status"] == "MATCHED_WITH_VARIANCE")

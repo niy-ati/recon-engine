@@ -28,6 +28,7 @@ import urllib.request
 from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from config import get_razorpay_credentials
 import generic_gateway_adapter
@@ -40,7 +41,7 @@ BACKOFF_BASE_SECONDS = 1
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
-def normalize_recon_line(raw):
+def normalize_recon_line(raw: dict) -> dict:
     """One line from the settlement recon endpoint -> canonical settlement row."""
     settlement_date = None
     settled_at = raw.get("settled_at")
@@ -61,7 +62,14 @@ def normalize_recon_line(raw):
     }
 
 
-def _live_get(path, key_id, key_secret, params=None, max_retries=MAX_RETRIES, sleep=time.sleep):
+def _live_get(
+    path: str,
+    key_id: str,
+    key_secret: str,
+    params: dict | None = None,
+    max_retries: int = MAX_RETRIES,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict:
     """Authenticated GET against the Razorpay API using HTTP Basic Auth
     (key_id as username, key_secret as password). Never logs the
     Authorization header; raises with Razorpay's own error body on failure.
@@ -100,7 +108,7 @@ def _live_get(path, key_id, key_secret, params=None, max_retries=MAX_RETRIES, sl
     raise last_error
 
 
-def fetch_live_recon(year, month, day=None):
+def fetch_live_recon(year: int, month: int, day: int | None = None) -> dict:
     """Calls GET /v1/settlements/recon/combined and returns the raw response."""
     key_id, key_secret = get_razorpay_credentials()
     params = {"year": year, "month": month}
@@ -109,7 +117,13 @@ def fetch_live_recon(year, month, day=None):
     return _live_get("settlements/recon/combined", key_id, key_secret, params)
 
 
-def load_settlements(source="synthetic", year=None, month=None, day=None, data_dir=None):
+def load_settlements(
+    source: str = "synthetic",
+    year: int | None = None,
+    month: int | None = None,
+    day: int | None = None,
+    data_dir: str | Path | None = None,
+) -> list[dict]:
     """source='synthetic' (default): reads the CSV, already in canonical shape.
 
     source='live': authenticated call to Razorpay's API. Test-mode keys

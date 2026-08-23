@@ -407,12 +407,16 @@ ICON_KEY = '<svg viewBox="0 0 20 20" fill="none"><circle cx="6.5" cy="13.5" r="3
 ICON_DB = '<svg viewBox="0 0 20 20" fill="none"><ellipse cx="10" cy="5" rx="6.5" ry="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 5v10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5" stroke="currentColor" stroke-width="1.5"/></svg>'
 
 
-def render_status_pill(status):
+def render_status_pill(status: str) -> str:
     label, tone = STATUS_LABELS.get(status, (status, "information"))
     return f'<span class="pill {tone}">{escape(label)}</span>'
 
 
-def render_shell(active, title, kicker="", body_html="", extra_script=""):
+def render_shell(
+    active: str, title: str, kicker: str = "", body_html: str = "", extra_script: str = "",
+) -> str:
+    """Wraps body_html in the page shell (sidebar nav, styles). `active`
+    selects which nav item is highlighted -- one of overview/queue/records/sources."""
     nav_items = [
         ("overview", "/", "Overview"),
         ("queue", "/queue", "Review queue"),
@@ -461,7 +465,7 @@ def render_shell(active, title, kicker="", body_html="", extra_script=""):
 
 # ---------------------------------------------------------------- Overview
 
-def parse_last_report():
+def parse_last_report() -> dict | None:
     """Reads output/reconciliation_report.md for the settlement source and
     throughput of the most recent report.py run, if one exists. Returns
     None if no report has been generated yet -- never fabricates a value."""
@@ -480,7 +484,7 @@ def parse_last_report():
     return info or None
 
 
-def render_donut(all_rows):
+def render_donut(all_rows: list[dict]) -> str:
     total = len(all_rows)
     if total == 0:
         return "<div class='panel'><div class='empty-state'>No batch yet -- run <code>run_all.py</code></div></div>"
@@ -513,7 +517,7 @@ def render_donut(all_rows):
     </div>"""
 
 
-def render_pass_bar(all_rows):
+def render_pass_bar(all_rows: list[dict]) -> str:
     """Collapses the 7-way status breakdown into 3 buckets -- deterministic,
     AI-assisted, unresolved -- the comparison the pitch actually rests on.
     The donut above already covers the granular view, so this earns its
@@ -545,7 +549,7 @@ def render_pass_bar(all_rows):
     </div></div>"""
 
 
-def render_overview():
+def render_overview() -> str:
     all_rows = db.get_all_exceptions()
     open_rows = db.get_open_exceptions()
     donut_html = render_donut(all_rows)
@@ -596,7 +600,7 @@ def render_overview():
 
 # ------------------------------------------------------------- Review queue
 
-def render_log_entry(entry):
+def render_log_entry(entry: dict | str) -> str:
     if isinstance(entry, dict):
         confidence = f" confidence={entry['confidence']:.2f}" if entry.get("confidence") is not None else ""
         return (f"[pass {escape(str(entry.get('pass', '?')))}] {escape(entry.get('action', ''))}{confidence} "
@@ -604,7 +608,7 @@ def render_log_entry(entry):
     return escape(str(entry))  # legacy plain-string entries from before structured logging
 
 
-def render_row(r, show_actions=True):
+def render_row(r: dict, show_actions: bool = True) -> str:
     replay_log = json.loads(r["replay_log"] or "[]")
     replay_html = "".join(f"<div>{render_log_entry(s)}</div>" for s in replay_log) or "<div>(no stages recorded)</div>"
     note_html = (f'<div class="note-text">Note: "{escape(r["resolution_note"])}"</div>'
@@ -650,7 +654,7 @@ def render_row(r, show_actions=True):
     </tr>"""
 
 
-def render_queue():
+def render_queue() -> str:
     open_rows = db.get_open_exceptions()
     all_rows = db.get_all_exceptions()
     resolved_count = sum(1 for r in all_rows if r["resolution_status"] != "OPEN")
@@ -683,7 +687,7 @@ def render_queue():
 
 # -------------------------------------------------------------- All records
 
-def render_records():
+def render_records() -> str:
     """Renders every persisted row once; filtering and sorting happen
     instantly client-side via INTERACTIVITY_SCRIPT, not a server round trip."""
     all_rows = db.get_all_exceptions()
@@ -725,14 +729,14 @@ def render_records():
 
 # ------------------------------------------------------------- Data sources
 
-def count_csv_rows(path):
+def count_csv_rows(path: Path) -> int | None:
     if not path.exists():
         return None
     with open(path, newline="") as f:
         return sum(1 for _ in csv.DictReader(f))
 
 
-def render_sources():
+def render_sources() -> str:
     settlement_count = count_csv_rows(DATA_DIR / "settlement_report.csv")
     bank_count = count_csv_rows(DATA_DIR / "bank_statement.csv")
     ledger_count = count_csv_rows(DATA_DIR / "internal_ledger.csv")
@@ -823,7 +827,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def main():
+def main() -> None:
     server = ThreadingHTTPServer(("localhost", PORT), Handler)
     url = f"http://localhost:{PORT}/"
     print(f"Serving the review site at {url}  (Ctrl+C to stop)")

@@ -25,7 +25,7 @@ STEPS = [
 ]
 
 
-def run_step(script, extra_args=None):
+def run_step(script: str, extra_args: list[str] | None = None) -> None:
     args = [sys.executable, script] + (extra_args or [])
     print(f"\n{'=' * 60}\n>>> {' '.join(args[1:])}\n{'=' * 60}", flush=True)
     result = subprocess.run(args, cwd=SRC)
@@ -34,7 +34,7 @@ def run_step(script, extra_args=None):
         sys.exit(result.returncode)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--live", action="store_true",
                          help="Use the real Razorpay settlement API (test-mode keys) instead of synthetic data")

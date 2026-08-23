@@ -9,7 +9,7 @@ from pathlib import Path
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
 
-def load_dotenv():
+def load_dotenv() -> None:
     if not ENV_PATH.exists():
         return
     for line in ENV_PATH.read_text().splitlines():
@@ -22,7 +22,7 @@ def load_dotenv():
             os.environ[key] = value
 
 
-def get_razorpay_credentials():
+def get_razorpay_credentials() -> tuple[str, str]:
     """Returns (key_id, key_secret). Raises a clear, specific error if
     either is missing -- never a generic KeyError, and never prints the
     value of whichever one IS set."""
