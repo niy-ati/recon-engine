@@ -1,48 +1,23 @@
 """
-The only place an LLM touches this pipeline.
+Raw model-calling logic. No gating decision lives here -- validation_gate.py
+owns that, and reconcile.py never imports this module directly.
 
-reconcile.py's deterministic passes narrow each unmatched ledger row to a
-shortlist of 1-3 plausible order_ids using difflib similarity and numeric
-order-id extraction. This module's only job is to pick the best candidate
-from that shortlist and explain why in one sentence -- never to invent a
-match outside it, never to move money, never to change a status without a
-human seeing it first.
+Picks the best candidate from a pre-narrowed shortlist of order_ids and
+explains why in one sentence. Never invents a match outside the shortlist.
 
 Fallback order:
   1. Ollama, local (http://localhost:11434) -- free, open-weight, no
-     credentials required, no data leaving the machine.
-  2. Deterministic stand-in -- keeps the confidence-gate contract
-     inspectable even if Ollama isn't running.
+     credentials, no data leaving the machine.
+  2. Deterministic stand-in -- used if Ollama isn't running.
 
-Hard boundaries, unchanged by which tier answers:
-  - Confidence below CONFIDENCE_AUTO_ACCEPT is never auto-applied.
-  - The model only sees the narrowed shortlist, never the full ledger or
-    settlement tables.
-  - Output schema (candidate_id, confidence, reason) is validated before
-    use. A malformed response, or a candidate_id outside the shortlist it
-    was given, is routed to human review, not retried or trusted.
-  - AUTO_APPLY_TRUSTED_TIERS controls which tiers may auto-apply at all,
-    independent of confidence. Testing qwen2.5:0.5b via Ollama on a
-    narration with no real distinguishing signal showed it defaults to
-    whichever candidate is listed first while still reporting confidence
-    >=0.90 -- a positional-bias failure, not a hypothetical one. Ollama is
-    excluded from that set as a result, and nothing else is in it yet, so
-    no tier auto-applies today. A tier can be added once it's shown to be
-    reliably calibrated.
+Output schema (candidate_id, confidence, reason) is validated before use;
+a malformed response or a candidate outside the shortlist is rejected.
 """
 import json
 import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-
-CONFIDENCE_AUTO_ACCEPT = 0.90
-
-# Tiers allowed to auto-apply regardless of reported confidence. A
-# confidence from an untrusted tier is still reported and compared to the
-# threshold, but auto_applied is forced False. Empty because no tier has
-# been shown reliable enough yet.
-AUTO_APPLY_TRUSTED_TIERS = set()
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
@@ -63,7 +38,7 @@ class ArbiterResult:
     candidate_id: str | None
     confidence: float
     reason: str
-    auto_applied: bool
+    auto_applied: bool  # always False coming out of this module -- see validation_gate.py
     tier: str = "unknown"  # "ollama:<model>" | "stand-in"
 
 
@@ -132,7 +107,9 @@ def _call_ollama(ledger_narration: str, shortlist: list[str]) -> ArbiterResult |
 
 def call_llm_arbiter(ledger_narration: str, shortlist: list[str]) -> ArbiterResult:
     """Picks the best candidate from `shortlist` for `ledger_narration`.
-    Tries Ollama, then the deterministic stand-in."""
+    Tries Ollama, then the deterministic stand-in. auto_applied is always
+    False on the returned result -- deciding that is validation_gate.py's
+    job, not this module's."""
     if not shortlist:
         return ArbiterResult(None, 0.0, "No candidates in shortlist.", False)
 
@@ -143,25 +120,11 @@ def call_llm_arbiter(ledger_narration: str, shortlist: list[str]) -> ArbiterResu
     return _stand_in_arbiter(ledger_narration, shortlist)
 
 
-def resolve_with_gate(ledger_narration: str, shortlist: list[str]) -> ArbiterResult:
-    result = call_llm_arbiter(ledger_narration, shortlist)
-    tier_name = result.tier.split(":")[0]
-    tier_trusted = tier_name in AUTO_APPLY_TRUSTED_TIERS
-    if result.candidate_id is not None and result.confidence >= CONFIDENCE_AUTO_ACCEPT and tier_trusted:
-        result.auto_applied = True
-    else:
-        result.auto_applied = False
-        if result.candidate_id is not None and result.confidence >= CONFIDENCE_AUTO_ACCEPT and not tier_trusted:
-            result.reason += " [held despite high confidence -- this tier is not trusted for auto-apply, see AUTO_APPLY_TRUSTED_TIERS]"
-    return result
-
-
 if __name__ == "__main__":
-    r = resolve_with_gate(
+    r = call_llm_arbiter(
         ledger_narration="pymt rcvd Customer26 ord#1036 thx",
         shortlist=["order_1036", "order_1063"],
     )
-    print(f"candidate={r.candidate_id} confidence={r.confidence} auto_applied={r.auto_applied}")
+    print(f"candidate={r.candidate_id} confidence={r.confidence} tier={r.tier}")
     print(f"reason: {r.reason}")
-    if not r.auto_applied:
-        print(">> GATE HELD: routed to human review queue, NOT silently applied.")
+    print(">> Raw arbiter output -- ungated. See validation_gate.py for the auto-apply decision.")

@@ -1,0 +1,52 @@
+{
+  "agent_name": "Settlement Reconciliation Agent",
+  "category": "automated tax reconciliation tools",
+  "summary": "Matches settlement, bank, and ledger records across sources, resolves what it can prove deterministically, and hands everything else to a human with a full replay of why it couldn't resolve it alone.",
+
+  "data_access": {
+    "reads": [
+      "Settlement recon data (Razorpay settlement recon API, or an equivalent CSV export)",
+      "Bank statement (merchant-uploaded CSV)",
+      "Internal ledger / accounting export (merchant-uploaded CSV, e.g. Tally/QuickBooks-style)"
+    ],
+    "writes": [
+      "Its own local exceptions table (proposed matches and unresolved rows, pending human review)",
+      "Its own local narration_rules table (only after a human confirms a fuzzy match -- never written automatically)"
+    ],
+    "never_reads_or_writes": [
+      "Any merchant system outside the three sources explicitly listed above",
+      "No web scraping, no external inference, no unverified sources -- every value used in a match comes from a connected system or an uploaded file, never invented"
+    ]
+  },
+
+  "actions": {
+    "can_do": [
+      "Propose a match between a settlement, a bank credit, and a ledger entry",
+      "Categorize an unmatched row into a named exception type with a stated reason",
+      "Auto-apply a match only when both hold at once: confidence >= 0.90 AND the model tier that produced it is on an explicit trusted-tier allowlist",
+      "Record a human's confirm/reject/note decision against a specific row"
+    ],
+    "will_never_do": [
+      "Post an entry to a real accounting system or settlement ledger -- this agent only proposes, a human or a separate posting system commits",
+      "Auto-apply any match from a tier not on the trusted-tier allowlist, regardless of reported confidence -- today that allowlist is empty, so nothing auto-applies at all",
+      "Modify a settlement record that has already settled",
+      "Take any action a human hasn't already granted it access to take"
+    ]
+  },
+
+  "validation": {
+    "module": "src/validation_gate.py, separate from src/reconcile.py and src/llm_matcher.py",
+    "gate_rule": "auto_applied = (confidence >= CONFIDENCE_AUTO_ACCEPT) AND (tier in AUTO_APPLY_TRUSTED_TIERS); otherwise routed to human review",
+    "audit_trail": "Per-row replay_log recording which pass resolved it and why, visible in the review queue"
+  },
+
+  "human_control": {
+    "review_surface": "Local review website (src/review_server.py) -- confirm / reject / add-note per row",
+    "revocable": "Deleting data/reconcile.db or not running the pipeline stops it entirely -- no persistent background process"
+  },
+
+  "known_limitations": [
+    "Bank statement and internal ledger data are synthetic -- no live bank/Tally/QuickBooks API connected. Settlement side supports a real Razorpay API connection (src/ingest.py, run_all.py --live)",
+    "Ollama is excluded from the trusted-tier allowlist after testing showed a positional-bias failure mode -- see src/validation_gate.py"
+  ]
+}

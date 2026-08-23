@@ -7,7 +7,7 @@ Pass 2.5 narration_rules lookup (db.py) -- a narration confirmed by a human
          once via review_server.py resolves deterministically on repeat.
 Pass 3   fuzzy candidate narrowing (difflib) for unresolved ledger rows.
 Pass 4   LLM tie-break over that shortlist, confidence-gated
-         (llm_matcher.resolve_with_gate). Only reached after 1/2/2.5/3 fail.
+         (validation_gate.resolve_with_gate). Only reached after 1/2/2.5/3 fail.
 final    anything still unresolved is bucketed into a named exception
          category with a human-readable reason.
 
@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from pathlib import Path
 
-from llm_matcher import resolve_with_gate
+from validation_gate import resolve_with_gate
 from db import get_narration_rule
 import ingest
 
@@ -221,8 +221,9 @@ def reconcile(data_dir=DEFAULT_DATA_DIR, settlement_source="synthetic"):
     # ---------- PASS 3 + 4: fuzzy shortlist -> confidence-gated arbiter ----------
     # Everything reaching here has no exact digit match (needs fuzzy
     # similarity) or multiple conflicting ones (needs disambiguation).
-    # Pass 3 builds the shortlist via difflib; the arbiter in llm_matcher.py
-    # picks from it (Pass 4) and its confidence gate decides auto_applied.
+    # Pass 3 builds the shortlist via difflib; validation_gate.resolve_with_gate()
+    # picks from it (Pass 4) and its confidence gate decides auto_applied --
+    # this file has no way to reach the raw, ungated arbiter directly.
     unmatched_order_ids = [r["order_id"] for r in results if r.get("_needs_pass3") and r["category"] is None]
     candidate_strings = {f"order {oid}": oid for oid in unmatched_order_ids}
     fuzzy_matches = []
