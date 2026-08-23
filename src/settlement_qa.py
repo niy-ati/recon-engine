@@ -18,10 +18,12 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
   - "how many exceptions" / "how many are open"
   - "how many DUPLICATE exceptions" / "how many are on hold"
   - "what's my resolution rate" / "how much is resolved"
-  - "how can it be resolved" / "how do I fix order_1032" -- canned,
-    per-category guidance text, not a generated answer. Resolves the
-    order/category from the question itself, or falls back to whatever
-    order/category the last turn was about (see `context` below).
+  - "how can it be resolved" / "how do I fix order_1032" / "what can I do
+    by that time" / "will it affect my cash flow" -- canned, per-category
+    guidance text (what to do, and whether it affects your books/cash
+    while it's open), not a generated answer. Resolves the order/category
+    from the question itself, or falls back to whatever order/category
+    the last turn was about (see `context` below).
 """
 import re
 import sys
@@ -58,60 +60,87 @@ CATEGORY_GUIDANCE = {
         "This is a duplicate settlement entry for an order already matched "
         "elsewhere. No fund action needed -- it's excluded from cash totals "
         "already; the row exists so the duplicate export line isn't silently "
-        "dropped from the audit trail."
+        "dropped from the audit trail. No waiting involved and no effect on "
+        "your books either way."
     ),
     "UNEXPLAINED": (
         "No UTR, order ID, or narration reference tied this row to anything "
         "in the ledger or bank statement. Check the raw bank narration by "
         "hand, or wait for the next settlement cycle in case the missing "
-        "reference shows up in a later transfer."
+        "reference shows up in a later transfer. While it's open: don't "
+        "count this amount as reconciled in your books or cash forecast -- "
+        "treat it as unexplained, not as received, until it's traced."
     ),
     "PARTIAL_PAYMENT": (
         "The settled amount is less than the order amount. Confirm with the "
         "payment gateway whether the balance was split across settlements, "
-        "then reconcile the remainder against the next cycle."
+        "then reconcile the remainder against the next cycle. While it's "
+        "open: only book the partial amount actually settled -- the "
+        "remainder isn't in your account yet, so don't forecast it as "
+        "received cash until the balance clears."
     ),
     "TAX_DEDUCTION": (
         "The variance matches a TDS/GST-style deduction. Verify the "
         "deducted amount against the applicable tax rate, then confirm it "
-        "as an explained variance rather than a genuine shortfall."
+        "as an explained variance rather than a genuine shortfall. No "
+        "waiting needed -- it's a real, permanent deduction, not money "
+        "still in transit."
     ),
     "ROUNDING": (
         "The variance is a sub-rupee rounding difference. Safe to confirm "
-        "as-is -- no money is actually missing."
+        "as-is -- no money is actually missing, and it has no effect on "
+        "your cash position."
     ),
     "FUZZY_MATCH_NEEDS_REVIEW": (
         "The AI arbiter proposed a candidate match from narration "
         "similarity, but it was deliberately not auto-applied. Open the "
         "review queue, check the highlighted narration evidence in the "
         "audit trail, and click Confirm if it looks right -- or Reject if "
-        "it doesn't."
+        "it doesn't. The settlement amount is already in your account "
+        "either way; this only affects whether it shows as matched or as "
+        "an open exception in your books."
     ),
     "AFA_MANDATE_HOLD": (
         "This settlement is held by Razorpay's own AFA/e-mandate step-up "
         "flow, triggered by the RBI's Rs 15,000 threshold on recurring "
         "subscription charges. There's no action on your end -- it "
         "releases once the mandate step-up completes or the transaction is "
-        "declined."
+        "declined. While it's held: the money is not yet in your account, "
+        "so exclude it from your cash flow forecast until it actually "
+        "settles or is confirmed declined."
     ),
     "ON_HOLD_BY_RAZORPAY": (
         "Razorpay itself is holding this settlement (compliance or risk "
         "review, typically). Check the hold reason on the Razorpay "
         "dashboard directly -- this system only sees what's in the "
-        "settlement export, not Razorpay's internal hold reasoning."
+        "settlement export, not Razorpay's internal hold reasoning. While "
+        "it's held: the funds are not yet in your bank account, so exclude "
+        "this amount from your available cash and cash flow forecast until "
+        "the hold clears -- it's a status your books should reflect "
+        "honestly, not lost money."
     ),
 }
 
 def _is_resolution_question(question: str) -> bool:
-    """Matches "how can it/order_2/a DUPLICATE be resolved", "how do I fix
-    this", "what should I do", "what's the fix" -- any phrasing that pairs
-    a question word with resolve/fix, not just the exact fixed phrases
-    ("resolv" also matches "unresolved" on its own, so it's paired with a
-    question-word check rather than used alone)."""
+    """Matches three related shapes, all answered from the same canned
+    CATEGORY_GUIDANCE text: "how can it/order_2/a DUPLICATE be resolved",
+    "what can I do [about it / by that time / while I wait]", and "will
+    this affect my cash flow / system / books". "resolv" also matches
+    "unresolved" on its own, so it's paired with a question-word check
+    rather than used alone; the action/impact phrasings don't need that
+    guard since they aren't substrings of unrelated words."""
     ql = question.lower()
-    if "resolv" not in ql and "fix" not in ql:
-        return False
-    return any(w in ql for w in ("how", "what should", "what's the", "what is the"))
+    resolve_signal = ("resolv" in ql or "fix" in ql) and any(
+        w in ql for w in ("how", "what should", "what's the", "what is the")
+    )
+    action_signal = any(p in ql for p in (
+        "what can i do", "what should i do", "what do i do",
+        "in the meantime", "while i wait", "while waiting", "by that time", "meanwhile",
+    ))
+    impact_signal = any(p in ql for p in (
+        "affect my", "impact my", "affect the", "impact the", "hit my books", "hit my cash",
+    ))
+    return resolve_signal or action_signal or impact_signal
 
 
 def _extract_order_id(question: str) -> str | None:

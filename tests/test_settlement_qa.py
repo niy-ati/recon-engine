@@ -122,6 +122,21 @@ class TestResolutionGuidance(SettlementQaTestCase):
         result = qa.answer("how can order_999 be resolved")
         self.assertIn("No record of order_999", result)
 
+    def test_what_can_i_do_meanwhile_matches_guidance(self):
+        result = qa.answer("what can i do by that time for order_4")
+        self.assertIn("cash flow forecast", result)
+        self.assertIn("ON_HOLD_BY_RAZORPAY", result)
+
+    def test_will_it_affect_my_cash_matches_guidance(self):
+        result = qa.answer("will it affect my cash flow for order_4")
+        self.assertIn("not yet in your bank account", result)
+
+    def test_affect_question_uses_context_without_repeating_order(self):
+        _, ctx = qa.answer_with_context("what happened to order_4")
+        result, _ = qa.answer_with_context("will this affect my system?", ctx)
+        self.assertIn("ON_HOLD_BY_RAZORPAY", result)
+        self.assertIn("cash flow forecast", result)
+
 
 class TestFollowUpContext(SettlementQaTestCase):
     def test_follow_up_resolves_using_prior_order(self):
