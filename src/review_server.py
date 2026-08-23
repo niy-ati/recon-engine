@@ -453,12 +453,13 @@ CHAT_WIDGET = """
     <button id="chat-close" aria-label="Close">&times;</button>
   </div>
   <div class="chat-messages" id="chat-messages">
-    <div class="chat-msg bot">Ask me about a specific order, a category count, how many rows are open, or the overall resolution rate. I only answer from the actual reconciliation data for this run &mdash; if I don't recognize the question, I'll say so instead of guessing.</div>
+    <div class="chat-msg bot">Ask me about a specific order, a category count, how many rows are open, the overall resolution rate, or how to resolve one once it's come up. I only answer from the actual reconciliation data for this run &mdash; if I don't recognize the question, I'll say so instead of guessing.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="how many are open">How many are open?</button>
     <button type="button" data-q="what's my resolution rate">Resolution rate?</button>
     <button type="button" data-q="exceptions by category">Breakdown by category</button>
+    <button type="button" data-q="how can it be resolved">How can it be resolved?</button>
   </div>
   <div class="chat-input-row">
     <input type="text" id="chat-input" placeholder="e.g. what happened to order_1032" autocomplete="off">
@@ -475,6 +476,7 @@ CHAT_WIDGET = """
   var messages = document.getElementById("chat-messages");
   var input = document.getElementById("chat-input");
   var sendBtn = document.getElementById("chat-send");
+  var context = {};
 
   function open() { panel.classList.add("open"); input.focus(); }
   function close() { panel.classList.remove("open"); }
@@ -500,12 +502,13 @@ CHAT_WIDGET = """
     fetch("/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question: question })
+      body: JSON.stringify({ question: question, context: context })
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         pending.textContent = data.answer;
         pending.className = "chat-msg bot";
+        context = data.context || {};
         messages.scrollTop = messages.scrollHeight;
       })
       .catch(function () {
@@ -1212,21 +1215,32 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _handle_ask(self):
-        """The chat widget's endpoint. Reads a real question, hands it
-        straight to settlement_qa.answer() -- the same deterministic,
+        """The chat widget's endpoint. Reads a real question plus the
+        small context dict the browser round-trips turn to turn (which
+        order/category the last answer was about), hands both straight to
+        settlement_qa.answer_with_context() -- the same deterministic,
         keyword-matched, hallucination-free lookup src/settlement_qa.py
-        has always used -- and returns its real answer as JSON. No model
-        is involved anywhere in this path; the "chat" is a friendlier
-        shell over the same grounded retrieval, not a new AI surface."""
+        has always used, just with short-term memory for follow-ups like
+        "how can it be resolved" -- and returns the real answer plus the
+        updated context as JSON. No model is involved anywhere in this
+        path; the "chat" is a friendlier shell over the same grounded
+        retrieval, not a new AI surface."""
         length = int(self.headers.get("Content-Length", 0))
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             question = str(payload.get("question", "")).strip()
+            context = payload.get("context") or {}
+            if not isinstance(context, dict):
+                context = {}
         except (ValueError, json.JSONDecodeError):
-            question = ""
+            question, context = "", {}
 
-        answer = settlement_qa.answer(question) if question else "Type a question first."
-        self._respond_json({"answer": answer})
+        if not question:
+            self._respond_json({"answer": "Type a question first.", "context": context})
+            return
+
+        answer, context = settlement_qa.answer_with_context(question, context)
+        self._respond_json({"answer": answer, "context": context})
 
     def _respond_html(self, html):
         body = html.encode("utf-8")

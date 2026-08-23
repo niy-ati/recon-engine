@@ -104,5 +104,44 @@ class TestUnknownQuestion(SettlementQaTestCase):
         self.assertIn("don't have a way to answer", result)
 
 
+class TestResolutionGuidance(SettlementQaTestCase):
+    def test_guidance_for_explicit_order(self):
+        result = qa.answer("how can order_2 be resolved")
+        self.assertIn("DUPLICATE", result)
+        self.assertIn("excluded from cash totals", result)
+
+    def test_guidance_for_explicit_category(self):
+        result = qa.answer("how can a DUPLICATE be resolved")
+        self.assertIn("excluded from cash totals", result)
+
+    def test_guidance_without_any_referent_asks_for_one(self):
+        result = qa.answer("how can it be resolved")
+        self.assertIn("Tell me which order or category", result)
+
+    def test_unknown_order_in_guidance_question_is_honest(self):
+        result = qa.answer("how can order_999 be resolved")
+        self.assertIn("No record of order_999", result)
+
+
+class TestFollowUpContext(SettlementQaTestCase):
+    def test_follow_up_resolves_using_prior_order(self):
+        _, ctx = qa.answer_with_context("what happened to order_2")
+        result, ctx2 = qa.answer_with_context("how can it be resolved", ctx)
+        self.assertIn("order_2", result)
+        self.assertIn("DUPLICATE", result)
+        self.assertEqual(ctx2["last_order_id"], "order_2")
+
+    def test_follow_up_resolves_using_prior_category(self):
+        _, ctx = qa.answer_with_context("how many DUPLICATE exceptions")
+        result, _ = qa.answer_with_context("how can it be resolved", ctx)
+        self.assertIn("DUPLICATE", result)
+        self.assertIn("excluded from cash totals", result)
+
+    def test_stateless_answer_has_no_memory_across_calls(self):
+        qa.answer("what happened to order_2")
+        result = qa.answer("how can it be resolved")
+        self.assertIn("Tell me which order or category", result)
+
+
 if __name__ == "__main__":
     unittest.main()
