@@ -16,8 +16,10 @@ import validation_gate  # noqa: E402
 
 
 def ollama_is_running():
+    # 127.0.0.1, not "localhost" -- see llm_matcher.py's OLLAMA_URL comment,
+    # the hostname costs ~2s per call on Windows for no reason.
     try:
-        urllib.request.urlopen("http://localhost:11434", timeout=2)
+        urllib.request.urlopen("http://127.0.0.1:11434", timeout=2)
         return True
     except Exception:
         return False
@@ -80,7 +82,7 @@ class TestConfidenceGate(unittest.TestCase):
         self.assertFalse(result.auto_applied)
 
 
-@unittest.skipUnless(ollama_is_running(), "Ollama is not running on localhost:11434")
+@unittest.skipUnless(ollama_is_running(), "Ollama is not running on 127.0.0.1:11434")
 class TestRealOllamaIntegration(unittest.TestCase):
     """Only runs if Ollama is actually reachable -- a genuine end-to-end
     call to the local model, skipped (not faked) otherwise."""
