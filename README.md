@@ -14,6 +14,7 @@ The governing principle: **every action the system takes must trace back to a ve
 - [AI Usage and Validation](#ai-usage-and-validation)
 - [Live Razorpay Integration](#live-razorpay-integration)
 - [Compared to Razorpay's Own Reconciliation Agent](#compared-to-razorpays-own-reconciliation-agent)
+- [Settlement Q&A](#settlement-qa)
 - [Scope](#scope)
 - [Setup](#setup)
 - [Testing](#testing)
@@ -93,6 +94,8 @@ A 3,000 row synthetic stress test, profiled with `cProfile` rather than reasoned
 
 **A direct answer stated here rather than waiting to be asked: no row in any real batch has ever been auto applied.** **The trust allowlist required for automatic application is empty by design**, a direct consequence of the finding above. The gate mechanism itself is separately unit tested with a simulated trusted tier to confirm the logic is correct; **the absence of a real auto applied row is expected, not a coverage gap.**
 
+**A second, independent test, looking specifically for the opposite result -- a case where trusting the model would have been correct -- and not finding one.** [`src/ai_judgment_demo.py`](src/ai_judgment_demo.py) presents a ledger narration naming two real orders in one sentence, only one of which it actually says was paid ("order 8001 payment cancelled and refunded in full, order 8002 payment received and confirmed") -- not mechanical digit extraction, and not the same adversarial case restated. Tested three separately-framed variants against the real local model during development: two picked the wrong order outright, and the one that picked correctly still gave an incoherent stated reason, conflating the two clauses it was supposed to be telling apart. **Shipped the honest result, not the one that happened to pass** -- `python src/ai_judgment_demo.py` reproducibly picks the wrong order every run. This is a second, independently-arrived-at reason the trust allowlist stays empty, not a repeat of the first.
+
 **[`agent_manifest.json`](agent_manifest.json)** states all of this as a structured, machine-readable contract, not just prose: exactly what data the agent reads and writes, every action it can and cannot take, the same gate rule above, and what a human retains the power to revoke. It mirrors the governance shape Razorpay's own [Agent Studio guardrails](https://razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control) post describes — merchant control, a review-first mode, and an audit trail — applied here rather than just referenced.
 
 ## Live Razorpay Integration
@@ -104,6 +107,12 @@ This system's connection to Razorpay's [Settlement Recon API](https://razorpay.c
 Razorpay already ships an [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) as part of its Agentic Dashboard. In their own words: **"upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies."** That is a real, shipped, fast tool for the common case, and this README names it directly rather than pretending it doesn't exist.
 
 What their own description covers: **two sources**, a bank statement and Razorpay's settlement record, matched on **UTR and amount**, ending in **"flag a discrepancy."** What is not published anywhere found in researching this: a third source (the merchant's own ledger), a **named exception taxonomy**, a **confidence gated AI layer**, or a **loop where a human correction generalizes** to the next similarly worded row. This system does all four, and [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves it against the real batch rather than asserting it: **77 of 514 rows (15.0%)** are resolved or explained only because the ledger was read, not the bank statement and settlement report alone. Two of those rows are the sharpest example — **a perfectly clean UTR, amount, and date match**, exactly what a two source tool would call done and stop looking at, that this system still flags because the merchant's own ledger has no record of the order at all.
+
+## Settlement Q&A
+
+Track 04's own "Example Directions" name four shapes explicitly: multi-source reconciliation, a **settlement Q&A agent**, a forward cash forecaster, and a tax-line matcher. This build covers the first two, not just the first -- [`src/settlement_qa.py`](src/settlement_qa.py) (322 lines, its own dedicated test file at [`tests/test_settlement_qa.py`](tests/test_settlement_qa.py)) answers plain-language questions about the last reconciliation run, wired live into the review site's chat widget (`review_server.py`'s `_handle_ask`).
+
+**Deliberately not an LLM feature.** Every recognized question shape here is retrieval, not judgment: "what happened to order_1032," "how many DUPLICATE exceptions," "what's my resolution rate," "how can it be resolved," and follow-ups like "what can I do meanwhile" or "will it affect my cash flow" that refer back to whichever order or category the conversation was already about. Every answer is read directly from the same persisted `exceptions` table the review queue itself shows -- **no number is ever generated or estimated**, and a question outside the recognized set gets an honest "I don't have a way to answer that," never a guess dressed up as an answer. The same zero-hallucination-surface design as the rest of this system, applied to the one surface a merchant is most likely to actually type a question into.
 
 ## Scope
 

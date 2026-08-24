@@ -237,7 +237,15 @@ def resolve_exception(exception_id: int, action: str, note: str | None = None) -
     entry, so the same narration resolves automatically next time, and a
     narration_templates entry generalizing that narration's own digit
     reference to a {REF} placeholder, so a differently-numbered future
-    narration from the same recurring template also benefits."""
+    narration from the same recurring template also benefits.
+
+    review_server.py serves this over a ThreadingHTTPServer, so two
+    requests for the same exception_id (a double click, two open tabs)
+    can genuinely race. The UPDATE below is gated on the row still being
+    OPEN and its rowcount checked, so only the first request to actually
+    commit can flip the status or write a narration rule -- a second,
+    losing request is a silent no-op, not an overwrite of a terminal
+    decision and not a duplicate narration_rules write."""
     status_map = {"confirm": "CONFIRMED", "reject": "REJECTED"}
     resolution_status = status_map.get(action)
     if resolution_status is None:
@@ -251,10 +259,16 @@ def resolve_exception(exception_id: int, action: str, note: str | None = None) -
                 raise KeyError(f"no exception with id {exception_id}")
 
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-            conn.execute(
-                "UPDATE exceptions SET resolution_status = ?, resolution_note = ?, resolved_at = ? WHERE id = ?",
+            cursor = conn.execute(
+                "UPDATE exceptions SET resolution_status = ?, resolution_note = ?, resolved_at = ? "
+                "WHERE id = ? AND resolution_status = 'OPEN'",
                 (resolution_status, note, now, exception_id),
             )
+            if cursor.rowcount == 0:
+                # Already resolved -- by this same call racing another thread,
+                # or simply already CONFIRMED/REJECTED earlier. Either way a
+                # terminal decision was already made; leave it alone.
+                return
 
             if (action == "confirm" and row["category"] == "FUZZY_MATCH_NEEDS_REVIEW"
                     and row["narration"] and row["order_id"]

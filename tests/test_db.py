@@ -114,6 +114,31 @@ class TestResolveException(DbTestCase):
         self.assertEqual(all_rows[0]["resolution_status"], "CONFIRMED")
         self.assertIsNotNone(all_rows[0]["resolved_at"])
 
+    def test_second_resolve_on_an_already_resolved_row_is_a_no_op(self):
+        """review_server.py serves resolve_exception over a ThreadingHTTPServer,
+        so a double click or two open tabs can genuinely race two requests for
+        the same row. Simulates the losing request arriving after the row is
+        already terminal: it must not flip resolution_status/resolution_note/
+        resolved_at, and -- the sharper risk -- a stale 'confirm' arriving after
+        a real 'reject' must not write a narration_rules entry for a match a
+        human actually rejected."""
+        db.persist_results(
+            [make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                          narration="pymt rcvd customer ord#1 thx")],
+            run_id="run-1",
+        )
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "reject", note="not this order")
+        rejected_row = db.get_all_exceptions()[0]
+
+        db.resolve_exception(row_id, "confirm")  # the losing, stale request
+
+        row_after = db.get_all_exceptions()[0]
+        self.assertEqual(row_after["resolution_status"], "REJECTED")
+        self.assertEqual(row_after["resolution_note"], rejected_row["resolution_note"])
+        self.assertEqual(row_after["resolved_at"], rejected_row["resolved_at"])
+        self.assertIsNone(db.get_narration_rule("pymt rcvd customer ord#1 thx"))
+
     def test_confirming_fuzzy_match_writes_narration_rule(self):
         db.persist_results(
             [make_result("order_1", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
