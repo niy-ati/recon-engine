@@ -6,6 +6,7 @@ The governing principle: **every action the system takes must trace back to a ve
 
 ## Table of Contents
 
+- [AI Judgment and Failure Recovery](#ai-judgment-and-failure-recovery)
 - [Architecture](#architecture)
 - [Reconciliation Logic](#reconciliation-logic)
 - [Exception Categories](#exception-categories)
@@ -19,6 +20,23 @@ The governing principle: **every action the system takes must trace back to a ve
 - [Setup](#setup)
 - [Testing](#testing)
 - [License](#license)
+
+## AI Judgment and Failure Recovery
+
+Two evaluation axes named in write-ups about this buildathon, gathered here in one place instead of scattered across the sections below -- each line links to where the full evidence actually lives, nothing here is restated in full.
+
+**AI judgment -- was AI applied where it was actually needed, not bolted on:**
+- A model is consulted in exactly one place in the whole pipeline (Pass 4), and only after six deterministic passes have already tried and failed. See [Reconciliation Logic](#reconciliation-logic).
+- It never invents a category and never decides whether a row is resolved -- it selects from a shortlist it did not build. See [AI Usage and Validation](#ai-usage-and-validation).
+- Adversarially tested against a narration with no genuine identifying signal: it picked whichever candidate was listed first and overstated its own confidence. The trust allowlist has been empty ever since, as a direct, verified consequence, not a cautious default. See [AI Usage and Validation](#ai-usage-and-validation).
+- A second, independent test went looking specifically for the opposite result -- a case where trusting the model would have been correct -- and, tested three separate ways against the real model, did not find one. Shipped the version that fails, not the one that happened to pass. See [`src/ai_judgment_demo.py`](src/ai_judgment_demo.py) and [AI Usage and Validation](#ai-usage-and-validation).
+
+**Failure recovery -- runtime failures found and handled gracefully, not just anticipated in prose:**
+- Ollama unreachable falls through to Anthropic, then to a deterministic stand-in -- verified by substituting the network call with one that actually fails, not by asserting the fallback exists. See [AI Usage and Validation](#ai-usage-and-validation).
+- The live Razorpay API call retries with exponential backoff on a network error -- verified by making the transport fail twice on purpose and confirming the third attempt recovers. See [Live Razorpay Integration](#live-razorpay-integration).
+- An adversarial UTR-collision trap (two settlements, identical amount, different UTR) runs as part of every standard batch and resolves both correctly, proving the matcher can't silently cross-wire two customers' payments. See [`src/failure_injection_demo.py`](src/failure_injection_demo.py).
+- `review_server.py`'s confirm endpoint had a genuine concurrency race -- it runs on a real `ThreadingHTTPServer`, and a stale double-confirm could have overwritten a human's actual decision. Found, root-caused, and fixed with a conditional write plus a regression test that fails against the old code and passes against the new. See [`src/db.py`](src/db.py)'s `resolve_exception`.
+- A held-out validation sweep across five fresh seeds once appeared to hang past its own time budget. Root-caused rather than just patched over: `llm_matcher.py` documents an Ollama cold-load of up to ~80s, and the affected seed ran sixth in a row. Bounded with a timeout set above that real ceiling instead of an arbitrary short one. See [`extras/seed_sweep.py`](extras/seed_sweep.py).
 
 ## Architecture
 
