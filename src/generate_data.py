@@ -35,9 +35,13 @@ re-measurement against the current code (2026-08-24), five fresh seeds not
 tuned against: 42 -> 90.5%, 7 -> 88.0%, 21 -> 88.5%, 99 -> 87.1%,
 555 -> 90.9% -- an 87.1%-90.9% range, every one comfortably clear of the
 ~51% manual baseline. The seed is pinned to 42 for a reproducible default
-run, not because 90.5% specifically is a guaranteed constant.
+run, not because 90.5% specifically is a guaranteed constant. Reproduce
+the range yourself with `python extras/seed_sweep.py`, which drives this
+via the RECON_SEED environment variable below and restores data/ and
+output/ to their committed state afterward, whatever seed it's given.
 """
 import csv
+import os
 import random
 from datetime import date, timedelta
 from pathlib import Path
@@ -45,7 +49,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-random.seed(42)
+random.seed(int(os.environ.get("RECON_SEED", "42")))
 
 N_ORDERS = 500  # well past the track's 50+ floor -- enough volume that every
                 # category has multiple real examples on the live review site,

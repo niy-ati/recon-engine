@@ -73,7 +73,7 @@ Measured on the current **514 row synthetic batch, ten times the floor** typical
 
 **Throughput: 89.8 rows/sec** (514 rows in 5.72s, including the LLM arbiter call for the one row that needs it — Pass 1 through 2.75 alone process the batch in well under a second).
 
-**90.5% is not a cherry-picked run.** The batch generator's random seed is pinned to 42 for a reproducible default, but the pipeline was re-run against **five other seeds it was never tuned against**, generating five different 514 row batches from the same failure-mode mix: 88.0%, 88.5%, 87.1%, and 90.9% resolved, alongside the default run's 90.5%. **An 87.1%-90.9% range**, every single one clear of the ~51% manual baseline by more than 35 points. See the docstring in `src/generate_data.py` for the exact command and numbers.
+**90.5% is not a cherry-picked run.** The batch generator's random seed is pinned to 42 for a reproducible default, but the pipeline was re-run against **five other seeds it was never tuned against**, generating five different 514 row batches from the same failure-mode mix: 88.0%, 88.5%, 87.1%, and 90.9% resolved, alongside the default run's 90.5%. **An 87.1%-90.9% range**, every single one clear of the ~51% manual baseline by more than 35 points. **Reproduce this yourself, not just trust it: `python extras/seed_sweep.py`** re-runs the full pipeline once per seed and prints the same figures live, then restores `data/` and `output/` to their committed state when it's done.
 
 ## Performance
 
@@ -92,6 +92,8 @@ A 3,000 row synthetic stress test, profiled with `cProfile` rather than reasoned
 **Only one model tier exists, and it is local and free.** **No paid API is used anywhere in this pipeline**, so a run never depends on any account balance. This tier was **adversarially tested** with a narration carrying no genuine identifying signal, presented against two equally plausible candidates. **It selected whichever candidate was listed first and reported confidence above 0.90 regardless**, a reproducible positional bias failure, not a hypothetical one. Its confidence value is still recorded and still routes the row to human review; **it is never treated as sufficient on its own to apply a match automatically.**
 
 **A direct answer stated here rather than waiting to be asked: no row in any real batch has ever been auto applied.** **The trust allowlist required for automatic application is empty by design**, a direct consequence of the finding above. The gate mechanism itself is separately unit tested with a simulated trusted tier to confirm the logic is correct; **the absence of a real auto applied row is expected, not a coverage gap.**
+
+**[`agent_manifest.json`](agent_manifest.json)** states all of this as a structured, machine-readable contract, not just prose: exactly what data the agent reads and writes, every action it can and cannot take, the same gate rule above, and what a human retains the power to revoke. It mirrors the governance shape Razorpay's own [Agent Studio guardrails](https://razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control) post describes — merchant control, a review-first mode, and an audit trail — applied here rather than just referenced.
 
 ## Live Razorpay Integration
 
