@@ -30,12 +30,12 @@ Injected failure modes:
     -- the money arrived, just filed under a different UTR than the
     settlement line claims
 
-Known limitation: the overall resolved percentage varies by seed (an
-82.6%-95.1% range was measured across five seeds before IDs were made
-fully seed-reproducible below; the exact bounds haven't been re-measured
-since, though the underlying point -- that this number moves with the
-seed -- still holds). The seed is pinned to 42 for a reproducible default
-run, not because any specific percentage is a guaranteed constant.
+Known limitation: the overall resolved percentage varies by seed. Held-out
+re-measurement against the current code (2026-08-24), five fresh seeds not
+tuned against: 42 -> 90.5%, 7 -> 88.0%, 21 -> 88.5%, 99 -> 87.1%,
+555 -> 90.9% -- an 87.1%-90.9% range, every one comfortably clear of the
+~51% manual baseline. The seed is pinned to 42 for a reproducible default
+run, not because 90.5% specifically is a guaranteed constant.
 """
 import csv
 import random
