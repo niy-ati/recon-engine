@@ -13,6 +13,7 @@ The governing principle: **every action the system takes must trace back to a ve
 - [Performance](#performance)
 - [AI Usage and Validation](#ai-usage-and-validation)
 - [Live Razorpay Integration](#live-razorpay-integration)
+- [Compared to Razorpay's Own Reconciliation Agent](#compared-to-razorpays-own-reconciliation-agent)
 - [Scope](#scope)
 - [Setup](#setup)
 - [Testing](#testing)
@@ -88,7 +89,13 @@ A 3,000 row synthetic stress test, profiled with `cProfile` rather than reasoned
 
 ## Live Razorpay Integration
 
-This system's connection to Razorpay's [Settlement Recon API](https://razorpay.com/docs/api/settlements/fetch-recon/) was **authenticated and fired against real test mode credentials, not merely built and left unexercised.** Razorpay's test mode generates no settlements, since no real money moves in test mode; **a correctly authenticated call against test mode credentials returns zero items by Razorpay's own documented design**, and this system reports that outcome as the expected result **rather than presenting an empty response as unverified success.**
+This system's connection to Razorpay's [Settlement Recon API](https://razorpay.com/docs/api/settlements/fetch-recon/) was **authenticated and fired against real test mode credentials, not merely built and left unexercised.** Razorpay's test mode generates no settlements, since no real money moves in test mode; **a correctly authenticated call against test mode credentials returns zero items by Razorpay's own documented design**, and this system reports that outcome as the expected result **rather than presenting an empty response as unverified success.** The call itself **retries with exponential backoff on a network error**, verified by substituting the transport with a fake that fails twice before succeeding and confirming the real retry loop recovers, not just that a retry function exists.
+
+## Compared to Razorpay's Own Reconciliation Agent
+
+Razorpay already ships an [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) as part of its Agentic Dashboard. In their own words: **"upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies."** That is a real, shipped, fast tool for the common case, and this README names it directly rather than pretending it doesn't exist.
+
+What their own description covers: **two sources**, a bank statement and Razorpay's settlement record, matched on **UTR and amount**, ending in **"flag a discrepancy."** What is not published anywhere found in researching this: a third source (the merchant's own ledger), a **named exception taxonomy**, a **confidence gated AI layer**, or a **loop where a human correction generalizes** to the next similarly worded row. This system does all four, and [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves it against the real batch rather than asserting it: **77 of 514 rows (15.0%)** are resolved or explained only because the ledger was read, not the bank statement and settlement report alone. Two of those rows are the sharpest example — **a perfectly clean UTR, amount, and date match**, exactly what a two source tool would call done and stop looking at, that this system still flags because the merchant's own ledger has no record of the order at all.
 
 ## Scope
 
