@@ -24,7 +24,18 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
     while it's open), not a generated answer. Resolves the order/category
     from the question itself, or falls back to whatever order/category
     the last turn was about (see `context` below).
+  - "any similar orders to order_1032" / "has this happened before" --
+    other rows sharing the same category, plus other rows whose narration
+    is a close textual match via the same difflib.get_close_matches
+    Pass 3 (reconcile.py) already uses to shortlist fuzzy candidates. Not
+    a new matching algorithm invented for this module -- the same
+    function, at a stricter cutoff, since this compares one real
+    narration directly against other real narrations across the whole
+    batch, not against a short constructed candidate string inside an
+    already-narrowed shortlist the way Pass 3 does. The looser Pass 3
+    cutoff would return noisy false positives here.
 """
+import difflib
 import re
 import sys
 from collections import Counter
@@ -253,6 +264,65 @@ def _resolution_guidance(question: str, context: dict | None) -> str | None:
     return prefix + guidance
 
 
+def _is_similarity_question(question: str) -> bool:
+    ql = question.lower()
+    return any(p in ql for p in (
+        "similar", "like this order", "like order", "same pattern",
+        "happened before", "seen this before", "other order", "any other order",
+        "has this happened",
+    ))
+
+
+def _similar_orders(question: str, context: dict | None) -> str | None:
+    """Read-only, no LLM: same category as the target order, plus other
+    orders whose narration is a close textual match via difflib. See the
+    module docstring for why the cutoff differs from Pass 3's."""
+    if not _is_similarity_question(question):
+        return None
+
+    order_id = _extract_order_id(question)
+    if not order_id and context:
+        order_id = context.get("last_order_id")
+    if not order_id:
+        return ("Tell me which order you mean -- e.g. \"any similar orders "
+                "to order_1032\".")
+
+    rows = db.get_all_exceptions()
+    same_order = [r for r in rows if r["order_id"] == order_id]
+    if not same_order:
+        return f"No record of {order_id} in the last reconciliation run."
+    # A DUPLICATE settlement and its clean-matched sibling share one
+    # order_id (see reconcile.py's DUPLICATE detection) -- the row with
+    # an actual category is the interesting one to compare, not whichever
+    # row happened to be inserted first.
+    target = next((r for r in same_order if r["category"]), same_order[0])
+
+    others = [r for r in rows if r["order_id"] != order_id]
+
+    same_category = []
+    if target["category"]:
+        same_category = [r["order_id"] for r in others if r["category"] == target["category"]]
+
+    narration_matches = []
+    if target.get("narration"):
+        candidates = {r["order_id"]: r["narration"] for r in others if r.get("narration")}
+        close_text = difflib.get_close_matches(target["narration"], list(candidates.values()), n=5, cutoff=0.6)
+        narration_matches = [oid for oid, narr in candidates.items() if narr in close_text]
+
+    if not same_category and not narration_matches:
+        return (f"{order_id} ({target['category'] or target['status']}) doesn't share a "
+                f"category or a closely worded narration with any other order in this run.")
+
+    lines = [f"{order_id} is categorized {target['category'] or target['status']}."]
+    if same_category:
+        shown = same_category[:5]
+        more = f", and {len(same_category) - 5} more" if len(same_category) > 5 else ""
+        lines.append(f"{len(same_category)} other row(s) share that exact category: {', '.join(shown)}{more}.")
+    if narration_matches:
+        lines.append(f"Narration wording is closely similar to: {', '.join(narration_matches)}.")
+    return "\n".join(lines)
+
+
 def _answer(question: str, context: dict | None) -> tuple[str, dict]:
     referent = dict(context) if context else {}
 
@@ -267,8 +337,12 @@ def _answer(question: str, context: dict | None) -> tuple[str, dict]:
         referent["last_category"] = category
         referent.pop("last_order_id", None)
 
-    if order_id and not _is_resolution_question(question):
+    if order_id and not _is_resolution_question(question) and not _is_similarity_question(question):
         return _find_order(order_id), referent
+
+    similar = _similar_orders(question, context)
+    if similar is not None:
+        return similar, referent
 
     guidance = _resolution_guidance(question, context)
     if guidance is not None:
@@ -283,7 +357,8 @@ def _answer(question: str, context: dict | None) -> tuple[str, dict]:
         "I don't have a way to answer that from the reconciliation data. "
         "Try asking about a specific order (\"what happened to order_1032\"), "
         "a category count (\"how many DUPLICATE exceptions\"), "
-        "open items (\"how many are open\"), the resolution rate, or "
+        "open items (\"how many are open\"), the resolution rate, similar "
+        "orders (\"any similar orders to order_1032\"), or "
         "\"how can it be resolved\" once an order or category has come up.",
         referent,
     )

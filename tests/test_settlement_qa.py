@@ -138,6 +138,68 @@ class TestResolutionGuidance(SettlementQaTestCase):
         self.assertIn("cash flow forecast", result)
 
 
+class TestSimilarOrders(SettlementQaTestCase):
+    def test_picks_the_categorized_row_when_an_order_has_two(self):
+        """A DUPLICATE settlement and its clean-matched sibling share one
+        order_id -- see reconcile.py's DUPLICATE detection. Found live
+        against the real database: this used to silently pick whichever
+        row was inserted first (the plain MATCHED sibling, category=None),
+        reporting "no category" for an order that actually has one.
+        match_key must differ per row for both to persist under one
+        order_id, exactly like the real DUPLICATE/sibling pair does."""
+        db.persist_results([
+            {"order_id": "order_20", "settlement_id": "setl_20a", "net": 100.0,
+             "match_key": "settlement:setl_20a", "status": "MATCHED", "category": None,
+             "reason": None, "narration": "", "stage": []},
+            {"order_id": "order_20", "settlement_id": "setl_20a_dup", "net": 100.0,
+             "match_key": "settlement:setl_20a_dup", "status": "EXCEPTION", "category": "DUPLICATE",
+             "reason": "duplicate export row", "narration": "", "stage": []},
+        ], run_id="run-1")
+        result = qa.answer("any similar orders to order_20")
+        self.assertIn("order_20 is categorized DUPLICATE", result)
+
+    def test_same_category_match_is_found(self):
+        """order_2 and order_3 are both DUPLICATE in the shared fixture."""
+        result = qa.answer("any similar orders to order_2")
+        self.assertIn("order_3", result)
+        self.assertIn("1 other row(s) share that exact category", result)
+
+    def test_no_match_is_reported_honestly_not_guessed(self):
+        """order_1 has no category and no narration -- nothing to match on,
+        and the fixture's other rows don't share MATCHED as a category
+        (category is None for order_1, which is falsy and deliberately
+        excluded from the same-category comparison)."""
+        result = qa.answer("is order_1 similar to any other order")
+        self.assertIn("doesn't share a category or a closely worded narration", result)
+
+    def test_unknown_order_is_honest_not_fabricated(self):
+        result = qa.answer("any similar orders to order_999")
+        self.assertIn("No record of order_999", result)
+
+    def test_no_referent_asks_for_one(self):
+        result = qa.answer("has this happened before")
+        self.assertIn("Tell me which order you mean", result)
+
+    def test_follow_up_uses_prior_order_from_context(self):
+        _, ctx = qa.answer_with_context("what happened to order_2")
+        result, _ = qa.answer_with_context("has this happened before", ctx)
+        self.assertIn("order_3", result)
+
+    def test_narration_similarity_uses_the_same_difflib_function_reconcile_uses(self):
+        """Two new rows, different categories on purpose, so a category
+        match can't be the reason they show up together -- only a close
+        narration match can explain it."""
+        db.persist_results([
+            make_result("order_10", "EXCEPTION", category="UNEXPLAINED",
+                        narration="pymt rcvd customer ord#1042 thx"),
+            make_result("order_11", "EXCEPTION", category="TAX_DEDUCTION",
+                        narration="pymt rcvd customer ord#1043 thx"),
+        ], run_id="run-1")
+        result = qa.answer("any similar orders to order_10")
+        self.assertIn("order_11", result)
+        self.assertIn("Narration wording is closely similar to", result)
+
+
 class TestFollowUpContext(SettlementQaTestCase):
     def test_follow_up_resolves_using_prior_order(self):
         _, ctx = qa.answer_with_context("what happened to order_2")
