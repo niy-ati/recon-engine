@@ -83,6 +83,35 @@ class TestRenderDonut(unittest.TestCase):
         self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
 
 
+class TestReadableCategory(unittest.TestCase):
+    """Regression tests for a real UI complaint: category cards showed the
+    raw enum value (FUZZY_MATCH_NEEDS_REVIEW, ON_HOLD_BY_RAZORPAY) verbatim
+    instead of a readable label."""
+
+    def test_every_real_category_has_a_hand_written_label(self):
+        for cat in review_server.CATEGORY_TONES:
+            self.assertIn(cat, review_server.CATEGORY_LABELS, f"no CATEGORY_LABELS entry for {cat}")
+
+    def test_acronyms_stay_uppercase_not_title_cased(self):
+        """A generic underscore-to-title-case transform would produce "Utr
+        Mismatch" and "Afa Mandate Hold" -- real acronyms, wrong case."""
+        self.assertEqual(review_server.readable_category("UTR_LEVEL_MISMATCH"), "UTR mismatch")
+        self.assertEqual(review_server.readable_category("AFA_MANDATE_HOLD"), "AFA mandate hold")
+
+    def test_multi_word_category_reads_as_a_sentence_not_shouted_caps(self):
+        self.assertEqual(review_server.readable_category("FUZZY_MATCH_NEEDS_REVIEW"), "Needs manual review")
+        self.assertEqual(review_server.readable_category("ON_HOLD_BY_RAZORPAY"), "On hold by Razorpay")
+
+    def test_unlisted_category_degrades_to_title_case_not_a_crash(self):
+        """A category added later without a CATEGORY_LABELS entry must
+        still render something readable, not raise or show raw enum text
+        forever until someone remembers to add it here."""
+        self.assertEqual(review_server.readable_category("SOME_NEW_CATEGORY"), "Some New Category")
+
+    def test_output_is_html_escaped(self):
+        result = review_server.readable_category("<script>DUPLICATE")
+        self.assertNotIn("<script>", result)
+
 
 if __name__ == "__main__":
     unittest.main()

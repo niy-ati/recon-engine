@@ -59,6 +59,9 @@ PORT = 8000
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "output"
+ASSETS_DIR = ROOT / "assets"
+
+ASSET_CONTENT_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
 PAGE_STYLE = """
   :root {
@@ -159,13 +162,9 @@ PAGE_STYLE = """
     padding:var(--sp-8) var(--sp-6); display:flex; flex-direction:column; gap:var(--sp-9);
     position:sticky; top:0; height:100vh; border-right:1px solid var(--border-subtle);
   }
-  aside.rail .brand { display:flex; align-items:center; gap:var(--sp-4); }
-  aside.rail .brand .mark {
-    width:40px; height:40px; border-radius:var(--radius-m); background:var(--primary);
-    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; flex-shrink:0;
-    color:#fff; box-shadow:0 6px 16px -4px var(--primary-glow);
-  }
-  aside.rail .brand .name { font-weight:700; font-size:14.5px; letter-spacing:var(--ls-tight); line-height:1.25; font-family:var(--font-heading); color:var(--ink); }
+  aside.rail .brand { display:flex; flex-direction:column; gap:7px; }
+  aside.rail .brand .wordmark-logo { height:22px; width:auto; display:block; }
+  aside.rail .brand .feature-name { font-size:12.5px; font-weight:600; color:var(--muted); }
   aside.rail nav { display:flex; flex-direction:column; gap:4px; }
   aside.rail nav a {
     display:flex; align-items:center; gap:var(--sp-4); padding:11px var(--sp-5);
@@ -459,7 +458,15 @@ CHAT_WIDGET = """
     <button id="chat-close" aria-label="Close">&times;</button>
   </div>
   <div class="chat-messages" id="chat-messages">
-    <div class="chat-msg bot">Ask me about a specific order or settlement, a category count or list, how much is confirmed/rejected/still open, the cash value at risk, similar orders, or how to resolve one once it's come up. I only answer from the actual reconciliation data for this run &mdash; if I don't recognize the question, I'll say so instead of guessing.</div>
+    <div class="chat-msg bot">Hi! Happy to help you make sense of this reconciliation run -- ask me anything about it.
+
+I can tell you about:
+- a specific order or settlement
+- how many rows are open, confirmed, or rejected
+- the overall resolution rate, or cash at risk
+- similar orders, or how to resolve one once it's come up
+
+Everything I say comes straight from this run's real data &mdash; if I'm not sure, I'll say so instead of guessing.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="how many are open">How many are open?</button>
@@ -630,6 +637,26 @@ CATEGORY_TONES = {
     "UNEXPLAINED": "negative",
 }
 
+# Hand-written display labels -- the raw category values are enum-style
+# constants (FUZZY_MATCH_NEEDS_REVIEW) meant for code and the audit trail,
+# not for reading on a card. A generic underscore-to-title-case transform
+# would still mangle the two real acronyms here (Utr, Afa), so this is a
+# deliberate per-category map, same shape as CATEGORY_TONES/CATEGORY_ICONS/
+# CATEGORY_GUIDANCE, not a string-formatting trick. The raw value is still
+# what's stored, searched, sorted, and put in the URL -- only the on-page
+# label changes.
+CATEGORY_LABELS = {
+    "PARTIAL_PAYMENT": "Partial payment",
+    "ROUNDING": "Rounding",
+    "TAX_DEDUCTION": "Tax deduction",
+    "UTR_LEVEL_MISMATCH": "UTR mismatch",
+    "ON_HOLD_BY_RAZORPAY": "On hold by Razorpay",
+    "FUZZY_MATCH_NEEDS_REVIEW": "Needs manual review",
+    "AFA_MANDATE_HOLD": "AFA mandate hold",
+    "DUPLICATE": "Duplicate",
+    "UNEXPLAINED": "Unexplained",
+}
+
 # Collapses the 7 granular statuses into the one comparison that actually
 # matters for the pitch -- how much of the batch a deterministic pass
 # closed versus how much needed the LLM arbiter versus what's genuinely
@@ -694,8 +721,8 @@ def render_shell(
 <body>
   <aside class="rail">
     <div class="brand">
-      <div class="mark">SR</div>
-      <div class="name">Settlement<br>Reconciliation</div>
+      <img class="wordmark-logo" src="/assets/razorpay-logo.svg" alt="Razorpay">
+      <div class="feature-name">Settlement Reconciliation</div>
     </div>
     <nav>{nav_html}</nav>
   </aside>
@@ -806,11 +833,15 @@ def render_pass_bar(all_rows: list[dict]) -> str:
 
 
 def readable_category(cat: str) -> str:
-    """Category names are underscore-joined (FUZZY_MATCH_NEEDS_REVIEW) with
-    no natural break point, so a narrow card wraps them mid-letter. A
-    zero-width space after each underscore gives the browser a place to
-    break that isn't inside a word."""
-    return escape(cat).replace("_", "_​")
+    """The human-facing label for a category -- CATEGORY_LABELS' hand-written
+    text if this category has one (every real one does), or else the raw
+    enum value title-cased with underscores turned to spaces, so a category
+    added later without an entry here degrades to something readable
+    instead of erroring."""
+    label = CATEGORY_LABELS.get(cat)
+    if label is None:
+        label = cat.replace("_", " ").title()
+    return escape(label)
 
 
 
@@ -831,15 +862,15 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
         <div class="stack-legend">
           <div class="item">
             <span class="swatch" style="background:{SWATCH_HEX['positive']}"></span>
-            <span><b>Rs.{c['resolved']:,.2f}</b><span class="item-label">resolved -- now trustworthy cash-position input ({c['resolved_pct']:.1f}%)</span></span>
+            <span><b>Rs.{c['resolved']:,.2f}</b><span class="item-label">resolved ({c['resolved_pct']:.1f}%)</span></span>
           </div>
           <div class="item">
             <span class="swatch" style="background:{SWATCH_HEX['notice']}"></span>
-            <span><b>Rs.{c['pending_review']:,.2f}</b><span class="item-label">pending human review -- a candidate exists, not yet confirmed ({c['pending_review_pct']:.1f}%)</span></span>
+            <span><b>Rs.{c['pending_review']:,.2f}</b><span class="item-label">pending human review ({c['pending_review_pct']:.1f}%)</span></span>
           </div>
           <div class="item">
             <span class="swatch" style="background:{SWATCH_HEX['negative']}"></span>
-            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open -- not yet explained ({c['still_open_pct']:.1f}%)</span></span>
+            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open ({c['still_open_pct']:.1f}%)</span></span>
           </div>
         </div>
         <p style="margin:var(--sp-6) 0 0;color:var(--faint);font-size:13px">
@@ -987,7 +1018,10 @@ def render_row(r: dict, show_actions: bool = True) -> str:
         resolution_tone = {"CONFIRMED": "positive", "REJECTED": "negative"}.get(r["resolution_status"], "information")
         actions_html = f'<span class="pill {resolution_tone}">{escape(r["resolution_status"])}</span>'
 
-    category_html = f'<span class="cat">{escape(r["category"])}</span>' if r["category"] else '<span class="cat-empty">&mdash;</span>'
+    category_html = (
+        f'<span class="cat" title="{escape(r["category"])}">{readable_category(r["category"])}</span>'
+        if r["category"] else '<span class="cat-empty">&mdash;</span>'
+    )
 
     order_html = (f'<span class="id-chip id-chip-order">{escape(r["order_id"])}</span>'
                   if r["order_id"] else '<span class="cat-empty">&mdash;</span>')
@@ -1143,6 +1177,8 @@ class Handler(BaseHTTPRequestHandler):
             self._respond_html(render_records(initial_query=initial_query))
         elif path == "/sources":
             self._respond_html(render_sources())
+        elif path.startswith("/assets/"):
+            self._respond_asset(path[len("/assets/"):])
         else:
             self.send_error(404)
 
@@ -1216,6 +1252,26 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _respond_asset(self, name):
+        """Serves a static file from assets/ (the Razorpay wordmark image,
+        the pitch-deck diagrams) -- resolved and re-checked against
+        ASSETS_DIR so a path like '../../src/db.py' can't escape it."""
+        path = (ASSETS_DIR / name).resolve()
+        if ASSETS_DIR.resolve() not in path.parents or not path.is_file():
+            self.send_error(404)
+            return
+        content_type = ASSET_CONTENT_TYPES.get(path.suffix.lower())
+        if content_type is None:
+            self.send_error(404)
+            return
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(body)
 
