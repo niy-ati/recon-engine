@@ -61,6 +61,16 @@ class TestOrderLookup(SettlementQaTestCase):
         self.assertIn("CONFIRMED", result)
         self.assertIn("looks right", result)
 
+    def test_money_question_naming_an_order_shows_the_amount(self):
+        """Regression test for a real bug found by audit: a money question
+        naming a specific order ("how much money is stuck in order_4") is
+        intercepted by _answer()'s top-level order_id branch before
+        _cash_value (which only handles category-scoped or overall totals,
+        not a single order) ever runs -- so the actual number asked about
+        used to never appear anywhere in the answer."""
+        result = qa.answer("how much money is stuck in order_4")
+        self.assertIn("Rs.100.00", result)
+
 
 class TestCategoryCount(SettlementQaTestCase):
     def test_duplicate_count_matches_real_data(self):
@@ -79,6 +89,33 @@ class TestCategoryCount(SettlementQaTestCase):
         is not itself a count/list request."""
         result = qa.answer("I really don't like this DUPLICATE thing")
         self.assertEqual(result, qa.FALLBACK_MESSAGE)
+
+    def test_on_hold_as_a_statement_is_not_treated_as_a_count_request(self):
+        """Regression test for a real bug found by audit: the
+        ON_HOLD_BY_RAZORPAY branch had no count-intent check at all --
+        _extract_category's own fallback sets this category from the
+        literal phrase "on hold", so ANY sentence containing it got a
+        bare, often nonsensical count. Neither of these is a status
+        question; the second isn't even about settlements."""
+        self.assertEqual(qa.answer("my settlement is on hold, is that bad"), qa.FALLBACK_MESSAGE)
+        self.assertEqual(
+            qa.answer("I've been on hold with support for an hour, can someone help"),
+            qa.FALLBACK_MESSAGE,
+        )
+
+    def test_category_name_does_not_match_inside_an_unrelated_word(self):
+        """Regression test for a real bug found by audit: "ROUNDING" is a
+        bare substring of the ordinary English word "surrounding", with no
+        word-boundary check -- so a question using that word got silently
+        hijacked into a ROUNDING-only answer. The real open count must
+        survive (checked against db.get_open_exceptions() directly, not a
+        hand-picked number), not get replaced by a bogus, always-zero
+        ROUNDING-scoped one -- there is no ROUNDING row in this fixture at
+        all, so the bug's old answer would have been "0 row(s)"."""
+        expected = len(db.get_open_exceptions())
+        result = qa.answer("how many exceptions are surrounding this batch, in general")
+        self.assertIn(f"{expected} row(s)", result)
+        self.assertNotIn("ROUNDING", result)
 
 
 class TestOpenCount(SettlementQaTestCase):
@@ -147,6 +184,27 @@ class TestResolutionGuidance(SettlementQaTestCase):
         result, _ = qa.answer_with_context("will this affect my system?", ctx)
         self.assertIn("ON_HOLD_BY_RAZORPAY", result)
         self.assertIn("cash flow forecast", result)
+
+    def test_picks_the_categorized_row_when_an_order_has_two(self):
+        """Regression test for a real bug found by audit: a DUPLICATE
+        settlement and its clean-matched sibling share one order_id (see
+        reconcile.py's DUPLICATE detection). This blindly took rows[0] --
+        whichever row was inserted first, data-dependent -- so a known
+        DUPLICATE order got "tell me which order or category you mean"
+        whenever its plain MATCHED, category=None sibling happened to sort
+        first. _similar_orders already has this exact fix (see its own
+        test); this handler never got it."""
+        db.persist_results([
+            {"order_id": "order_20", "settlement_id": "setl_20a", "net": 100.0,
+             "match_key": "settlement:setl_20a", "status": "MATCHED", "category": None,
+             "reason": None, "narration": "", "stage": []},
+            {"order_id": "order_20", "settlement_id": "setl_20a_dup", "net": 100.0,
+             "match_key": "settlement:setl_20a_dup", "status": "EXCEPTION", "category": "DUPLICATE",
+             "reason": "duplicate export row", "narration": "", "stage": []},
+        ], run_id="run-1")
+        result = qa.answer("how can order_20 be resolved")
+        self.assertIn("DUPLICATE", result)
+        self.assertIn("excluded from cash totals", result)
 
     def test_why_question_for_explicit_category_gets_real_guidance(self):
         """Regression test for a live bug: "why u think tehy are duplicate"

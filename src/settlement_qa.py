@@ -219,24 +219,48 @@ def _extract_settlement_id(question: str) -> str | None:
 
 
 def _extract_category(question: str) -> str | None:
-    q = question.upper().replace(" ", "_")
+    """Word-boundary matched, not a bare substring test -- a real bug,
+    found live: "ROUNDING" is a substring of the ordinary English word
+    "surrounding", so "are there other exceptions surrounding this one"
+    used to get miscategorized as a ROUNDING question and hijack whatever
+    handler ran next (a general "how many exceptions" count silently
+    became a ROUNDING-only count, for example).
+
+    Matched against the question with its own spacing intact (not a
+    version with every space turned to underscore -- that would turn the
+    whole question into one run of word characters with no boundaries
+    left at all, which would silently stop matching a category typed with
+    its real underscores, like "which orders are ON_HOLD_BY_RAZORPAY").
+    Each category's own internal "_" is matched against a literal "_" OR
+    whitespace, so both "ON_HOLD_BY_RAZORPAY" and "ON HOLD BY RAZORPAY"
+    are recognized by the same pattern."""
+    qu = question.upper()
     for category in KNOWN_CATEGORIES:
-        if category in q or category.replace("_", " ") in question.upper():
+        pattern = re.escape(category).replace("_", r"[_\s]")
+        if re.search(rf"\b{pattern}\b", qu):
             return category
-    if "on hold" in question.lower():
+    if re.search(r"\bon hold\b", question.lower()):
         return "ON_HOLD_BY_RAZORPAY"
     return None
 
 
 def _find_order(order_id: str) -> str:
+    """Includes each row's net_amount -- a real bug, found live: a money
+    question naming a specific order ("how much money is stuck in
+    order_4") is intercepted here by _answer()'s top-level order_id
+    branch before _cash_value (which only handles category-scoped or
+    overall totals, not a single order) ever runs, so the actual number
+    the merchant asked about used to never appear anywhere in the
+    answer."""
     rows = [r for r in db.get_all_exceptions() if r["order_id"] == order_id]
     if not rows:
         return f"No record of {order_id} in the last reconciliation run."
 
     lines = [f"{order_id}: {len(rows)} row(s) found."]
     for r in rows:
+        amount = f" net=Rs.{r['net_amount']:,.2f}" if r["net_amount"] is not None else ""
         lines.append(
-            f"  status={r['status']}"
+            f"  status={r['status']}{amount}"
             + (f" category={r['category']}" if r['category'] else "")
             + (f" -- {r['reason']}" if r['reason'] else "")
         )
@@ -258,8 +282,9 @@ def _find_settlement(settlement_id: str) -> str:
 
     lines = [f"{settlement_id}: {len(rows)} row(s) found."]
     for r in rows:
+        amount = f" net=Rs.{r['net_amount']:,.2f}" if r["net_amount"] is not None else ""
         lines.append(
-            f"  order_id={r['order_id']} status={r['status']}"
+            f"  order_id={r['order_id']} status={r['status']}{amount}"
             + (f" category={r['category']}" if r['category'] else "")
             + (f" -- {r['reason']}" if r['reason'] else "")
         )
@@ -300,13 +325,28 @@ def _category_count(question: str) -> str | None:
         more = f", and {len(order_ids) - 15} more" if len(order_ids) > 15 else ""
         return f"{len(matching)} row(s) categorized as {category}: {', '.join(shown)}{more}."
 
-    if category == "ON_HOLD_BY_RAZORPAY" and "on hold" in ql:
-        return f"{len(matching)} settlement(s) on hold (ON_HOLD_BY_RAZORPAY)."
+    # wants_count gates BOTH branches below -- the ON_HOLD_BY_RAZORPAY one
+    # used to fire on "on hold" alone with no count check at all, a real
+    # bug found live: since _extract_category's own fallback sets this
+    # category from the literal phrase "on hold", any sentence containing
+    # it -- "my settlement is on hold, is that bad", even "I've been on
+    # hold with support for an hour" -- got a bare, often nonsensical
+    # count instead of being treated like every other category here. The
+    # extra "on hold" query phrasings below keep the legitimate status
+    # check ("what's on hold right now") working -- unlike a real category
+    # name, "on hold" is itself a phrase that only means something as a
+    # query when paired with a question word, not just present anywhere.
+    wants_count = any(kw in ql for kw in (
+        "how many", "count of", "number of", "total number",
+        "what's on hold", "what is on hold", "which are on hold",
+        "any on hold", "anything on hold",
+    ))
+    if not wants_count:
+        return None
 
-    wants_count = any(kw in ql for kw in ("how many", "count of", "number of", "total number"))
-    if wants_count:
-        return f"{len(matching)} row(s) categorized as {category}."
-    return None
+    if category == "ON_HOLD_BY_RAZORPAY":
+        return f"{len(matching)} settlement(s) on hold (ON_HOLD_BY_RAZORPAY)."
+    return f"{len(matching)} row(s) categorized as {category}."
 
 
 def _resolution_status_count(question: str) -> str | None:
@@ -408,14 +448,23 @@ def _resolution_guidance(question: str, context: dict | None) -> str | None:
         rows = [r for r in db.get_all_exceptions() if r["order_id"] == order_id]
         if not rows:
             return f"No record of {order_id} in the last reconciliation run."
-        category = rows[0]["category"]
+        # The categorized row is the interesting one, not whichever row
+        # happened to be inserted first -- a DUPLICATE settlement and its
+        # clean-matched sibling share one order_id (see reconcile.py's
+        # DUPLICATE detection), and db.get_all_exceptions() has no
+        # guaranteed ordering between them. Same fix _similar_orders
+        # already has (see its own comment); a real bug found live:
+        # "how can order_20 be resolved" for a known DUPLICATE order was
+        # answered "tell me which order or category you mean" whenever
+        # the plain MATCHED sibling (category=None) happened to sort first.
+        category = next((r["category"] for r in rows if r["category"]), rows[0]["category"])
     elif category is None and context:
         order_id = context.get("last_order_id")
         category = context.get("last_category")
         if order_id and not category:
             rows = [r for r in db.get_all_exceptions() if r["order_id"] == order_id]
             if rows:
-                category = rows[0]["category"]
+                category = next((r["category"] for r in rows if r["category"]), rows[0]["category"])
 
     if not category:
         return (
