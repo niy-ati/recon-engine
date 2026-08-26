@@ -1,9 +1,18 @@
-# No third-party dependencies. Every module under src/, tests/, and
-# extras/ uses only the Python standard library -- confirmed by parsing
-# every import in the codebase with ast, not by memory.
+# The local desktop app -- every module under src/, tests/, and extras/
+# -- uses only the Python standard library, confirmed by parsing every
+# import in the codebase with ast, not by memory. Running run_all.py or
+# review_server.py locally needs nothing below this line.
 #
 # Requires Python 3.10+ (uses PEP 604 union syntax, e.g. `str | None`,
 # without `from __future__ import annotations`).
 #
 # Local model inference uses Ollama, a separate application, not a Python
 # package -- see README for install instructions.
+#
+# psycopg below is needed only by the separate Vercel-hosted demo
+# (api/db_pg.py), which persists to Postgres instead of a local SQLite
+# file a stateless serverless function can't durably write to. Vercel's
+# non-framework /api build only reads one project-root requirements.txt,
+# not a per-function one, which is why it's listed here rather than
+# scoped to api/ -- never imported by src/, tests/, or extras/.
+psycopg[binary]==3.2.3

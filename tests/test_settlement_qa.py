@@ -7,11 +7,13 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 
 import db  # noqa: E402
+import qa_intent_gate  # noqa: E402
 import settlement_qa as qa  # noqa: E402
 
 
@@ -68,6 +70,15 @@ class TestCategoryCount(SettlementQaTestCase):
     def test_on_hold_phrasing_variant(self):
         result = qa.answer("what's on hold right now")
         self.assertIn("1 settlement(s) on hold", result)
+
+    def test_category_name_alone_is_not_treated_as_a_count_request(self):
+        """Regression test for a live bug: merely mentioning a category
+        name used to be enough to trigger a bare count answer, so a
+        statement or an unrelated question naming a category got a
+        nonsense reply instead of an honest "don't know". A category name
+        is not itself a count/list request."""
+        result = qa.answer("I really don't like this DUPLICATE thing")
+        self.assertEqual(result, qa.FALLBACK_MESSAGE)
 
 
 class TestOpenCount(SettlementQaTestCase):
@@ -137,6 +148,22 @@ class TestResolutionGuidance(SettlementQaTestCase):
         self.assertIn("ON_HOLD_BY_RAZORPAY", result)
         self.assertIn("cash flow forecast", result)
 
+    def test_why_question_for_explicit_category_gets_real_guidance(self):
+        """Regression test for a live bug: "why u think tehy are duplicate"
+        used to get answered "11 row(s) categorized as DUPLICATE" by
+        _category_count, since it happens to mention the category name --
+        not an answer to "why" at all. "why" is now a resolution-question
+        trigger, so this routes to the real CATEGORY_GUIDANCE text, which
+        already opens with what the category means."""
+        result = qa.answer("why u think tehy are duplicate")
+        self.assertIn("excluded from cash totals", result)
+        self.assertNotIn("row(s) categorized as", result)
+
+    def test_bare_why_follow_up_uses_context_category(self):
+        _, ctx = qa.answer_with_context("list DUPLICATE orders")
+        result, _ = qa.answer_with_context("but why", ctx)
+        self.assertIn("excluded from cash totals", result)
+
 
 class TestSimilarOrders(SettlementQaTestCase):
     def test_picks_the_categorized_row_when_an_order_has_two(self):
@@ -198,6 +225,173 @@ class TestSimilarOrders(SettlementQaTestCase):
         result = qa.answer("any similar orders to order_10")
         self.assertIn("order_11", result)
         self.assertIn("Narration wording is closely similar to", result)
+
+
+class TestSettlementLookup(SettlementQaTestCase):
+    def test_known_settlement_returns_real_status_and_reason(self):
+        db.persist_results([
+            {"order_id": "order_30", "settlement_id": "setl_a1b2c3d4e5f6a7", "net": 100.0,
+             "match_key": "settlement:setl_a1b2c3d4e5f6a7", "status": "EXCEPTION",
+             "category": "UNEXPLAINED", "reason": "no reference found",
+             "narration": "", "stage": []},
+        ], run_id="run-1")
+        result = qa.answer("what happened to setl_a1b2c3d4e5f6a7")
+        self.assertIn("order_30", result)
+        self.assertIn("UNEXPLAINED", result)
+        self.assertIn("no reference found", result)
+
+    def test_unknown_settlement_is_honest_not_fabricated(self):
+        result = qa.answer("what happened to setl_doesnotexist99")
+        self.assertIn("No record of setl_doesnotexist99", result)
+
+    def test_settlement_lookup_does_not_shadow_order_lookup(self):
+        """A question naming both an order_id and something that merely
+        looks like a settlement_id should still resolve as an order
+        lookup -- order_id is the primary key everything else here is
+        built around."""
+        result = qa.answer("what happened to order_2")
+        self.assertIn("DUPLICATE", result)
+
+
+class TestCategoryList(SettlementQaTestCase):
+    def test_list_phrasing_returns_order_ids_not_just_a_count(self):
+        result = qa.answer("list DUPLICATE orders")
+        self.assertIn("order_2", result)
+        self.assertIn("order_3", result)
+        self.assertIn("2 row(s)", result)
+
+    def test_which_orders_phrasing_also_triggers_a_list(self):
+        result = qa.answer("which orders are ON_HOLD_BY_RAZORPAY")
+        self.assertIn("order_4", result)
+
+    def test_plain_count_phrasing_is_unaffected_by_the_list_feature(self):
+        """Regression guard: adding list support to the same handler must
+        not change the existing count-only answer for the original
+        phrasing this function already had a test for."""
+        result = qa.answer("how many DUPLICATE exceptions")
+        self.assertIn("2 row(s)", result)
+        self.assertNotIn("order_2", result)
+
+    def test_list_of_empty_category_is_honest_not_fabricated(self):
+        result = qa.answer("list ROUNDING orders")
+        self.assertIn("No rows are categorized as ROUNDING", result)
+
+
+class TestResolutionStatusCount(SettlementQaTestCase):
+    def test_confirmed_count(self):
+        row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_2"][0]["id"]
+        db.resolve_exception(row_id, "confirm")
+        result = qa.answer("how many have been confirmed")
+        self.assertIn("1 row(s) have been confirmed", result)
+
+    def test_rejected_count(self):
+        row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_3"][0]["id"]
+        db.resolve_exception(row_id, "reject")
+        result = qa.answer("how many rejected")
+        self.assertIn("1 row(s) have been rejected", result)
+
+    def test_needs_clarification_count_is_open_rows_with_a_note(self):
+        """"Needs clarification" isn't a resolution_status value in the
+        schema -- add_note() deliberately leaves the row OPEN (see its
+        own docstring). This counts OPEN-with-a-note, not a status that
+        doesn't exist."""
+        row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_4"][0]["id"]
+        db.add_note(row_id, "waiting on merchant reply")
+        result = qa.answer("how many rows need clarification")
+        self.assertIn("1 row(s) are still open with a clarification note", result)
+
+    def test_zero_confirmed_is_reported_honestly(self):
+        result = qa.answer("how many have been confirmed")
+        self.assertIn("0 row(s) have been confirmed", result)
+
+
+class TestCashValue(SettlementQaTestCase):
+    def test_category_scoped_sum(self):
+        """order_2 and order_3 are both DUPLICATE at net=100.0 each in the
+        shared fixture."""
+        result = qa.answer("how much money is in DUPLICATE")
+        self.assertIn("Rs.200.00", result)
+        self.assertIn("DUPLICATE", result)
+
+    def test_category_with_no_rows_is_honest_zero(self):
+        result = qa.answer("cash value of ROUNDING")
+        self.assertIn("Rs.0.00", result)
+
+    def test_overall_cash_position_matches_compute_cash_clarity_directly(self):
+        """Cross-checked against db.compute_cash_clarity() called directly
+        on the same rows, not against a hand-picked expected number --
+        this is the exact function the Overview page's cash panel uses,
+        so if this test and that panel ever disagree, one of them has a
+        real bug."""
+        rows = db.get_all_exceptions()
+        expected = db.compute_cash_clarity(rows)
+        result = qa.answer("how much cash is at risk")
+        self.assertIn(f"Rs.{expected['at_risk']:,.2f}", result)
+        self.assertIn(f"Rs.{expected['resolved']:,.2f}", result)
+        self.assertIn(f"Rs.{expected['still_open']:,.2f}", result)
+
+    def test_duplicate_rows_excluded_from_overall_cash_position(self):
+        """Regression guard for the same fix compute_cash_clarity() itself
+        already has a test for: DUPLICATE rows must not double-count
+        money that already cleared under their sibling row. Asserted here
+        too since this is a second, independent call site of that
+        function -- a future change that broke the DUPLICATE exclusion
+        only at this call site (e.g. a copy-paste that dropped the
+        filter) would still be caught."""
+        result = qa.answer("what's my cash position")
+        rows = db.get_all_exceptions()
+        duplicate_total = sum(r["net_amount"] for r in rows if r["category"] == "DUPLICATE")
+        expected = db.compute_cash_clarity(rows)
+        self.assertNotIn(f"Rs.{expected['at_risk'] + duplicate_total:,.2f}", result)
+
+
+class TestLlmFallbackRouting(SettlementQaTestCase):
+    """Tests settlement_qa.py's own fallback wiring, not qa_intent_gate.py's
+    or qa_intent_router.py's internals (see test_qa_intent_router.py and
+    test_qa_intent_gate.py for those) -- route_gated() is mocked here so
+    these are deterministic and need no live Ollama."""
+
+    def test_unrecognized_phrasing_routed_to_real_handler_via_mocked_gate(self):
+        """"what's the deal with this batch" matches no keyword shape
+        directly -- it names no category, order, count phrase, or list
+        phrase the deterministic path recognizes -- so this only passes if
+        the LLM fallback actually fires and its canonical reformulation
+        reaches the real, unmocked _category_count handler, not a
+        hand-rolled answer."""
+        with patch.object(qa_intent_gate, "route_gated", return_value="list DUPLICATE orders"):
+            result = qa.answer("what's the deal with this batch")
+        self.assertIn("order_2", result)
+        self.assertIn("order_3", result)
+
+    def test_gate_holding_falls_through_to_honest_fallback(self):
+        """route_gated() returning None -- whether because confidence was
+        low, the tier isn't trusted (today: always, see qa_intent_gate.py),
+        or Ollama wasn't reachable at all (e.g. on the Vercel deployment,
+        which has no local model) -- must behave identically: never a
+        crash, never a guess."""
+        with patch.object(qa_intent_gate, "route_gated", return_value=None):
+            result = qa.answer("what's the deal with this batch")
+        self.assertEqual(result, qa.FALLBACK_MESSAGE)
+
+    def test_llm_fallback_is_not_tried_when_a_keyword_shape_already_matched(self):
+        """route_gated() must never even be called for a question the fast,
+        deterministic keyword path already answers -- the LLM is a
+        fallback for unrecognized phrasing only, not a call made on every
+        turn regardless of need."""
+        with patch.object(qa_intent_gate, "route_gated") as mock_gate:
+            qa.answer("how many DUPLICATE exceptions")
+        mock_gate.assert_not_called()
+
+    def test_recursive_retry_is_capped_at_one_hop(self):
+        """If the canonical reformulation somehow still doesn't match any
+        keyword shape (a bug in the router, or a future settlement_qa.py
+        change that drops a trigger phrase), the retry must not loop back
+        into the LLM fallback a second time -- one attempt only, then the
+        honest fallback."""
+        with patch.object(qa_intent_gate, "route_gated", return_value="qwertyuiop not a real trigger phrase") as mock_gate:
+            result = qa.answer("some nonsense the router also can't place")
+        self.assertEqual(result, qa.FALLBACK_MESSAGE)
+        mock_gate.assert_called_once()
 
 
 class TestFollowUpContext(SettlementQaTestCase):

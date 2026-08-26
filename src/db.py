@@ -298,6 +298,59 @@ def get_narration_rule(narration: str) -> dict | None:
     return dict(row) if row else None
 
 
+def compute_cash_clarity(all_rows: list[dict]) -> dict:
+    """Real Rs. amounts computed from this run's own persisted net_amount/
+    category/status columns -- not a forecast, not a parallel calculation.
+    Quantifies the 'this build sits upstream of Cashflow Forecaster' claim
+    with a number instead of just an argument: every row that hit some
+    exception/variance path is cash position a downstream forecaster would
+    otherwise see as ambiguous; the portion this engine explained or
+    matched is now trustworthy input, the portion pending a human's
+    confirm is disclosed as such (not counted as done), and the portion
+    still open is disclosed honestly too. Mirrors reconcile.py's
+    summarize() -- same fix applied in both places, kept in sync.
+
+    Two things this used to get wrong, found by tracing this number
+    against this module's own needs_action rule instead of assuming it
+    already matched: MATCHED_LOW_CONFIDENCE (an unconfirmed arbiter
+    candidate) was folded into "resolved", and DUPLICATE rows (a second
+    REPORT of a transaction whose real money already cleared under its
+    sibling row) were counted as separate at-risk cash, double-counting
+    money that already landed.
+
+    Lives here, not in review_server.py where it originated, so
+    settlement_qa.py's cash-value chat questions can call the exact same
+    function the Overview page's cash-position panel uses -- without a
+    circular import, since both modules already import db unconditionally.
+    api/db_pg.py (the Postgres-backed module the Vercel deployment swaps
+    in for this one) carries an identical copy for the same reason; it's
+    pure arithmetic over an already-fetched row list with no SQL in it, so
+    the duplication risk is low -- nothing like the three genuinely
+    different reimplementations of "what counts as resolved" that caused
+    the real metrics bug this docstring's sibling copies reference."""
+    at_risk = resolved = pending_review = still_open = 0.0
+    for r in all_rows:
+        amt = r["net_amount"]
+        if amt is None or not r["category"] or r["category"] == "DUPLICATE":
+            continue
+        at_risk += amt
+        if r["status"] == "MATCHED_LOW_CONFIDENCE":
+            pending_review += amt
+        elif r["status"] == "EXCEPTION":
+            still_open += amt
+        else:
+            resolved += amt
+    return {
+        "at_risk": round(at_risk, 2),
+        "resolved": round(resolved, 2),
+        "pending_review": round(pending_review, 2),
+        "still_open": round(still_open, 2),
+        "resolved_pct": round(100 * resolved / at_risk, 1) if at_risk else 0.0,
+        "pending_review_pct": round(100 * pending_review / at_risk, 1) if at_risk else 0.0,
+        "still_open_pct": round(100 * still_open / at_risk, 1) if at_risk else 0.0,
+    }
+
+
 def get_all_narration_rules() -> dict[str, dict]:
     """Every learned narration -> order_id rule, keyed by narration, in one
     query. reconcile.py's Pass 2.5 checks one of these per unmatched ledger

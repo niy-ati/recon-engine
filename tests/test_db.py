@@ -288,5 +288,61 @@ class TestMigration(DbTestCase):
         self.assertEqual(len(db.get_all_exceptions()), 2)
 
 
+class TestComputeCashClarity(unittest.TestCase):
+    """Moved here from test_review_server.py when compute_cash_clarity()
+    itself moved from review_server.py to db.py, so
+    settlement_qa.py's cash-value chat questions can call the exact same
+    function the Overview page's cash-position panel uses without a
+    circular import (both review_server.py and settlement_qa.py already
+    import db unconditionally)."""
+
+    def _row(self, net_amount, category, status):
+        return {"net_amount": net_amount, "category": category, "status": status}
+
+    def test_splits_resolved_from_still_open(self):
+        rows = [
+            self._row(975.42, "ROUNDING", "MATCHED_WITH_VARIANCE"),
+            self._row(500.00, "UNEXPLAINED", "EXCEPTION"),
+            self._row(200.00, None, "MATCHED"),  # no category -- outside the at-risk universe entirely
+        ]
+        result = db.compute_cash_clarity(rows)
+        self.assertAlmostEqual(result["at_risk"], 1475.42, places=2)
+        self.assertAlmostEqual(result["resolved"], 975.42, places=2)
+        self.assertAlmostEqual(result["still_open"], 500.00, places=2)
+        self.assertAlmostEqual(result["resolved_pct"], round(100 * 975.42 / 1475.42, 1), places=1)
+
+    def test_no_categorized_rows_returns_zero_without_dividing_by_zero(self):
+        rows = [self._row(100.0, None, "MATCHED")]
+        result = db.compute_cash_clarity(rows)
+        self.assertEqual(result["at_risk"], 0)
+        self.assertEqual(result["resolved_pct"], 0.0)
+
+    def test_matched_low_confidence_is_pending_review_not_resolved(self):
+        """Regression test for a real bug: MATCHED_LOW_CONFIDENCE (an
+        unconfirmed arbiter candidate) was folded into "resolved" here,
+        same bug as reconcile.py's summarize() -- fixed in both places,
+        kept in sync. db.py's own needs_action rule already treats this
+        status like EXCEPTION, not like done."""
+        rows = [self._row(300.0, "FUZZY_MATCH_NEEDS_REVIEW", "MATCHED_LOW_CONFIDENCE")]
+        result = db.compute_cash_clarity(rows)
+        self.assertEqual(result["resolved"], 0.0)
+        self.assertEqual(result["pending_review"], 300.0)
+        self.assertEqual(result["at_risk"], 300.0)
+
+    def test_duplicate_excluded_from_every_cash_bucket(self):
+        """Regression test: a DUPLICATE row's net amount already cleared
+        under its sibling row -- counting it separately double-counts
+        money that isn't actually at risk."""
+        rows = [
+            self._row(999.0, "DUPLICATE", "EXCEPTION"),
+            self._row(200.0, "UNEXPLAINED", "EXCEPTION"),
+        ]
+        result = db.compute_cash_clarity(rows)
+        self.assertEqual(result["at_risk"], 200.0)
+        self.assertEqual(result["still_open"], 200.0)
+        self.assertEqual(result["resolved"], 0.0)
+        self.assertEqual(result["pending_review"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

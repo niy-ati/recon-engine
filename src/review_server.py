@@ -120,17 +120,23 @@ PAGE_STYLE = """
     --sp-1: 2px; --sp-2: 4px; --sp-3: 8px; --sp-4: 12px; --sp-5: 16px;
     --sp-6: 20px; --sp-7: 24px; --sp-8: 32px; --sp-9: 40px; --sp-10: 48px; --sp-11: 56px;
 
-    /* Blade's real type scale, size/line-height paired exactly
-       (packages/blade/.../global/typography.ts, onDesktop) */
-    --text-2xs: 14px;  --lh-2xs: 19px;
-    --text-xs:  16.5px;  --lh-xs:  23px;
-    --text-sm:  18.5px;  --lh-sm:  27px;
-    --text-md:  21px;  --lh-md:  29px;
-    --text-lg:  24px;  --lh-lg:  31px;
-    --text-xl:  29px;  --lh-xl:  37px;
-    --text-2xl: 38px;  --lh-2xl: 45px;
-    --text-3xl: 47px;  --lh-3xl: 53px;
-    --text-4xl: 58px;  --lh-4xl: 62px;
+    /* Blade's own published type scale (packages/blade/.../typography.ts,
+       onDesktop) is tuned for marketing/hero copy -- a 58px page title.
+       A reconciliation tool is read like a ledger, not a landing page:
+       real dashboards (Razorpay's own included) run noticeably smaller
+       and tighter than that ramp. Sizes below are deliberately scaled
+       down from Blade's ratios for information density and a more
+       formal, ledger-like register, while keeping the same proportions
+       between steps and the same size/line-height pairing discipline. */
+    --text-2xs: 11px;  --lh-2xs: 15px;
+    --text-xs:  12.5px;  --lh-xs:  17px;
+    --text-sm:  13.5px;  --lh-sm:  20px;
+    --text-md:  15px;  --lh-md:  22px;
+    --text-lg:  17px;  --lh-lg:  24px;
+    --text-xl:  20px;  --lh-xl:  27px;
+    --text-2xl: 24px;  --lh-2xl: 30px;
+    --text-3xl: 28px;  --lh-3xl: 34px;
+    --text-4xl: 32px;  --lh-4xl: 38px;
     --ls-tight: -0.013em; /* Blade letterSpacings.50, -1.3% */
     --ls-tighter: -0.025em;
   }
@@ -159,14 +165,14 @@ PAGE_STYLE = """
     display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; flex-shrink:0;
     color:#fff; box-shadow:0 6px 16px -4px var(--primary-glow);
   }
-  aside.rail .brand .name { font-weight:800; font-size:17px; letter-spacing:var(--ls-tight); line-height:1.25; font-family:var(--font-heading); color:var(--ink); }
+  aside.rail .brand .name { font-weight:700; font-size:14.5px; letter-spacing:var(--ls-tight); line-height:1.25; font-family:var(--font-heading); color:var(--ink); }
   aside.rail nav { display:flex; flex-direction:column; gap:4px; }
   aside.rail nav a {
-    display:flex; align-items:center; gap:var(--sp-4); padding:12px var(--sp-5);
-    border-radius:var(--radius-pill); color:var(--muted); text-decoration:none; font-size:16.5px; font-weight:600;
+    display:flex; align-items:center; gap:var(--sp-4); padding:11px var(--sp-5);
+    border-radius:var(--radius-pill); color:var(--muted); text-decoration:none; font-size:14px; font-weight:600;
     transition:background 0.14s, color 0.14s;
   }
-  aside.rail nav a svg { width:18px; height:18px; flex-shrink:0; opacity:0.75; }
+  aside.rail nav a svg { width:16px; height:16px; flex-shrink:0; opacity:0.75; }
   aside.rail nav a:hover { background:var(--primary-faint); color:var(--primary-strong); }
   aside.rail nav a.active { background:var(--primary); color:#fff; box-shadow:0 8px 20px -6px var(--primary-glow); }
   aside.rail nav a.active svg { opacity:1; }
@@ -180,10 +186,10 @@ PAGE_STYLE = """
   }
   h1 {
     font-family:var(--font-heading); font-size:var(--text-4xl); line-height:var(--lh-4xl);
-    font-weight:800; margin:0 0 var(--sp-3); letter-spacing:var(--ls-tighter);
+    font-weight:700; margin:0 0 var(--sp-3); letter-spacing:var(--ls-tighter);
   }
-  h2 { font-family:var(--font-heading); font-size:var(--text-lg); line-height:var(--lh-lg); font-weight:700; margin:0 0 var(--sp-5); letter-spacing:-0.005em; }
-  p.kicker { color:var(--primary-strong); font-weight:700; font-size:14.5px; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 var(--sp-8); }
+  h2 { font-family:var(--font-heading); font-size:var(--text-md); line-height:var(--lh-md); font-weight:700; margin:0 0 var(--sp-5); letter-spacing:-0.005em; }
+  p.kicker { color:var(--primary-strong); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 var(--sp-8); }
 
   /* --------------------------------------------------------- Overview --- */
   .overview { display:flex; gap:var(--sp-7); margin-bottom:var(--sp-9); flex-wrap:wrap; align-items:stretch; }
@@ -199,11 +205,11 @@ PAGE_STYLE = """
     position:absolute; inset:22px; background:var(--panel); border-radius:50%;
     display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:inset 0 0 0 1px var(--border-subtle);
   }
-  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:27px; line-height:1; color:var(--primary); font-weight:800; letter-spacing:var(--ls-tighter); }
-  .donut .donut-label span { font-size:12.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; font-weight:600; }
-  .legend { display:flex; flex-direction:column; gap:11px; font-size:15.5px; }
+  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:21px; line-height:1; color:var(--primary); font-weight:700; letter-spacing:var(--ls-tighter); }
+  .donut .donut-label span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; font-weight:600; }
+  .legend { display:flex; flex-direction:column; gap:11px; font-size:13.5px; }
   .legend .row { display:flex; align-items:center; gap:10px; }
-  .legend .swatch { width:11px; height:11px; border-radius:4px; flex-shrink:0; }
+  .legend .swatch { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
   .legend .pct { font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); margin-left:auto; padding-left:22px; font-weight:700; }
 
   .stats { display:flex; gap:var(--sp-6); flex-wrap:wrap; flex:1; }
@@ -214,8 +220,8 @@ PAGE_STYLE = """
     display:flex; flex-direction:column; gap:var(--sp-5); transition:box-shadow 0.22s, transform 0.22s, border-color 0.22s;
   }
   .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); border-color:var(--primary-subtle); }
-  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:54px; line-height:1.05; color:var(--ink); font-weight:800; letter-spacing:var(--ls-tighter); }
-  .stat .stat-label { font-size:15.5px; color:var(--muted); font-weight:600; }
+  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:34px; line-height:1.1; color:var(--ink); font-weight:700; letter-spacing:var(--ls-tighter); }
+  .stat .stat-label { font-size:13px; color:var(--muted); font-weight:600; }
   .stat.tint-primary .icon-badge { background:var(--primary-subtle); color:var(--primary-strong); }
   .stat.tint-notice .icon-badge { background:var(--notice-bg); color:var(--notice); }
   .stat.tint-positive .icon-badge { background:var(--positive-bg); color:var(--positive); }
@@ -236,8 +242,8 @@ PAGE_STYLE = """
   }
   .category-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-high); }
   .category-card-text { display:flex; flex-direction:column; min-width:0; }
-  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:39px; font-weight:800; line-height:1.05; letter-spacing:var(--ls-tighter); }
-  .category-card-text span { font-size:15px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
+  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:26px; font-weight:700; line-height:1.1; letter-spacing:var(--ls-tighter); }
+  .category-card-text span { font-size:13px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
   .category-card.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
   .category-card.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
   .category-card.tone-positive .category-card-text b { color:var(--positive); }
@@ -256,9 +262,9 @@ PAGE_STYLE = """
   .stack-bar .seg { height:100%; transition:width 0.5s ease-out; cursor:default; }
   .stack-legend { display:flex; gap:var(--sp-8); margin-top:var(--sp-6); flex-wrap:wrap; }
   .stack-legend .item { display:flex; align-items:center; gap:10px; }
-  .stack-legend .swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
-  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:27px; font-weight:800; color:var(--ink); }
-  .stack-legend .item-label { font-size:14px; color:var(--muted); display:block; }
+  .stack-legend .swatch { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:20px; font-weight:700; color:var(--ink); }
+  .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
   /* ------------------------------------------------------------ Panels -- */
   .panel { background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l); box-shadow:var(--shadow-low); overflow:hidden; margin-bottom:var(--sp-8); }
@@ -277,22 +283,22 @@ PAGE_STYLE = """
   tbody tr { transition:background 0.12s; }
   tbody tr:hover { background:var(--primary-faint); }
   th {
-    background:var(--bg); font-size:13.5px; text-transform:uppercase; white-space:nowrap;
+    background:var(--bg); font-size:11px; text-transform:uppercase; white-space:nowrap;
     letter-spacing:0.06em; color:var(--muted); border-bottom:1px solid var(--border); font-weight:700;
   }
   th.sortable { cursor:pointer; user-select:none; }
   th.sortable:hover { color:var(--primary-strong); }
-  th.sortable .arrow { display:inline-block; margin-left:4px; opacity:0.35; font-size:11px; }
+  th.sortable .arrow { display:inline-block; margin-left:4px; opacity:0.35; font-size:10px; }
   th.sortable.sorted .arrow { opacity:1; color:var(--primary); }
   td.id-cell { overflow-wrap:anywhere; white-space:nowrap; }
-  td.amount-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; font-size:15.5px; font-weight:600; white-space:nowrap; }
+  td.amount-cell { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; font-size:13.5px; font-weight:600; white-space:nowrap; }
 
   /* Order/settlement IDs as chips, not bare monospace text -- matches the
      pill/card treatment used everywhere else instead of looking like a
      leftover plain-text column. */
   .id-chip {
     display:inline-flex; align-items:center; font-family:var(--mono); font-variant-numeric:tabular-nums;
-    font-size:14px; font-weight:700; padding:5px 11px; border-radius:var(--radius-s);
+    font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:var(--radius-s);
     white-space:nowrap; letter-spacing:0.01em;
   }
   .id-chip-order { background:var(--primary-faint); color:var(--primary-strong); border:1px solid hsla(204,100%,50%,0.18); }
@@ -304,7 +310,7 @@ PAGE_STYLE = """
   td.reason-cell { min-width:320px; max-width:460px; padding:var(--sp-5) var(--sp-6); }
   .audit-box {
     background:var(--bg); border:1px solid var(--border-subtle); border-radius:var(--radius-m);
-    padding:var(--sp-5); font-size:15.5px; line-height:1.55; overflow-wrap:break-word;
+    padding:var(--sp-5); font-size:13.5px; line-height:1.55; overflow-wrap:break-word;
   }
   .audit-box mark {
     background:var(--primary-subtle); color:var(--primary-strong); padding:1px 5px; border-radius:4px;
@@ -312,15 +318,15 @@ PAGE_STYLE = """
   }
   .audit-box code.hl-quote {
     font-family:var(--mono); background:var(--panel); border:1px solid var(--border-subtle);
-    padding:1px 6px; border-radius:4px; font-size:14px; color:var(--muted);
+    padding:1px 6px; border-radius:4px; font-size:12.5px; color:var(--muted);
   }
-  .audit-box strong.hl-point { color:var(--primary-strong); font-weight:800; }
+  .audit-box strong.hl-point { color:var(--primary-strong); font-weight:700; }
   td.action-cell { min-width:190px; }
   td.action-cell form { display:block; margin-bottom:6px; }
   td.action-cell input[type=text] { width:100%; }
 
   .pill {
-    display:inline-flex; align-items:center; gap:5px; font-size:13.5px; font-weight:700;
+    display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700;
     padding:4px 12px; border-radius:var(--radius-pill); letter-spacing:0.01em; white-space:nowrap;
   }
   .pill.notice { background:var(--notice-bg); color:var(--notice); }
@@ -328,15 +334,15 @@ PAGE_STYLE = """
   .pill.negative { background:var(--negative-bg); color:var(--negative); }
   .pill.positive { background:var(--positive-bg); color:var(--positive); }
   .cat {
-    font-family:var(--mono); font-size:13.5px; padding:4px 10px; border-radius:var(--radius-s);
+    font-family:var(--mono); font-size:11.5px; padding:4px 10px; border-radius:var(--radius-s);
     background:var(--bg); color:var(--muted); border:1px solid var(--border);
     display:inline-block; white-space:nowrap;
   }
   .cat-empty { color:var(--faint); }
 
-  .narration { font-family:var(--mono); font-size:14px; color:var(--muted); margin-top:6px; overflow-wrap:anywhere; }
-  .note-text { margin-top:9px; font-size:14.5px; color:var(--notice); background:var(--notice-bg); border-radius:var(--radius-s); padding:7px 11px; display:inline-block; }
-  details { margin-top:7px; font-size:14px; }
+  .narration { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-top:6px; overflow-wrap:anywhere; }
+  .note-text { margin-top:9px; font-size:13px; color:var(--notice); background:var(--notice-bg); border-radius:var(--radius-s); padding:7px 11px; display:inline-block; }
+  details { margin-top:7px; font-size:12.5px; }
   details summary { cursor:pointer; color:var(--primary); font-weight:600; list-style:none; }
   details summary::-webkit-details-marker { display:none; }
   details summary:before { content:"▸ "; font-size:11px; }
@@ -383,8 +389,8 @@ PAGE_STYLE = """
     padding:var(--sp-8); transition:box-shadow 0.22s, transform 0.22s; display:flex; flex-direction:column; gap:var(--sp-5);
   }
   .source-card:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); }
-  .source-card .value { font-size:43px; font-weight:800; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
-  .source-card .label { font-size:14.5px; color:var(--muted); font-weight:600; }
+  .source-card .value { font-size:28px; font-weight:700; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
+  .source-card .label { font-size:13px; color:var(--muted); font-weight:600; }
 
   /* ------------------------------------------------------- Chat widget - */
   /* A friendlier shell over settlement_qa.py's existing deterministic
@@ -410,25 +416,25 @@ PAGE_STYLE = """
     background:var(--primary); color:#fff; padding:var(--sp-6) var(--sp-7); display:flex;
     align-items:center; justify-content:space-between; flex-shrink:0;
   }
-  .chat-panel-head .title { font-family:var(--font-heading); font-weight:700; font-size:23px; }
-  .chat-panel-head .sub { font-size:13.5px; color:#EAF6FF; margin-top:3px; }
+  .chat-panel-head .title { font-family:var(--font-heading); font-weight:700; font-size:17px; }
+  .chat-panel-head .sub { font-size:12px; color:#EAF6FF; margin-top:3px; }
   .chat-panel-head button {
     background:rgba(255,255,255,0.18); border:none; color:#fff; width:34px; height:34px; border-radius:50%;
     cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; padding:0;
   }
   .chat-messages { flex:1; overflow-y:auto; padding:var(--sp-7); display:flex; flex-direction:column; gap:var(--sp-5); }
-  .chat-msg { max-width:88%; padding:13px 17px; border-radius:var(--radius-m); font-size:15.5px; line-height:1.55; white-space:pre-wrap; }
+  .chat-msg { max-width:88%; padding:13px 17px; border-radius:var(--radius-m); font-size:13.5px; line-height:1.55; white-space:pre-wrap; }
   .chat-msg.bot { background:var(--bg); color:var(--ink); align-self:flex-start; border-bottom-left-radius:4px; }
   .chat-msg.user { background:var(--primary); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
   .chat-msg.pending { color:var(--faint); font-style:italic; }
   .chat-suggestions { display:flex; flex-wrap:wrap; gap:9px; padding:0 var(--sp-7) var(--sp-6); flex-shrink:0; }
   .chat-suggestions button {
     background:var(--primary-faint); color:var(--primary-strong); border:1px solid var(--primary-subtle);
-    border-radius:var(--radius-pill); padding:7px 15px; font-size:13.5px; font-weight:600; cursor:pointer;
+    border-radius:var(--radius-pill); padding:7px 15px; font-size:12px; font-weight:600; cursor:pointer;
   }
   .chat-suggestions button:hover { background:var(--primary-subtle); }
   .chat-input-row { display:flex; gap:11px; padding:var(--sp-6) var(--sp-7); border-top:1px solid var(--border-subtle); flex-shrink:0; }
-  .chat-input-row input { flex:1; width:auto; font-size:15px; padding:12px 14px; }
+  .chat-input-row input { flex:1; width:auto; font-size:13.5px; padding:12px 14px; }
   .chat-input-row button {
     background:var(--primary); color:#fff; border:none; border-radius:var(--radius-pill); width:48px; height:48px;
     flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer;
@@ -453,12 +459,13 @@ CHAT_WIDGET = """
     <button id="chat-close" aria-label="Close">&times;</button>
   </div>
   <div class="chat-messages" id="chat-messages">
-    <div class="chat-msg bot">Ask me about a specific order, a category count, how many rows are open, the overall resolution rate, or how to resolve one once it's come up. I only answer from the actual reconciliation data for this run &mdash; if I don't recognize the question, I'll say so instead of guessing.</div>
+    <div class="chat-msg bot">Ask me about a specific order or settlement, a category count or list, how much is confirmed/rejected/still open, the cash value at risk, similar orders, or how to resolve one once it's come up. I only answer from the actual reconciliation data for this run &mdash; if I don't recognize the question, I'll say so instead of guessing.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="how many are open">How many are open?</button>
     <button type="button" data-q="what's my resolution rate">Resolution rate?</button>
-    <button type="button" data-q="exceptions by category">Breakdown by category</button>
+    <button type="button" data-q="list DUPLICATE orders">List DUPLICATE orders</button>
+    <button type="button" data-q="how much cash is at risk">Cash at risk?</button>
     <button type="button" data-q="how can it be resolved">How can it be resolved?</button>
   </div>
   <div class="chat-input-row">
@@ -806,60 +813,16 @@ def readable_category(cat: str) -> str:
     return escape(cat).replace("_", "_​")
 
 
-def compute_cash_clarity(all_rows: list[dict]) -> dict:
-    """Real Rs. amounts computed from this run's own persisted net_amount/
-    category/status columns -- not a forecast, not a parallel calculation.
-    Quantifies the 'this build sits upstream of Cashflow Forecaster' claim
-    with a number instead of just an argument: every row that hit some
-    exception/variance path is cash position a downstream forecaster would
-    otherwise see as ambiguous; the portion this engine explained or
-    matched is now trustworthy input, the portion pending a human's
-    confirm is disclosed as such (not counted as done), and the portion
-    still open is disclosed honestly too. Mirrors reconcile.py's
-    summarize() -- same fix applied in both places, kept in sync.
-
-    Two things this used to get wrong, found by tracing this number
-    against db.py's own needs_action rule instead of assuming it already
-    matched: MATCHED_LOW_CONFIDENCE (an unconfirmed arbiter candidate) was
-    folded into "resolved", and DUPLICATE rows (a second REPORT of a
-    transaction whose real money already cleared under its sibling row)
-    were counted as separate at-risk cash, double-counting money that
-    already landed."""
-    at_risk = resolved = pending_review = still_open = 0.0
-    for r in all_rows:
-        amt = r["net_amount"]
-        if amt is None or not r["category"] or r["category"] == "DUPLICATE":
-            continue
-        at_risk += amt
-        if r["status"] == "MATCHED_LOW_CONFIDENCE":
-            pending_review += amt
-        elif r["status"] == "EXCEPTION":
-            still_open += amt
-        else:
-            resolved += amt
-    return {
-        "at_risk": round(at_risk, 2),
-        "resolved": round(resolved, 2),
-        "pending_review": round(pending_review, 2),
-        "still_open": round(still_open, 2),
-        "resolved_pct": round(100 * resolved / at_risk, 1) if at_risk else 0.0,
-        "pending_review_pct": round(100 * pending_review / at_risk, 1) if at_risk else 0.0,
-        "still_open_pct": round(100 * still_open / at_risk, 1) if at_risk else 0.0,
-    }
 
 
 def render_cash_clarity(all_rows: list[dict]) -> str:
-    c = compute_cash_clarity(all_rows)
+    c = db.compute_cash_clarity(all_rows)
     if c["at_risk"] == 0:
         return ""
     return f"""
     <div class="panel">
       <div class="panel-head"><h2 style="margin:0">Cash-position clarity</h2></div>
       <div class="panel-body">
-        <p style="margin:0 0 var(--sp-6);color:var(--muted);max-width:70ch">
-          This isn't a forecast -- it's what this run's own numbers say about the input a
-          forecaster like Razorpay's Cashflow Forecaster would actually receive.
-        </p>
         <div class="stack-bar">
           <span class="seg" style="width:{c['resolved_pct']:.2f}%;background:{SWATCH_HEX['positive']}" title="Resolved: Rs.{c['resolved']:,.2f}"></span>
           <span class="seg" style="width:{c['pending_review_pct']:.2f}%;background:{SWATCH_HEX['notice']}" title="Pending human review: Rs.{c['pending_review']:,.2f}"></span>
@@ -876,7 +839,7 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
           </div>
           <div class="item">
             <span class="swatch" style="background:{SWATCH_HEX['negative']}"></span>
-            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open -- a forecaster would still be blind to this ({c['still_open_pct']:.1f}%)</span></span>
+            <span><b>Rs.{c['still_open']:,.2f}</b><span class="item-label">still open -- not yet explained ({c['still_open_pct']:.1f}%)</span></span>
           </div>
         </div>
         <p style="margin:var(--sp-6) 0 0;color:var(--faint);font-size:13px">
@@ -1144,7 +1107,6 @@ def render_sources() -> str:
     settlement_count = count_csv_rows(DATA_DIR / "settlement_report.csv")
     bank_count = count_csv_rows(DATA_DIR / "bank_statement.csv")
     ledger_count = count_csv_rows(DATA_DIR / "internal_ledger.csv")
-    gateway_b_count = count_csv_rows(DATA_DIR / "gateway_b_export.csv")
 
     def card(icon, label, value):
         display = "--" if value is None else str(value)
@@ -1160,7 +1122,6 @@ def render_sources() -> str:
       {card(ICON_ROWS, "Settlements", settlement_count)}
       {card(ICON_BANK, "Bank rows", bank_count)}
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
-      {card(ICON_GATEWAY, "Gateway B rows", gateway_b_count)}
     </div>"""
     return render_shell("sources", "Data sources", "", body)
 

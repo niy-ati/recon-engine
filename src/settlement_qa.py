@@ -34,6 +34,46 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
     batch, not against a short constructed candidate string inside an
     already-narrowed shortlist the way Pass 3 does. The looser Pass 3
     cutoff would return noisy false positives here.
+  - "what happened to setl_a1b2c3d4e5f6a7" -- the same lookup as an
+    order_id question, keyed on settlement_id instead, since a settlement
+    can carry rows across multiple orders (see DUPLICATE detection).
+  - "list DUPLICATE orders" / "which orders are UNEXPLAINED" / "show me
+    the ON_HOLD_BY_RAZORPAY ones" -- the same category match "how many
+    DUPLICATE exceptions" already does, but returning the actual
+    order_ids instead of just a count. Capped at 15 shown plus a "N more"
+    tail so one huge category can't flood the chat panel.
+  - "how many have been confirmed" / "how many rejected" / "how many
+    need clarification" -- counts by db.py's own resolution_status field
+    and, for "needs clarification", by whether a note was attached via
+    add_note() without resolving the row (see db.py's add_note
+    docstring) -- not a new resolution state invented here.
+  - "how much money is in DUPLICATE" / "cash value of UNEXPLAINED" -- a
+    category-scoped sum of net_amount, computed fresh here since nothing
+    else in the codebase slices cash by category alone.
+  - "how much cash is at risk" / "what's my cash position" -- delegates
+    to db.compute_cash_clarity(), the same function the Overview page's
+    cash-position panel already uses, not reimplemented here. This
+    project's own metrics bug (see PITCH_NOTES, "Metrics") was caused by
+    three independent
+    reimplementations of "what counts as resolved" silently disagreeing;
+    a fourth copy here would risk the exact same drift.
+
+Fallback for everything else (qa_intent_gate.py / qa_intent_router.py): if
+none of the above keyword shapes match, a gated local model (the same
+Ollama pattern Pass 4's llm_matcher.py/validation_gate.py use) gets one
+attempt to classify the question into one of the shapes above and
+reformulate it into the exact phrasing that shape's handler recognizes --
+then that canonical phrasing is answered by the same deterministic
+handlers above, unchanged. The model never generates an answer or a fact
+itself, only picks which door to knock on. Live-tested against the actual
+local model this project runs (qwen2.5:0.5b): its confidence score never
+varied across dozens of real questions (always 1.0, right or wrong) and it
+misclassified an unambiguous case, so qa_intent_gate.py currently holds
+every result -- the routing logic is built, tested, and wired end to end,
+but not blindly trusted, the same discipline validation_gate.py already
+applies to Pass 4's arbiter (see qa_intent_gate.py's docstring for the
+evidence). It activates automatically once a specific tier is shown,
+empirically, not to share that failure mode.
 """
 import difflib
 import re
@@ -41,8 +81,10 @@ import sys
 from collections import Counter
 
 import db
+import qa_intent_gate
 
 ORDER_ID_PATTERN = re.compile(r"\border[_\s]?(\d+)\b", re.IGNORECASE)
+SETTLEMENT_ID_PATTERN = re.compile(r"\b(setl_[a-z0-9]+)\b", re.IGNORECASE)
 
 KNOWN_CATEGORIES = [
     "UNEXPLAINED", "DUPLICATE", "PARTIAL_PAYMENT", "TAX_DEDUCTION", "ROUNDING",
@@ -133,13 +175,24 @@ CATEGORY_GUIDANCE = {
 }
 
 def _is_resolution_question(question: str) -> bool:
-    """Matches three related shapes, all answered from the same canned
+    """Matches four related shapes, all answered from the same canned
     CATEGORY_GUIDANCE text: "how can it/order_2/a DUPLICATE be resolved",
-    "what can I do [about it / by that time / while I wait]", and "will
-    this affect my cash flow / system / books". "resolv" also matches
-    "unresolved" on its own, so it's paired with a question-word check
-    rather than used alone; the action/impact phrasings don't need that
-    guard since they aren't substrings of unrelated words."""
+    "what can I do [about it / by that time / while I wait]", "will this
+    affect my cash flow / system / books", and a category-level "why is/are
+    it/they X" with no specific order named -- CATEGORY_GUIDANCE already
+    opens with what the category means, which is the honest answer to a
+    "why" question too, not a new fact invented for it. "resolv" also
+    matches "unresolved" on its own, so it's paired with a question-word
+    check rather than used alone.
+
+    "why" is deliberately scoped to questions with no order_id: when an
+    order IS named ("why is order_2 unresolved"), _find_order's own
+    per-row `reason` field already answers that specific "why" more
+    precisely than the generic per-category text here would -- the
+    top-level dispatch in _answer() must keep routing those to
+    _find_order, not here. Regression-tested directly: a "why" question
+    naming a real order used to (correctly) hit _find_order before this
+    signal existed; it must still, not get diverted to generic guidance."""
     ql = question.lower()
     resolve_signal = ("resolv" in ql or "fix" in ql) and any(
         w in ql for w in ("how", "what should", "what's the", "what is the")
@@ -151,12 +204,18 @@ def _is_resolution_question(question: str) -> bool:
     impact_signal = any(p in ql for p in (
         "affect my", "impact my", "affect the", "impact the", "hit my books", "hit my cash",
     ))
-    return resolve_signal or action_signal or impact_signal
+    why_signal = "why" in ql and not ORDER_ID_PATTERN.search(question)
+    return resolve_signal or action_signal or impact_signal or why_signal
 
 
 def _extract_order_id(question: str) -> str | None:
     match = ORDER_ID_PATTERN.search(question)
     return f"order_{match.group(1)}" if match else None
+
+
+def _extract_settlement_id(question: str) -> str | None:
+    match = SETTLEMENT_ID_PATTERN.search(question)
+    return match.group(1) if match else None
 
 
 def _extract_category(question: str) -> str | None:
@@ -187,15 +246,124 @@ def _find_order(order_id: str) -> str:
     return "\n".join(lines)
 
 
+def _find_settlement(settlement_id: str) -> str:
+    """Same shape as _find_order, keyed on settlement_id instead. A
+    settlement_id can carry more than one row -- a DUPLICATE settlement
+    and its clean-matched sibling share one order_id but are still two
+    distinct settlement rows (see reconcile.py's DUPLICATE detection) --
+    so this lists every row under that settlement, not just the first."""
+    rows = [r for r in db.get_all_exceptions() if r["settlement_id"] == settlement_id]
+    if not rows:
+        return f"No record of {settlement_id} in the last reconciliation run."
+
+    lines = [f"{settlement_id}: {len(rows)} row(s) found."]
+    for r in rows:
+        lines.append(
+            f"  order_id={r['order_id']} status={r['status']}"
+            + (f" category={r['category']}" if r['category'] else "")
+            + (f" -- {r['reason']}" if r['reason'] else "")
+        )
+        if r["resolution_status"] != "OPEN":
+            lines.append(f"  human decision: {r['resolution_status']}"
+                          + (f" ({r['resolution_note']})" if r["resolution_note"] else ""))
+    return "\n".join(lines)
+
+
 def _category_count(question: str) -> str | None:
+    """Answers both "how many DUPLICATE exceptions" (a count) and "list
+    DUPLICATE orders" / "which orders are UNEXPLAINED" (the actual
+    order_ids) -- same category match, the question's own phrasing picks
+    which shape comes back. Capped at 15 shown so one large category
+    can't flood the chat panel; the count in the sentence is still the
+    real total, not the shown-count.
+
+    Requires an actual count/list trigger word, not just a category name
+    appearing anywhere in the question -- a real production bug, caught
+    live: "why u think tehy are duplicate" mentions "duplicate" but isn't
+    asking for a count, and used to get answered with a bare
+    "11 row(s) categorized as DUPLICATE" instead of either a real answer
+    or an honest "don't know". A category name alone is not a count
+    request."""
     category = _extract_category(question)
     if category is None:
         return None
+    ql = question.lower()
     rows = db.get_all_exceptions()
-    count = sum(1 for r in rows if r["category"] == category)
-    if category == "ON_HOLD_BY_RAZORPAY" and "on hold" in question.lower():
-        return f"{count} settlement(s) on hold (ON_HOLD_BY_RAZORPAY)."
-    return f"{count} row(s) categorized as {category}."
+    matching = [r for r in rows if r["category"] == category]
+
+    wants_list = any(kw in ql for kw in ("list", "which order", "which one", "show me", "what are the"))
+    if wants_list:
+        if not matching:
+            return f"No rows are categorized as {category}."
+        order_ids = [r["order_id"] for r in matching if r["order_id"]]
+        shown = order_ids[:15]
+        more = f", and {len(order_ids) - 15} more" if len(order_ids) > 15 else ""
+        return f"{len(matching)} row(s) categorized as {category}: {', '.join(shown)}{more}."
+
+    if category == "ON_HOLD_BY_RAZORPAY" and "on hold" in ql:
+        return f"{len(matching)} settlement(s) on hold (ON_HOLD_BY_RAZORPAY)."
+
+    wants_count = any(kw in ql for kw in ("how many", "count of", "number of", "total number"))
+    if wants_count:
+        return f"{len(matching)} row(s) categorized as {category}."
+    return None
+
+
+def _resolution_status_count(question: str) -> str | None:
+    """Counts by db.py's own resolution_status field -- CONFIRMED and
+    REJECTED are the only two terminal values resolve_exception() ever
+    writes (see its status_map). "Needs clarification" isn't a third
+    resolution_status value -- add_note() deliberately leaves a row OPEN
+    and just attaches resolution_note (see its docstring: "Row stays
+    OPEN, stays in the queue"), so that's counted as OPEN-with-a-note
+    here, not invented as a status that doesn't exist in the schema."""
+    ql = question.lower()
+    rows = db.get_all_exceptions()
+
+    if any(kw in ql for kw in ("how many confirmed", "how many have been confirmed", "how many rows confirmed")):
+        count = sum(1 for r in rows if r["resolution_status"] == "CONFIRMED")
+        return f"{count} row(s) have been confirmed by a human reviewer."
+
+    if any(kw in ql for kw in ("how many rejected", "how many have been rejected", "how many rows rejected")):
+        count = sum(1 for r in rows if r["resolution_status"] == "REJECTED")
+        return f"{count} row(s) have been rejected by a human reviewer."
+
+    if any(kw in ql for kw in ("need clarification", "needs clarification", "have a note", "with a note", "clarification note")):
+        count = sum(1 for r in rows if r["resolution_status"] == "OPEN" and r.get("resolution_note"))
+        return f"{count} row(s) are still open with a clarification note attached."
+
+    return None
+
+
+def _cash_value(question: str) -> str | None:
+    """Rupee-value questions, not row counts. A category-scoped sum is
+    computed fresh here since nothing else in the codebase slices cash by
+    category alone. The overall at-risk/resolved/pending/still-open split
+    is NOT reimplemented here -- db.compute_cash_clarity() is the exact
+    function the Overview page's cash-position panel already uses. See
+    the module docstring for why a fourth independent copy of this logic
+    is worth avoiding."""
+    ql = question.lower()
+    money_signal = any(kw in ql for kw in (
+        "how much money", "how much cash", "total value", "cash value",
+        "rupee value", "at risk", "cash position",
+    ))
+    if not money_signal:
+        return None
+
+    rows = db.get_all_exceptions()
+    category = _extract_category(question)
+    if category:
+        total = sum(r["net_amount"] for r in rows if r["category"] == category and r["net_amount"] is not None)
+        return f"Rs.{total:,.2f} across rows categorized as {category}."
+
+    c = db.compute_cash_clarity(rows)
+    return (
+        f"Rs.{c['at_risk']:,.2f} total touched some exception or variance path this run. "
+        f"Rs.{c['resolved']:,.2f} ({c['resolved_pct']}%) is resolved and trustworthy, "
+        f"Rs.{c['pending_review']:,.2f} ({c['pending_review_pct']}%) is pending human review, "
+        f"and Rs.{c['still_open']:,.2f} ({c['still_open_pct']}%) is still open."
+    )
 
 
 def _open_count(question: str) -> str | None:
@@ -323,10 +491,23 @@ def _similar_orders(question: str, context: dict | None) -> str | None:
     return "\n".join(lines)
 
 
-def _answer(question: str, context: dict | None) -> tuple[str, dict]:
+FALLBACK_MESSAGE = (
+    "I don't have a way to answer that from the reconciliation data. "
+    "Try asking about a specific order (\"what happened to order_1032\") "
+    "or settlement (\"what happened to setl_a1b2c3\"), a category count "
+    "or list (\"how many DUPLICATE exceptions\", \"list UNEXPLAINED "
+    "orders\"), open items (\"how many are open\"), confirmed/rejected "
+    "counts, the resolution rate, cash value (\"how much is at risk\"), "
+    "similar orders (\"any similar orders to order_1032\"), or "
+    "\"how can it be resolved\" once an order or category has come up."
+)
+
+
+def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = True) -> tuple[str, dict]:
     referent = dict(context) if context else {}
 
     order_id = _extract_order_id(question)
+    settlement_id = _extract_settlement_id(question)
     category = _extract_category(question)
     if order_id:
         referent["last_order_id"] = order_id
@@ -336,6 +517,9 @@ def _answer(question: str, context: dict | None) -> tuple[str, dict]:
     elif category:
         referent["last_category"] = category
         referent.pop("last_order_id", None)
+
+    if settlement_id and not order_id:
+        return _find_settlement(settlement_id), referent
 
     if order_id and not _is_resolution_question(question) and not _is_similarity_question(question):
         return _find_order(order_id), referent
@@ -348,20 +532,40 @@ def _answer(question: str, context: dict | None) -> tuple[str, dict]:
     if guidance is not None:
         return guidance, referent
 
-    for handler in (_category_count, _open_count, _resolution_rate, _category_breakdown):
+    # _cash_value first: it's gated behind its own money_signal check (a
+    # question has to say "how much money"/"cash value"/etc. to match at
+    # all), so checking it before _category_count is safe -- but the
+    # order matters, since "how much money is in DUPLICATE" would
+    # otherwise get answered as a plain category count first, DUPLICATE
+    # being a recognized category name either way.
+    for handler in (_cash_value, _resolution_status_count, _category_count,
+                     _open_count, _resolution_rate, _category_breakdown):
         result = handler(question)
         if result is not None:
             return result, referent
 
-    return (
-        "I don't have a way to answer that from the reconciliation data. "
-        "Try asking about a specific order (\"what happened to order_1032\"), "
-        "a category count (\"how many DUPLICATE exceptions\"), "
-        "open items (\"how many are open\"), the resolution rate, similar "
-        "orders (\"any similar orders to order_1032\"), or "
-        "\"how can it be resolved\" once an order or category has come up.",
-        referent,
-    )
+    # None of the keyword shapes matched. Given the extraction and
+    # dispatch above, order_id/settlement_id/category are always None by
+    # this point -- any question naming one of those is always fully
+    # answered earlier (see qa_intent_router.py's module docstring for the
+    # regression-tested proof). One retry: ask the gated local model to
+    # classify the (necessarily entity-free) question and reformulate it
+    # into the exact phrasing a shape above already recognizes, then
+    # answer THAT through the same deterministic path -- never generate
+    # the answer itself. qa_intent_gate.route_gated returns None for
+    # anything not trusted -- today that's everything (see its docstring)
+    # -- so this call always falls through cleanly whether or not a future
+    # tier is trusted. _allow_llm_fallback=False on the recursive call caps
+    # this at one retry -- a bad canonical phrasing can't loop back here a
+    # second time.
+    if _allow_llm_fallback:
+        canonical = qa_intent_gate.route_gated(question)
+        if canonical is not None:
+            result, updated = _answer(canonical, referent, _allow_llm_fallback=False)
+            if result != FALLBACK_MESSAGE:
+                return result, updated
+
+    return FALLBACK_MESSAGE, referent
 
 
 def answer(question: str) -> str:

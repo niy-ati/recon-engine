@@ -4,3 +4,7 @@ data/reconcile.db
 .env
 *.md
 !README.md
+
+.vercel
+.env*
+skills-lock.json

@@ -1,0 +1,10 @@
+.git
+__pycache__
+*.pyc
+.env
+.env.example
+data/reconcile.db
+PITCH_NOTES.pdf
+tests
+extras
+.github
