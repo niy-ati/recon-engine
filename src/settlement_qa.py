@@ -83,7 +83,14 @@ from collections import Counter
 import db
 import qa_intent_gate
 
-ORDER_ID_PATTERN = re.compile(r"\border[_\s]?(\d+)\b", re.IGNORECASE)
+ORDER_ID_PATTERN = re.compile(
+    r"\border[\s_,:#-]*(?:number|no\.?)?[\s_,:#-]*(\d+)\b", re.IGNORECASE
+)  # not just "order_1032"/"order 1032" -- a real bug, found live: voice
+   # input transcribes a spoken order number with punctuation or filler
+   # words a typed question never would ("order #1032", "order number
+   # 1032", "order, 1032"), and the original pattern required the digits
+   # immediately after "order" with only a single optional space or
+   # underscore -- anything else silently failed to extract at all.
 SETTLEMENT_ID_PATTERN = re.compile(r"\b(setl_[a-z0-9]+)\b", re.IGNORECASE)
 
 KNOWN_CATEGORIES = [

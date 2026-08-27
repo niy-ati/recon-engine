@@ -71,6 +71,25 @@ class TestOrderLookup(SettlementQaTestCase):
         result = qa.answer("how much money is stuck in order_4")
         self.assertIn("Rs.100.00", result)
 
+    def test_order_id_recognized_with_voice_style_punctuation_and_filler(self):
+        """Regression test for a real bug found live over voice input:
+        ORDER_ID_PATTERN used to require the digits immediately after
+        "order" with only a single optional space or underscore --
+        anything a browser's speech-to-text commonly inserts around a
+        spoken order number ("order #1032", "order number 1032", "order,
+        1032") silently failed to extract at all, sending an answerable
+        question straight to the honest "don't know" fallback instead."""
+        for phrasing in (
+            "what happened to order #2",
+            "what happened to order number 2",
+            "what happened to order no 2",
+            "what happened to order, 2",
+        ):
+            with self.subTest(phrasing=phrasing):
+                result = qa.answer(phrasing)
+                self.assertIn("DUPLICATE", result)
+                self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+
 
 class TestCategoryCount(SettlementQaTestCase):
     def test_duplicate_count_matches_real_data(self):

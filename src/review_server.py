@@ -857,11 +857,25 @@ VOICE_AGENT_WIDGET = """
   var closeBtn = document.getElementById("voice-agent-close");
   btn.hidden = false;
 
+  // Some browsers (Chrome especially) load their voice list asynchronously
+  // and add a real, one-time delay to the very first speak() call of a
+  // page's lifetime while it finishes initializing. Touching it once here,
+  // on page load rather than on the first real answer, moves that delay
+  // out of the user's first turn.
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", function () {
+      window.speechSynthesis.getVoices();
+    });
+  }
+
   var WAVE_BAR_COUNT = 24;
   for (var b = 0; b < WAVE_BAR_COUNT; b++) waveEl.appendChild(document.createElement("span"));
   var bars = waveEl.querySelectorAll("span");
 
-  var SILENCE_MS = 2000;          // pause length while listening that finalizes the question
+  var SILENCE_MS = 700;           // pause length while listening that finalizes the question --
+                                   // short enough to feel immediate, long enough not to cut off
+                                   // an ordinary breath mid-sentence
   var VOLUME_THRESHOLD = 10;      // 0-255 scale, average of getByteFrequencyData -- listening
   var INTERRUPT_THRESHOLD = 34;   // higher bar while speaking -- must be a real, close voice to
                                    // barge in, not the browser's own playback bleeding into the
