@@ -112,6 +112,21 @@ ORDER_ID_PATTERN = re.compile(
    # underscore -- anything else silently failed to extract at all.
 SETTLEMENT_ID_PATTERN = re.compile(r"\b(setl_[a-z0-9]+)\b", re.IGNORECASE)
 
+_APOSTROPHES = re.compile(r"['’‘]")
+
+
+def _normalize(question: str) -> str:
+    """Lowercased with every apostrophe (straight or curly) stripped, not
+    just lowercased -- a real gap, found live: every trigger phrase below
+    is written as "what's"/"isn't"/"doesn't", so voice transcription and
+    plain casual typing that drops the apostrophe ("whats the
+    architecture", "why isnt this just an llm") silently missed every one
+    of them. All keyword matching below runs against this normalized
+    form, and every trigger phrase is written apostrophe-free to match --
+    matching against the raw apostrophe'd text elsewhere would silently
+    stop matching the now-apostrophe-free question."""
+    return _APOSTROPHES.sub("", question.lower())
+
 KNOWN_CATEGORIES = [
     "UNEXPLAINED", "DUPLICATE", "PARTIAL_PAYMENT", "TAX_DEDUCTION", "ROUNDING",
     "FUZZY_MATCH_NEEDS_REVIEW", "AFA_MANDATE_HOLD", "ON_HOLD_BY_RAZORPAY",
@@ -213,7 +228,7 @@ CATEGORY_GUIDANCE = {
 PROJECT_KNOWLEDGE = [
     (
         ("why not llm", "why not use an llm", "why not just use ai", "why not ai",
-         "why isn't this an llm", "why isn't this just an llm", "why not gpt",
+         "why isnt this an llm", "why isnt this just an llm", "why not gpt",
          "why deterministic", "why not generative", "why not use a model for everything"),
         "Matching is deterministic, not model-generated -- bank UTR, then "
         "order ID, then a learned pattern. The one place a model touches "
@@ -222,7 +237,7 @@ PROJECT_KNOWLEDGE = [
         "wrong."
     ),
     (
-        ("what model", "which model", "what's ollama", "what is ollama",
+        ("what model", "which model", "whats ollama", "what is ollama",
          "tell me about ollama", "do you use gpt", "what ai do you use"),
         "A local Ollama model, qwen2.5:0.5b, handles one narrow job: "
         "picking which order a fuzzy match most likely belongs to, after "
@@ -230,9 +245,9 @@ PROJECT_KNOWLEDGE = [
         "-- no paid API key is used anywhere."
     ),
     (
-        ("what's the architecture", "what is the architecture", "how does this work",
+        ("whats the architecture", "what is the architecture", "how does this work",
          "how does this system work", "explain the architecture", "walk me through the architecture",
-         "tech stack", "what's the tech stack"),
+         "tech stack", "whats the tech stack"),
         "Settlements are matched in passes, cheapest and most certain "
         "first: bank UTR, then order ID, then learned patterns, then "
         "fuzzy narrowing, and only as a last resort a gated model "
@@ -240,18 +255,18 @@ PROJECT_KNOWLEDGE = [
         "built on pure Python standard library."
     ),
     (
-        ("what's your accuracy", "what is your accuracy", "resolution rate baseline",
+        ("whats your accuracy", "what is your accuracy", "resolution rate baseline",
          "what metrics", "what are your metrics", "how accurate is this",
-         "what's the baseline", "compared to manual", "how much better than manual"),
+         "whats the baseline", "compared to manual", "how much better than manual"),
         "Manual reconciliation typically clears about 51 percent of rows. "
         "This engine resolves 90.5 percent with zero human input on a "
         "real 514-row batch, holding between 87 and 91 percent across "
         "five different re-tested batches."
     ),
     (
-        ("tell me about slash", "what's slash", "what is slash", "the slash agent",
+        ("tell me about slash", "whats slash", "what is slash", "the slash agent",
          "your research", "what did your research find", "differentiator",
-         "what makes this different", "what's the differentiator"),
+         "what makes this different", "whats the differentiator"),
         "Research traced a real internal Razorpay thread about an AI "
         "agent called Slash, where engineers raised the need for a "
         "pre-execution enforcement layer deciding what's allowed to run "
@@ -279,7 +294,7 @@ def _project_knowledge(question: str) -> str | None:
     otherwise match _is_resolution_question's generic why_signal and get
     misrouted to "tell me which order or category you mean" instead of a
     real answer."""
-    ql = question.lower()
+    ql = _normalize(question)
     for phrases, answer in PROJECT_KNOWLEDGE:
         if any(p in ql for p in phrases):
             return answer
@@ -305,9 +320,9 @@ def _is_resolution_question(question: str) -> bool:
     _find_order, not here. Regression-tested directly: a "why" question
     naming a real order used to (correctly) hit _find_order before this
     signal existed; it must still, not get diverted to generic guidance."""
-    ql = question.lower()
+    ql = _normalize(question)
     resolve_signal = ("resolv" in ql or "fix" in ql) and any(
-        w in ql for w in ("how", "what should", "what's the", "what is the")
+        w in ql for w in ("how", "what should", "whats the", "what is the")
     )
     action_signal = any(p in ql for p in (
         "what can i do", "what should i do", "what do i do",
@@ -355,7 +370,7 @@ def _extract_category(question: str) -> str | None:
         pattern = re.escape(category).replace("_", r"[_\s]")
         if re.search(rf"\b{pattern}(?:ES|S)?\b", qu):
             return category
-    if re.search(r"\bon hold\b", question.lower()):
+    if re.search(r"\bon hold\b", _normalize(question)):
         return "ON_HOLD_BY_RAZORPAY"
     return None
 
@@ -435,7 +450,7 @@ def _category_count(question: str) -> str | None:
     category = _extract_category(question)
     if category is None:
         return None
-    ql = question.lower()
+    ql = _normalize(question)
     rows = db.get_all_exceptions()
     matching = [r for r in rows if r["category"] == category]
 
@@ -461,7 +476,7 @@ def _category_count(question: str) -> str | None:
     # query when paired with a question word, not just present anywhere.
     wants_count = any(kw in ql for kw in (
         "how many", "count of", "number of", "total number",
-        "what's on hold", "what is on hold", "which are on hold",
+        "whats on hold", "what is on hold", "which are on hold",
         "any on hold", "anything on hold",
     ))
     if not wants_count:
@@ -480,7 +495,7 @@ def _resolution_status_count(question: str) -> str | None:
     and just attaches resolution_note (see its docstring: "Row stays
     OPEN, stays in the queue"), so that's counted as OPEN-with-a-note
     here, not invented as a status that doesn't exist in the schema."""
-    ql = question.lower()
+    ql = _normalize(question)
     rows = db.get_all_exceptions()
 
     # "how many" plus a bare "confirm"/"reject" substring, not an exact
@@ -515,7 +530,7 @@ def _cash_value(question: str) -> str | None:
     function the Overview page's cash-position panel already uses. See
     the module docstring for why a fourth independent copy of this logic
     is worth avoiding."""
-    ql = question.lower()
+    ql = _normalize(question)
     money_signal = any(kw in ql for kw in (
         "how much money", "how much cash", "total value", "cash value",
         "rupee value", "at risk", "cash position",
@@ -546,7 +561,7 @@ def _open_count(question: str) -> str | None:
     Safe to broaden: a category-specific "how many X exceptions" is
     always intercepted by _category_count earlier in the dispatch order,
     so this never has to tell the two apart itself."""
-    ql = question.lower()
+    ql = _normalize(question)
     open_signal = any(kw in ql for kw in (
         "open", "pending", "need", "exceptions", "attention", "unresolved", "outstanding",
     ))
@@ -557,7 +572,7 @@ def _open_count(question: str) -> str | None:
 
 
 def _resolution_rate(question: str) -> str | None:
-    ql = question.lower()
+    ql = _normalize(question)
     if any(kw in ql for kw in ("resolution rate", "how much resolved", "how much is resolved", "overall resolved", "percent resolved")):
         rows = db.get_all_exceptions()
         if not rows:
@@ -573,7 +588,7 @@ def _category_breakdown(question: str) -> str | None:
     phrasing rather than a bare "breakdown", which used to also swallow
     "status breakdown" questions that _status_breakdown below is meant to
     answer instead (a real dispatch collision, caught before shipping)."""
-    ql = question.lower()
+    ql = _normalize(question)
     if any(kw in ql for kw in ("category breakdown", "breakdown by category", "by category", "exceptions by category")):
         rows = db.get_all_exceptions()
         counts = Counter(r["category"] for r in rows if r["category"])
@@ -597,12 +612,12 @@ def _batch_summary(question: str) -> str | None:
     # the batch" (no "this") both missed the original phrase list
     # entirely. Safe to match these words alone since nothing else in this
     # module's vocabulary uses them for anything else.
-    ql = question.lower()
+    ql = _normalize(question)
     if not any(kw in ql for kw in (
         "overview", "summary", "summarize", "rundown", "recap",
         "how does this batch look", "how does the batch look",
         "how is this batch doing", "how is the batch doing",
-        "how's this batch", "hows this batch", "how's the batch", "hows the batch",
+        "hows this batch", "hows the batch",
         "tell me about this batch", "tell me about the batch",
     )):
         return None
@@ -638,7 +653,7 @@ def _status_breakdown(question: str) -> str | None:
     A real gap: there was no way to ask "what's the status breakdown" or
     "how many are matched vs how many are exceptions" -- every existing
     handler either scoped to a named category or to needs_action rows."""
-    ql = question.lower()
+    ql = _normalize(question)
     if not any(kw in ql for kw in (
         "status breakdown", "breakdown by status", "breakdown of status",
         "by status", "matched vs", "how many matched", "how many are matched",
@@ -659,7 +674,7 @@ def _batch_totals(question: str) -> str | None:
     many settlements are in this batch" and "what's the total settlement
     value" had no handler at all, since every existing count/value
     handler is scoped to open exceptions or a specific category."""
-    ql = question.lower()
+    ql = _normalize(question)
     total_value_signal = any(kw in ql for kw in (
         "total value", "total amount", "total settlement value", "total worth",
         "grand total", "batch worth", "how much did this batch settle",
@@ -695,7 +710,7 @@ def _extreme_amount(question: str) -> str | None:
     scoped to a named category -- a real gap: net_amount was already
     persisted per row, but nothing answered "what's the biggest
     exception" or "which settlement has the highest amount"."""
-    ql = question.lower()
+    ql = _normalize(question)
     wants_max = any(kw in ql for kw in (
         "biggest", "largest", "highest value", "highest amount", "top amount", "most money",
     ))
@@ -767,7 +782,7 @@ def _resolution_guidance(question: str, context: dict | None) -> str | None:
 
 
 def _is_similarity_question(question: str) -> bool:
-    ql = question.lower()
+    ql = _normalize(question)
     return any(p in ql for p in (
         "similar", "like this order", "like order", "same pattern",
         "happened before", "seen this before", "other order", "any other order",

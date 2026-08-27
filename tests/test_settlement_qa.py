@@ -211,6 +211,18 @@ class TestProjectKnowledge(SettlementQaTestCase):
         result = qa.answer("tell me about slash")
         self.assertIn("Slash", result)
 
+    def test_apostrophe_dropped_phrasing_still_matches(self):
+        """Regression test for a real gap found live: every trigger phrase
+        here is written as "what's"/"isn't", so voice transcription and
+        plain casual typing that drops the apostrophe ("whats the
+        architecture", "why isnt this just an llm") used to silently miss
+        every one of them. _normalize() strips apostrophes from the
+        question before matching, so both forms must now work."""
+        for phrasing in ("whats the architecture", "whats your accuracy", "why isnt this just an llm"):
+            with self.subTest(phrasing=phrasing):
+                result = qa.answer(phrasing)
+                self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+
     def test_why_question_does_not_get_misrouted_to_resolution_guidance(self):
         """Regression test for a real dispatch collision: a bare "why" in
         a project question used to trip _is_resolution_question's generic
