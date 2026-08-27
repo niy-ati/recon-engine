@@ -428,10 +428,18 @@ PAGE_STYLE = """
     cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; padding:0;
   }
   .chat-messages { flex:1; overflow-y:auto; padding:var(--sp-7); display:flex; flex-direction:column; gap:var(--sp-5); }
-  .chat-msg { max-width:88%; padding:13px 17px; border-radius:var(--radius-m); font-size:13.5px; line-height:1.55; white-space:pre-wrap; }
+  .chat-msg {
+    max-width:88%; padding:13px 17px; border-radius:var(--radius-m); font-size:13.5px; line-height:1.55;
+    white-space:pre-wrap; animation:chat-msg-in 0.22s ease-out;
+  }
+  @keyframes chat-msg-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
   .chat-msg.bot { background:var(--bg); color:var(--ink); align-self:flex-start; border-bottom-left-radius:4px; }
   .chat-msg.user { background:var(--primary); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
-  .chat-msg.pending { color:var(--faint); font-style:italic; }
+  .chat-msg.pending { display:flex; align-items:center; gap:5px; padding:16px 18px; }
+  .chat-msg.pending .dot { width:6px; height:6px; border-radius:50%; background:var(--faint); animation:chat-typing 1.2s infinite ease-in-out; }
+  .chat-msg.pending .dot:nth-child(2) { animation-delay:0.15s; }
+  .chat-msg.pending .dot:nth-child(3) { animation-delay:0.3s; }
+  @keyframes chat-typing { 0%, 60%, 100% { transform:translateY(0); opacity:0.5; } 30% { transform:translateY(-4px); opacity:1; } }
   .chat-suggestions { display:flex; flex-wrap:wrap; gap:9px; padding:0 var(--sp-7) var(--sp-6); flex-shrink:0; }
   .chat-suggestions button {
     background:var(--primary-faint); color:var(--primary-strong); border:1px solid var(--primary-subtle);
@@ -471,17 +479,13 @@ CHAT_WIDGET = """
     <button id="chat-close" aria-label="Close">&times;</button>
   </div>
   <div class="chat-messages" id="chat-messages">
-    <div class="chat-msg bot">Hi! Happy to help you make sense of this reconciliation run -- ask me anything about it.
+    <div class="chat-msg bot">Hi there! Happy to help you make sense of this reconciliation run.
 
-I can tell you about:
-- a specific order or settlement
-- how many rows are open, confirmed, or rejected
-- the overall resolution rate, or cash at risk
-- similar orders, or how to resolve one once it's come up
+Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up.
 
-You can also tap 📎 to attach a statement (PDF or image) and I'll look up any order or settlement it mentions, or tap 🎤 to just ask out loud.
+Got a statement handy? Tap 📎 to attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap 🎤 and just ask out loud.
 
-Everything I say comes straight from this run's real data &mdash; if I'm not sure, I'll say so instead of guessing.</div>
+Everything I tell you comes straight from this run's real data, so if I'm ever not sure, I'll say so instead of guessing.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="how many are open">How many are open?</button>
@@ -530,11 +534,20 @@ Everything I say comes straight from this run's real data &mdash; if I'm not sur
     return el;
   }
 
+  function addTypingIndicator() {
+    var el = document.createElement("div");
+    el.className = "chat-msg bot pending";
+    el.innerHTML = "<span class=\\"dot\\"></span><span class=\\"dot\\"></span><span class=\\"dot\\"></span>";
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+  }
+
   function ask(question) {
     if (!question) return;
     addMessage(question, "user");
     input.value = "";
-    var pending = addMessage("thinking...", "bot pending");
+    var pending = addTypingIndicator();
     fetch("/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
