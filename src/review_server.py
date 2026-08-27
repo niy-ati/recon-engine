@@ -442,10 +442,13 @@ PAGE_STYLE = """
   }
   .chat-panel-head .title { font-family:var(--font-heading); font-weight:700; font-size:17px; }
   .chat-panel-head .sub { font-size:12px; color:#EAF6FF; margin-top:3px; }
+  .chat-panel-head-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
   .chat-panel-head button {
     background:rgba(255,255,255,0.18); border:none; color:#fff; width:34px; height:34px; border-radius:50%;
     cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; padding:0;
   }
+  .chat-panel-head button svg { width:17px; height:17px; }
+  #chat-speak-toggle.muted { background:rgba(255,255,255,0.06); opacity:0.55; }
   .chat-messages { flex:1; overflow-y:auto; padding:var(--sp-7); display:flex; flex-direction:column; gap:var(--sp-5); }
   .chat-msg {
     max-width:88%; padding:13px 17px; border-radius:var(--radius-m); font-size:13.5px; line-height:1.55;
@@ -495,7 +498,12 @@ CHAT_WIDGET = """
       <div class="title">Ask about this batch</div>
       <div class="sub">Reads the same persisted data as every page here</div>
     </div>
-    <button id="chat-close" aria-label="Close">&times;</button>
+    <div class="chat-panel-head-actions">
+      <button type="button" id="chat-speak-toggle" aria-label="Read answers aloud" title="Read answers aloud" hidden>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 9v6h4l5 4V5L8 9H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button id="chat-close" aria-label="Close">&times;</button>
+    </div>
   </div>
   <div class="chat-messages" id="chat-messages">
     <div class="chat-msg bot">Hi there! Happy to help.
@@ -542,6 +550,30 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
   });
   closeBtn.addEventListener("click", close);
 
+  // ---- Read answers aloud --------------------------------------------
+  // Browser-native text-to-speech only (window.speechSynthesis) -- speaks
+  // the exact same grounded answer already shown as text, nothing new is
+  // generated or sent anywhere for this. The button stays hidden entirely
+  // on a browser without the API, same pattern as the mic button below.
+  var speakToggle = document.getElementById("chat-speak-toggle");
+  var speechEnabled = true;
+  if (window.speechSynthesis) {
+    speakToggle.hidden = false;
+    speakToggle.addEventListener("click", function () {
+      speechEnabled = !speechEnabled;
+      speakToggle.classList.toggle("muted", !speechEnabled);
+      speakToggle.setAttribute("aria-label", speechEnabled ? "Read answers aloud" : "Answers muted");
+      speakToggle.setAttribute("title", speechEnabled ? "Read answers aloud" : "Answers muted");
+      if (!speechEnabled) window.speechSynthesis.cancel();
+    });
+  }
+
+  function speak(text) {
+    if (!speechEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+
   function addMessage(text, cls) {
     var el = document.createElement("div");
     el.className = "chat-msg " + cls;
@@ -576,6 +608,7 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
         pending.className = "chat-msg bot";
         context = data.context || {};
         messages.scrollTop = messages.scrollHeight;
+        speak(data.answer);
       })
       .catch(function () {
         pending.textContent = "Could not reach the server -- is review_server.py still running?";
@@ -625,6 +658,7 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
           pending.textContent = data.answer;
           pending.className = "chat-msg bot";
           messages.scrollTop = messages.scrollHeight;
+          speak(data.answer);
         })
         .catch(function () {
           pending.textContent = "Could not reach the server -- is review_server.py still running?";
