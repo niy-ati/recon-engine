@@ -1090,11 +1090,21 @@ VOICE_AGENT_WIDGET = """
         transcriptEl.textContent = data.answer;
         setPhase("speaking");
         botUtteranceWords = new Set(data.answer.toLowerCase().split(/\\s+/).filter(Boolean));
-        startBargeInListening();
+        // startBargeInListening() must run AFTER speak(), not before: speak()
+        // increments turnId synchronously as its very first action, and
+        // startBargeInListening() captures turnId at call time to guard its
+        // delayed setTimeout callback against a superseded turn. Calling it
+        // first meant it always captured the turn ID one step too early --
+        // turnId had already moved on by the time its 400ms timer fired, so
+        // its own guard rejected every single attempt to start and the
+        // recognizer never actually started at all, ever. A real bug, found
+        // live: this made content-based barge-in detection completely inert
+        // from the moment it was introduced, not just unreliable.
         speak(data.answer, function (myTurn) {
           if (myTurn !== turnId) return; // superseded by an interrupt already
           if (active) beginListening(); else close();
         });
+        startBargeInListening();
       })
       .catch(function () {
         transcriptEl.textContent = "Could not reach the server -- is review_server.py still running?";
