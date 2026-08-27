@@ -1,20 +1,33 @@
 # Settlement Reconciliation Engine
 
-A settlement reconciliation system for Razorpay merchants. It matches settlement, bank, and ledger records; resolves what it can prove deterministically; and only reaches for a narrowly scoped, confidence-gated AI layer when deterministic logic can't resolve a row. Everything else goes to a human, with a full audit trail explaining why it didn't resolve on its own.
+A reconciliation system for Razorpay merchants that matches settlement, bank, and ledger records; resolves what it can prove deterministically; and only reaches for a narrowly scoped, confidence-gated AI layer when deterministic logic can't resolve a row. Everything else goes to a human, with a full audit trail explaining why it didn't resolve on its own.
 
-The governing principle: **every action here traces back to a verifiable rule, a verifiable data field, or a human decision.** Nothing is inferred or shown as resolved unless the data proves it.
+**Governing principle:** every action traces back to a verifiable rule, a verifiable data field, or a human decision. Nothing is inferred or shown as resolved unless the data proves it.
 
-**Pitch deck, demo video, and screenshots:** [Google Drive folder](https://drive.google.com/drive/folders/1OBS8dvLnuLHjImn6XZF13Ev96iextn2g?usp=sharing)
+**Demo, screenshots:** [Google Drive folder](https://drive.google.com/drive/folders/1OBS8dvLnuLHjImn6XZF13Ev96iextn2g?usp=sharing)
+
+## At a glance
+
+- **90.5% resolved with zero human input**, vs. ~51% for manual spreadsheet reconciliation — measured on a real 514-row batch, holding 87–91% across five other untuned batches.
+- **7-pass deterministic matcher** — UTR, order ID, learned patterns, exact digit references, fuzzy narrowing — before a model is ever consulted.
+- **9 named exception categories**, each with a stated reason and what a merchant should actually do about it — never a generic failure flag.
+- **One AI step, tightly gated**: a model picks between candidates a deterministic pass already shortlisted, at 90%+ confidence, and only auto-applies from a trust list that's empty until a tier proves itself. Nothing has ever auto-applied.
+- **Full audit trail** — every automatic and human decision is a real, replayable SQLite record.
+- **Live dashboard** — Overview, Queue, Records, Sources, with real charts computed from the batch, not screenshots.
+- **Settlement Q&A** — ask plain-language questions about a batch by chat, voice, or an uploaded statement/photo. Retrieval only, never generated.
+- **Hands-free Voice Agent** — listens, answers out loud, and can be interrupted mid-answer, entirely in-browser.
+- **Real Razorpay connection** — authenticated and fired against the live Settlement Recon API, not just built and left unexercised.
+- **Zero paid API keys anywhere.** The only model used (Ollama) runs locally.
 
 ## Table of Contents
 
-- [AI Judgment and Failure Recovery](#ai-judgment-and-failure-recovery)
 - [Architecture](#architecture)
-- [Reconciliation Logic](#reconciliation-logic)
+- [Reconciliation Passes](#reconciliation-passes)
 - [Exception Categories](#exception-categories)
 - [Metrics](#metrics)
 - [Performance](#performance)
 - [AI Usage and Validation](#ai-usage-and-validation)
+- [Failure Recovery](#failure-recovery)
 - [Live Razorpay Integration](#live-razorpay-integration)
 - [Compared to Razorpay's Own Reconciliation Agent](#compared-to-razorpays-own-reconciliation-agent)
 - [Review Application](#review-application)
@@ -24,151 +37,141 @@ The governing principle: **every action here traces back to a verifiable rule, a
 - [Testing](#testing)
 - [License](#license)
 
-## AI Judgment and Failure Recovery
-
-**AI judgment.**
-- A model is consulted in exactly one place in the whole pipeline: Pass 4, and only after six deterministic passes have already tried and failed. It never invents a category and never decides whether a row is resolved — it selects from a shortlist it didn't build. See [Reconciliation Logic](#reconciliation-logic) and [AI Usage and Validation](#ai-usage-and-validation).
-- Adversarial testing with a narration carrying no genuine identifying signal showed the model picks whichever candidate is listed first and overstates its own confidence. The trust allowlist has been empty ever since. See [AI Usage and Validation](#ai-usage-and-validation).
-- A second, independent test looked for a case where trusting the model would have been correct. Three separate framings against the real model produced no reliable correct answer, so the demo ships the failing case rather than a cherry-picked passing one. See [`src/ai_judgment_demo.py`](src/ai_judgment_demo.py).
-
-**Failure recovery.**
-- Ollama unreachable falls through to a deterministic stand-in, verified by substituting the network call with one that actually fails. See [AI Usage and Validation](#ai-usage-and-validation).
-- The live Razorpay API call retries with exponential backoff on a network error, verified by making the transport fail twice on purpose and confirming the third attempt recovers. See [Live Razorpay Integration](#live-razorpay-integration).
-- An adversarial UTR-collision trap (two settlements, identical amount, different UTR) runs as part of every standard batch and resolves both correctly, so the matcher can't cross-wire two customers' payments. See [`src/failure_injection_demo.py`](src/failure_injection_demo.py).
-- `review_server.py`'s confirm endpoint had a concurrency race: it runs on a real `ThreadingHTTPServer`, and a stale double-confirm could overwrite a human's decision. Fixed with a conditional write plus a regression test that fails against the old code and passes against the new. See [`src/db.py`](src/db.py)'s `resolve_exception`.
-- A held-out validation sweep across five fresh seeds once ran past its own time budget. Root cause: `llm_matcher.py`'s own docstring documents an Ollama cold-load of up to ~80 seconds, and the affected seed happened to run sixth in a row. Bounded with a timeout set above that ceiling. See [`extras/seed_sweep.py`](extras/seed_sweep.py).
-
 ## Architecture
 
 ![Architecture diagram showing data sources flowing through ingestion, seven matching passes, a validation gate, persistence, and the review application](assets/architecture.svg)
 
-The validation gate lives in its own module, separate from both the matching engine and the model-calling logic. **The reconciliation engine has no import path to raw model output**, enforced by an automated test. Every proposed match, deterministic or AI-proposed, passes through the same gate before it counts as resolved, mirroring a principle Razorpay has [stated publicly for Agent Studio](https://razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control): every agent action passes through a platform-level validation layer before execution.
+The validation gate lives in its own module, separate from both the matching engine and the model-calling logic — **the reconciliation engine has no import path to raw model output**, enforced by an automated test. Every proposed match, deterministic or AI-proposed, passes through the same gate before it counts as resolved.
 
-## Reconciliation Logic
+## Reconciliation Passes
 
-Seven passes run in strict order, cheapest and most certain first. A row is never sent to a more expensive pass once an earlier pass has resolved it with certainty.
+Cheapest and most certain first. A row never reaches a more expensive pass once an earlier one has resolved it.
 
-| Pass | What it matches on | Resolves without a model call |
+| Pass | Matches on | Needs a model |
 |---|---|---|
-| 1: Settlement to Bank | UTR, amount, value date | Yes |
-| 2: Settlement to Ledger | `order_id` | Yes |
-| 2.5: Learned Pattern | A narration a human already confirmed, exact string | Yes |
-| 2.6: Learned Template | A different order's narration from the same recurring template | Yes |
-| 2.75: Exact Digit Reference | An unambiguous order number inside free text | Yes |
-| 3: Fuzzy Candidate Narrowing | Sequence similarity, builds a shortlist only | Yes, produces no decision |
-| 4: Confidence Gated Arbiter | A model picks one candidate off that shortlist | No, the only pass that consults a model |
+| 1: Settlement → Bank | UTR, amount, value date | No |
+| 2: Settlement → Ledger | `order_id` | No |
+| 2.5: Learned Pattern | A narration a human already confirmed, exact string | No |
+| 2.6: Learned Template | A different order's narration from the same recurring template | No |
+| 2.75: Exact Digit Reference | An unambiguous order number inside free text | No |
+| 3: Fuzzy Candidate Narrowing | Sequence similarity — builds a shortlist only | No |
+| 4: Confidence-Gated Arbiter | A model picks one candidate off that shortlist | **Yes — the only pass that does** |
 
-Pass 1 resolves a real, underdocumented quirk in Razorpay's own settlement data. A settlement is a batch carrying its own UTR, but the per-order detail comes from a separate [settlement recon line](https://razorpay.com/docs/api/settlements/fetch-recon/) with its own, second UTR — `settlement_utr` — confirmed against [Razorpay's Route and Linked Account documentation](https://razorpay.com/docs/payments/route/linked-account/). **Those two references can genuinely diverge for the same real transfer**, exactly the kind of thing a merchant reconciling by bank statement alone would misread as a missing payout. When a settlement's own UTR has no matching bank row, Pass 1 checks every other unclaimed bank row for an exact amount-and-date match under a different UTR, and resolves it only when exactly one such row exists. Two or more candidates is a real coincidence, and it stays unresolved rather than getting guessed at.
+**Three things worth knowing about how these behave:**
 
-Pass 2.5 can't be poisoned by a careless confirmation. **A narration only gets memorized for future automatic resolution if it contains a numeric reference unique to that order among every other order the system has observed.** A generic confirmation like "payment received, thank you" still resolves the row in front of the reviewer — it just never gets written into the pattern store.
-
-Pass 2.6 is the one place the learned-pattern store generalizes past an exact string repeat. Confirming a match also stores that same narration with its order's own digit reference swapped for a placeholder. A differently numbered narration from the same recurring template — same customer, same payment gateway generating the same surrounding text every time — resolves against that template without a fresh confirm, but **only if the captured reference uniquely identifies exactly one order still needing a match**, the same discipline as every other deterministic pass here. This closes a real, previously named gap without generalizing wording it hasn't actually seen.
-
-**Pass 4 can't introduce a candidate of its own.** The model is restricted to the one to three orders Pass 3 already shortlisted. It selects, it doesn't originate.
+- **Pass 1 catches a real, underdocumented Razorpay quirk**: a settlement's batch-level UTR and its per-order [recon-line UTR](https://razorpay.com/docs/api/settlements/fetch-recon/) can genuinely diverge for the same transfer. When that happens, Pass 1 checks every other unclaimed bank row for an exact amount-and-date match under a different UTR — and only resolves it when exactly one such row exists. Two or more candidates stays unresolved rather than getting guessed at.
+- **Pass 2.5 can't be poisoned by a lazy confirmation.** A narration only gets memorized for future auto-resolution if it contains a numeric reference unique to that order. A generic "payment received, thank you" still resolves the row in front of the reviewer — it just never enters the pattern store.
+- **Pass 4 can't introduce a candidate of its own.** It's restricted to the 1–3 orders Pass 3 already shortlisted. It selects; it doesn't originate.
 
 ## Exception Categories
 
-Every unmatched row gets a specific, named category and a stated reason, not a generic failure flag.
+Every unmatched row gets a specific, named category and a stated reason — not a generic failure flag.
 
 | Category | Trigger | What it means |
 |---|---|---|
-| `ROUNDING` | Bank credit under the correct UTR, off by less than one rupee | Sub-rupee GST-on-MDR drift. **No action needed.** |
-| `TAX_DEDUCTION` | Bank credit off by one to two rupees, or ledger GST differs from the settlement report by more than one rupee | **Check against Razorpay's monthly tax invoice** before filing input tax credit. |
-| `PARTIAL_PAYMENT` | Ledger narration shows a refund netted into the settlement | Settled amount is gross minus refund. **Not a mismatch.** |
-| `UTR_LEVEL_MISMATCH` | Bank credit matches amount and date exactly under a different, unclaimed UTR | **The money arrived** — only the reference label diverged. See Pass 1 above. |
-| `DUPLICATE` | A settlement identifier appears twice for one transfer, one bank credit exists | A duplicate export row. **The real money already cleared** under the sibling entry. |
-| `ON_HOLD_BY_RAZORPAY` | The recon line reports `on_hold: true` | Razorpay is **deliberately holding** this payout for a stated reason. |
-| `AFA_MANDATE_HOLD` | Narration shows a subscription renewal above the RBI [e-mandate AFA threshold](https://www.business-standard.com/amp/article/finance/new-e-mandate-guidelines-rbi-enhances-limit-for-e-mandates-on-credit-debit-cards-to-rs-15-000-122060800417_1.html) of fifteen thousand rupees | Needs a **compliant step-up re-authentication**, not a blind retry. |
-| `FUZZY_MATCH_NEEDS_REVIEW` | Arbiter proposed a candidate, did not clear the trust gate | A ranked candidate exists. **One click** confirms or rejects it. |
-| `UNEXPLAINED` | No counterpart anywhere after every pass runs | Genuinely unexplained. **A reconciliation system reporting a perfect match rate is a signal to distrust, not a signal of quality**, so this category is expected to stay above zero. |
+| `ROUNDING` | Bank credit off by less than one rupee | Sub-rupee GST-on-MDR drift. **No action needed.** |
+| `TAX_DEDUCTION` | Ledger GST differs from the settlement report | **Check against Razorpay's monthly tax invoice.** |
+| `PARTIAL_PAYMENT` | Ledger shows a refund netted into the settlement | Settled amount is gross minus refund. **Not a mismatch.** |
+| `UTR_LEVEL_MISMATCH` | Bank credit matches amount/date under a different, unclaimed UTR | **The money arrived** — only the reference diverged. |
+| `DUPLICATE` | A settlement ID appears twice, one bank credit exists | **The real money already cleared** under the sibling entry. |
+| `ON_HOLD_BY_RAZORPAY` | Recon line reports `on_hold: true` | Razorpay is **deliberately holding** the payout. |
+| `AFA_MANDATE_HOLD` | Subscription renewal above the RBI [₹15,000 e-mandate threshold](https://www.business-standard.com/amp/article/finance/new-e-mandate-guidelines-rbi-enhances-limit-for-e-mandates-on-credit-debit-cards-to-rs-15-000-122060800417_1.html) | Needs a **compliant step-up re-auth**, not a blind retry. |
+| `FUZZY_MATCH_NEEDS_REVIEW` | Arbiter proposed a candidate, didn't clear the trust gate | A ranked candidate exists — **one click** confirms or rejects. |
+| `UNEXPLAINED` | No counterpart anywhere after every pass runs | Genuinely unexplained. **Expected to stay above zero** — a perfect match rate is a red flag, not a win. |
 
 ## Metrics
 
-Every metric below is computed from one single source of truth and read from the same place everywhere it's displayed. See [Scope](#scope) for a metrics bug that affected this figure and was fixed before this number was published.
-
-Measured on the current 514-row synthetic batch, ten times the floor typically used to validate a system like this. A row the arbiter proposed but nobody has confirmed is real work still owed to a human, so it's never counted inside the resolved figure. Duplicate rows are excluded from the cash figures entirely, since that money already cleared under its sibling row and counting it again would double-count cash that was never actually at risk.
+- **90.5% resolved, zero human input** — 514-row batch. Re-run against five other untuned seeds: **87.1%–90.9%**, every one clear of the ~51% manual baseline by 35+ points. `python extras/seed_sweep.py` reproduces this live.
+- **89.8 rows/sec throughput** — 514 rows in 5.72s, including the one LLM call the batch actually needs.
+- A row the arbiter *proposed* but nobody confirmed is never counted as resolved. Duplicate rows are excluded from cash figures entirely, since that money already cleared under its sibling row.
 
 ![Row resolution state and cash position clarity, both shown as stacked bars: resolved in green, pending human confirmation in orange, genuinely open in red](assets/metrics.svg)
 
-**Throughput: 89.8 rows/sec** (514 rows in 5.72s, including the LLM arbiter call for the one row that needs it — Pass 1 through 2.75 alone process the batch in well under a second).
-
-**90.5% isn't a cherry-picked run.** The batch generator's random seed is pinned to 42 for a reproducible default, but the pipeline has also been re-run against five other seeds it was never tuned against, generating five different 514-row batches from the same failure-mode mix: 88.0%, 88.5%, 87.1%, and 90.9% resolved, alongside the default run's 90.5%. **An 87.1%-90.9% range**, every single one clear of the ~51% manual baseline by more than 35 points. `python extras/seed_sweep.py` reproduces this directly — it re-runs the full pipeline once per seed, prints the same figures live, then restores `data/` and `output/` to their committed state when it's done.
-
 ## Performance
 
-A 3,000-row synthetic stress test, profiled with `cProfile`, found the largest cost in the whole pipeline: a persistence-layer function was reopening a fresh SQLite connection and re-running the full schema migration script once per unmatched ledger row, instead of once per batch. Fixed with a single bulk read of every learned pattern at the start of the pass. Two more linear scans — the settlement-to-ledger match and the result lookups feeding three separate passes — each got rebuilt as a dictionary index computed once per batch, mirroring the indexing pattern the first matching pass already used.
+- **Indexing fix**: a persistence-layer function was reopening a SQLite connection and re-running schema migration once *per row* instead of once per batch. Fixed with a bulk read + two dictionary indexes. Result: a 3,000-row stress batch went from 6.6s to 0.9s (~7.4x), holding at 3.3s even at 6,000 rows — zero behavior change, byte-identical output before and after.
+- **Connection fix**: `cProfile` on the real batch showed 78% of total runtime inside `socket.connect()` for Ollama calls — caused by addressing it as `localhost` instead of `127.0.0.1` (Windows tries IPv6 first, times out, falls back). One constant change: **41.88s → 5.72s, ~7.3x**, identical 90.5% result. The full test suite dropped from ~65s to under 11s as a side effect.
 
 ![Before and after bar comparison for a 3,000 row batch, 6.6 seconds down to 0.9 seconds, and a 500 row batch, 0.51 seconds down to 0.06 seconds](assets/performance.svg)
 
-**Zero behavior change**: all tests passed unchanged before and after, and the real 514-row batch produced byte-identical categorization and cash figures. At 6,000 rows, double the original stress-test ceiling, the fix held at 3.3 seconds, so the correction scales rather than just working at one measured size.
-
-A second bottleneck showed up on the real batch rather than a synthetic stress test: `cProfile` on the actual `python run_all.py` command, the one in this README's own Setup section, showed **32.7 of 41.9 total seconds — 78% of the entire run — spent inside `socket.connect()`** for the Ollama arbiter calls, not model inference. The cause: `llm_matcher.py` addressed Ollama by the hostname `localhost` rather than the literal address `127.0.0.1`. On Windows, resolving `localhost` tries IPv6 first, times out, then falls back to IPv4 — measured at ~2.05 seconds added to every single connection, against 0.0004 seconds for the literal IPv4 address, **roughly 5,000x on the connection step alone.** Fixed by changing one constant. **Measured result on the real 514-row batch: 41.88s down to 5.72s, about 7.3x**, with the identical 90.5% resolved figure before and after. The full test suite dropped from about 65 seconds to under 11 as a direct consequence, since several tests exercise this same code path.
-
 ## AI Usage and Validation
 
-**A model is consulted in exactly one place: Pass 4**, choosing between one and three candidates a deterministic process already shortlisted. It never invents a category, never decides whether a row is resolved, and never sees a candidate list it didn't receive from the deterministic layer.
+- **Used in exactly one place**: Pass 4, choosing between candidates a deterministic pass already shortlisted. It never invents a category, never decides whether a row is resolved, and never sees a candidate it didn't receive from the deterministic layer.
+- **One model tier, local and free** — no paid API, no dependency on any account balance.
+- **Adversarially tested, and it failed the test**: given a narration with no genuine identifying signal and two equally plausible candidates, it picked whichever came first and reported >90% confidence anyway — a reproducible positional-bias failure.
+- **Result: the trust list is empty by design.** No row in any real batch has ever been auto-applied. Confidence is still recorded and still routes to human review — it's just never treated as sufficient on its own.
+- **A second, independent test looked for a case where trusting it would've been right, and didn't find one.** [`src/ai_judgment_demo.py`](src/ai_judgment_demo.py): a narration naming two orders in one sentence, only one actually paid. Three framings, real model: two picked the wrong order outright, the third gave the right answer for an incoherent reason.
+- **The governance is a real file, not a policy doc**: [`agent_manifest.json`](agent_manifest.json) states exactly what the agent reads/writes, every action it can and can't take, and what a human can revoke — machine-readable, not prose.
 
-Only one model tier exists, and it's local and free — no paid API is used anywhere in this pipeline, so a run never depends on any account balance. That tier was adversarially tested with a narration carrying no genuine identifying signal, presented against two equally plausible candidates: **it picked whichever candidate was listed first and reported confidence above 0.90 regardless**, a reproducible positional-bias failure. Its confidence value is still recorded and still routes the row to human review; it's never treated as sufficient on its own to apply a match automatically.
+## Failure Recovery
 
-To answer this directly: **no row in any real batch has ever been auto-applied.** The trust allowlist required for automatic application is empty by design, a direct consequence of the finding above. The gate mechanism itself is separately unit tested with a simulated trusted tier to confirm the logic is correct — the absence of a real auto-applied row is expected, not a coverage gap.
-
-A second, independent test went looking for the opposite result — a case where trusting the model would have been correct — and didn't find one. [`src/ai_judgment_demo.py`](src/ai_judgment_demo.py) presents a ledger narration naming two real orders in one sentence, only one of which it actually says was paid ("order 8001 payment cancelled and refunded in full, order 8002 payment received and confirmed"). That's not mechanical digit extraction, and it isn't the same adversarial case restated. Three separately framed variants against the real local model: **two picked the wrong order outright, and the one that picked correctly still gave an incoherent reason**, conflating the two clauses it was supposed to be telling apart. `python src/ai_judgment_demo.py` reproduces the losing run every time.
-
-[`agent_manifest.json`](agent_manifest.json) states all of this as a structured, machine-readable contract instead of just prose: exactly what data the agent reads and writes, every action it can and can't take, the same gate rule above, and what a human retains the power to revoke. It mirrors the shape of Razorpay's own [Agent Studio guardrails](https://razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control) — merchant control, a review-first mode, an audit trail.
+- Ollama unreachable → falls through to a labeled deterministic stand-in, verified by substituting the network call with one that actually fails.
+- Live Razorpay API call retries with exponential backoff on a network error, verified against a transport that fails twice before succeeding.
+- An adversarial UTR-collision trap (two settlements, identical amount, different UTR) runs on every standard batch and resolves both correctly — the matcher can't cross-wire two customers' payments. See [`src/failure_injection_demo.py`](src/failure_injection_demo.py).
+- The review server's confirm endpoint had a real concurrency race under its `ThreadingHTTPServer` — a stale double-confirm could overwrite a human's decision. Fixed with a conditional write, regression-tested against the old behavior.
+- A validation sweep across five seeds once blew its own time budget from an Ollama cold-load (~80s). Bounded with a timeout above that ceiling. See [`extras/seed_sweep.py`](extras/seed_sweep.py).
 
 ## Live Razorpay Integration
 
-This system's connection to Razorpay's [Settlement Recon API](https://razorpay.com/docs/api/settlements/fetch-recon/) **has been authenticated and fired against real test-mode credentials**, not just built and left unexercised. Razorpay's test mode generates no settlements, since no real money moves in test mode, so a correctly authenticated call against test-mode credentials returns zero items by Razorpay's own documented design — and this system reports that as the expected result. The call itself retries with exponential backoff on a network error, verified by substituting the transport with a fake that fails twice before succeeding.
+The connection to Razorpay's [Settlement Recon API](https://razorpay.com/docs/api/settlements/fetch-recon/) **is authenticated and has actually been fired against real test-mode credentials** — not just built and left unexercised. Test mode correctly returns zero settlements (no real money moves in test mode), and the system reports that as the expected result, not an error. The call retries with exponential backoff on a network failure, verified against a transport substituted to fail twice before succeeding.
 
 ## Compared to Razorpay's Own Reconciliation Agent
 
-Razorpay already ships an [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) as part of its Agentic Dashboard. In their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." That's a real, shipped, fast tool for the common case.
+Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) is real and shipped, in their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." Two sources, ending at "flag a discrepancy."
 
-What their own description covers: two sources, a bank statement and Razorpay's settlement record, matched on UTR and amount, ending at "flag a discrepancy." What's missing from anything published: a third source, the merchant's own ledger; a named exception taxonomy; a confidence-gated AI layer; and a loop where a human correction generalizes to the next similarly worded row. This system does all four, and [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves it against the real batch: **77 of 514 rows (15.0%) are resolved or explained only because the ledger got read**, not the bank statement and settlement report alone. Two of those rows are the sharpest example — **a perfectly clean UTR, amount, and date match**, exactly what a two-source tool would call done and stop looking at — and this system still flags them, because the merchant's own ledger has no record of the order at all.
+**What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **77 of 514 rows (15.0%) are resolved or explained only because the ledger got read** — including two rows with a perfectly clean UTR/amount/date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
 
 ## Review Application
 
-Four pages, `review_server.py`'s own stdlib `http.server`, no framework: **Overview**, **Queue**, **Records**, and **Sources**, sharing one shell and one live SQLite database with the batch pipeline.
+Four pages, one stdlib `http.server`, no framework — **Overview**, **Queue**, **Records**, **Sources** — sharing one shell and one live SQLite database with the pipeline.
 
-- **Overview** — a donut chart of the batch's real status breakdown (resolved / pending / open, by rupee-accurate percentage, not row count alone); a three-bucket pass bar showing how rarely Pass 4's arbiter is actually needed (deterministic vs. AI-assisted vs. unresolved); a category grid, one card per exception type, each linking straight to that category's filtered rows; a horizontal cash-value-by-category bar chart (a category with few rows can still hold the largest rupee value — the row-count grid alone can't show that); and the cash-position clarity panel from [Metrics](#metrics), rendered live from `db.compute_cash_clarity()`.
-- **Queue** — every row still needing a human decision, with the full `replay_log` collapsible per row, and Confirm / Reject / Needs-clarification actions that write straight to SQLite.
-- **Records** — every persisted row from the batch, filterable and sortable entirely client-side, no server round trip per keystroke.
-- **Sources** — the three raw input files (settlement report, bank statement, ledger) with row counts, for tracing a result back to the export it came from.
+- **Overview** — a donut chart of the real status breakdown; a three-bucket bar showing how rarely the AI pass is actually needed; a category grid linking straight to filtered rows; a cash-value-by-category chart (a category with few rows can still hold the most money); and the cash-position clarity panel from [Metrics](#metrics).
+- **Queue** — every row still needing a decision, full `replay_log` per row, Confirm / Reject / Needs-clarification actions writing straight to SQLite.
+- **Records** — every persisted row, filterable and sortable entirely client-side.
+- **Sources** — the three raw input files with row counts, to trace a result back to its export.
 
 ## Settlement Q&A
 
-Track 04's own "Example Directions" name four shapes explicitly: multi-source reconciliation, a settlement Q&A agent, a forward cash forecaster, and a tax-line matcher. This build covers the first two. [`src/settlement_qa.py`](src/settlement_qa.py) — its own dedicated test file at [`tests/test_settlement_qa.py`](tests/test_settlement_qa.py) — answers plain-language questions about the last reconciliation run, wired live into the review site's chat widget through `review_server.py`'s `_handle_ask`.
+Plain-language questions about the batch, answered by [`src/settlement_qa.py`](src/settlement_qa.py) — **retrieval from the real persisted data, never generated.** A question outside what it recognizes gets an honest "I don't have a way to answer that," never a guess. It can't take an action either — confirming or rejecting still goes through the review queue's own buttons.
 
-**The core is deliberately not an LLM feature.** Every recognized question shape here is retrieval, not judgment: "what happened to order_1032" or a settlement ("what happened to setl_a1b2c3"), "how many DUPLICATE exceptions" or "list DUPLICATE orders" (the same category match, either a count or the actual order_ids), "what's my resolution rate," "how many have been confirmed/rejected," "how many rows need clarification," "how can it be resolved," follow-ups like "what can I do meanwhile" or "will it affect my cash flow" that refer back to whichever order or category the conversation was already about, "any similar orders to order_1032," and rupee-value questions like "how much money is in UNEXPLAINED" or "what's my cash position." **Batch-wide questions get the same treatment**, not scoped to a single order or category: "give me an overview of this batch" (one combined summary — resolved %, open count, cash clarity, top categories — composed from the same numbers the more specific handlers already compute, not a new calculation), "what's the status breakdown" (counts by the raw pipeline status field, distinct from the category breakdown), "how many settlements are in this batch" / "what's the total settlement value" (the full batch, not the exception-scoped subset every other count/value question answers), and "what's the biggest exception" / "smallest amount" (the single highest- or lowest-value row, optionally scoped to a category). The system will also answer honestly about **itself**: "why isn't this just an LLM," "what model do you use," "what's the architecture," "what's your accuracy," "tell me about Slash" all return fixed, human-written answers sourced from this project's own research — the same non-generated principle as everything else here, just aimed at the pitch instead of the data. Every trigger phrase matches with or without the apostrophe ("what's"/"whats," "isn't"/"isnt") since voice transcription and casual typing routinely drop it. That similarity check reuses the exact same `difflib.get_close_matches` function Pass 3 already uses to shortlist fuzzy candidates, at a stricter cutoff appropriate to comparing one narration against every other narration in the batch rather than a short constructed candidate string. The overall cash-position question reuses `db.compute_cash_clarity()` — the exact function the Overview page's own cash panel calls — rather than a fourth independent copy of "what counts as resolved," the same class of bug the metrics fix below was caused by. Every answer is read directly from the same persisted `exceptions` table the review queue itself shows — **no number is ever generated or estimated** — and a question outside the recognized set gets an honest "I don't have a way to answer that," not a guess dressed up as an answer. What it still can't do, on purpose: take an action. It only answers questions — confirming or rejecting a row still has to happen through the review queue's own buttons, the same deliberate gate every other resolution in this system goes through.
+**What you can ask:**
 
-**A gated LLM fallback handles phrasing the keyword matching above doesn't recognize** — [`src/qa_intent_router.py`](src/qa_intent_router.py) and [`src/qa_intent_gate.py`](src/qa_intent_gate.py), reusing Pass 4's exact Ollama-calling pattern and confidence-gate split (`llm_matcher.py` / `validation_gate.py`). It's tried only when nothing above matched, and only ever classifies *which* of the deterministic shapes above a question is asking for, reformulating it into that shape's exact canonical phrasing — the model never generates an answer or a number itself, only picks which door to knock on. Any question naming a specific order, settlement, or category is always fully answered before this fallback is ever reached (see that module's docstring for the regression-tested proof), so it only has to disambiguate among the entity-free shapes: open count, resolution rate, category breakdown, confirmed/rejected/needs-clarification counts, and overall cash position. Live-tested against the actual local model this project runs (`qwen2.5:0.5b`): its confidence score came back 1.0 on nearly every response, right or wrong, so it carries no usable calibration signal for this task, and it got fewer than half of a real test set right, with "resolution rate" acting as a visible wrong-answer default whenever it was unsure. Rather than ship a confidence check that number can never actually fail, `qa_intent_gate.py`'s `TRUSTED_TIERS` is held empty — the exact same discipline `validation_gate.py` already applies to Pass 4's arbiter for its own, independently-discovered reliability gap. The fallback is built, wired end to end, and covered by tests (`tests/test_qa_intent_router.py`, `tests/test_qa_intent_gate.py`), but not blindly trusted today; it activates the moment a specific model tier is shown, empirically, not to share that failure mode.
+- **A specific order or settlement** — "what happened to order_1032," "what happened to setl_a1b2c3."
+- **A category** — count or list: "how many DUPLICATE exceptions," "list DUPLICATE orders."
+- **Status and resolution** — "what's my resolution rate," "how many have been confirmed/rejected," "how many rows need clarification."
+- **The whole batch, not just one order** — "give me an overview of this batch," "what's the status breakdown," "how many settlements are in this batch," "what's the total settlement value," "what's the biggest exception."
+- **Cash position** — "how much money is in UNEXPLAINED," "what's my cash position" (reuses the exact function the Overview page's own cash panel uses — never a second, independent calculation).
+- **Follow-ups and related cases** — "how can it be resolved," "what can I do meanwhile," "will it affect my cash flow," "any similar orders to order_1032" — all resolve against whichever order or category the conversation was already about.
+- **The system itself** — "why isn't this just an LLM," "what model do you use," "what's the architecture," "what's your accuracy." Fixed, human-written answers, not generated ones.
 
-**The chat also reads a statement and talks back — both stay local, both stay grounded.** [`src/document_qa.py`](src/document_qa.py) extracts text from an uploaded PDF (`pypdf`, always available) or photo (OCR via `pytesseract`, needing the separate Tesseract engine — see Setup step 7; degrades to an honest "OCR isn't available" without it), finds any order/settlement ID in that text with the exact same regexes `settlement_qa.py` already uses, and answers about each one through `settlement_qa.answer()` — the file only ever supplies a *query*, never an answer. The chat panel's own mic button uses the browser's built-in `SpeechRecognition` to transcribe speech into the same text box typing would use, and every chat answer can be read back aloud via the browser's built-in `SpeechSynthesis` (a mute toggle sits next to it, and it just doesn't appear at all in a browser without the API).
+**How you can ask it:**
 
-**A separate, persistent Voice Agent** sits in the top corner of every page, independent of the chat panel — a true hands-free conversation loop, not a mic button bolted onto a text interface. It listens, answers out loud, and starts listening again automatically, with a live waveform driven by the actual microphone signal (`AnalyserNode`, not a decorative animation) and instant submission the moment the browser's own speech engine detects end-of-speech, rather than a fixed silence timer. **It can be interrupted mid-answer**, the same way talking over a person works: while it's speaking, a second `SpeechRecognition` instance listens in the background, and if the recognized words are mostly *new* — not just an echo of what the bot itself is currently saying, picked up through the speakers back into the mic — it stops immediately and starts listening to the real interruption. Raw microphone volume alone can't make that distinction (an echo of the bot's own voice crosses any loudness threshold as easily as a person actually talking does), which is why this compares recognized *content*, not amplitude. Every recognized-question shape in [Settlement Q&A](#settlement-qa) above is reachable by voice, phrased however a person actually asks it — "what about duplicates," "how many orders need my attention," "whats the architecture" (with or without the apostrophe) all work identically to their typed equivalents.
+- **Chat** — type it, or upload a PDF or photo of a statement; it finds the order/settlement ID and answers about it. Every chat answer can be read back aloud.
+- **Voice Agent** — a separate, persistent, hands-free widget on every page. It listens, answers out loud, and starts listening again automatically — no mic button to click each turn. **It can be interrupted mid-answer**: while it's speaking, it listens in the background and stops the instant it hears words that aren't just its own voice echoing back through the speakers, rather than relying on raw volume, which can't tell an echo from a real interruption.
+- Every question above works identically by voice, however a person actually phrases it — apostrophe or not, "whats" or "what's."
 
-Neither direction of either voice feature, nor the document upload, calls a cloud API, needs a key, or costs anything — an uploaded document, its extracted text, and a spoken answer are exactly as local as everything else in this system.
+**Everything here runs local — no cloud API, no key, no cost**, for the chat, the voice, or the document upload. A gated model fallback exists underneath for phrasing the keyword matching doesn't recognize — same confidence-gate discipline as the reconciliation engine's own Pass 4, held untrusted for the same reason: tested against the real local model, its confidence score came back 1.0 regardless of whether it was right, so it carries no usable signal yet.
 
 ## Scope
 
 ### In Scope
 
-Reconciliation of settlement, bank, and ledger data for a single direct-to-consumer merchant on Razorpay, using either the live Settlement Recon API or an equivalent CSV export. **Nine named exception categories.** **A complete, replayable audit trail** for every automatic or human decision.
+Reconciliation of settlement, bank, and ledger data for a single direct-to-consumer merchant on Razorpay, using either the live Settlement Recon API or an equivalent CSV export. Nine named exception categories. A complete, replayable audit trail for every automatic or human decision.
 
 ### Out of Scope
 
-- **A dedicated TCS or TDS tax-line matcher.** Razorpay's real recon API exposes [no such field](https://razorpay.com/docs/api/settlements/fetch-recon/) among its 26 documented fields, and [Section 194-O liability is conditional on which party makes the final payment](https://razorpay.com/learn/section-194o-tds-for-e-commerce-businesses/) — a legal determination, not something this engine can read off a settlement line. Independently corroborated by [Terra Insight](https://www.terra-insight.com/insights/razorpay-settlement-reconciliation/).
-- **A second cash-forecasting feature.** Razorpay already ships a [production Cashflow Forecaster](https://razorpay.com/newsroom/razorpay-launches-the-worlds-first-ai-native-agent-studio-for-payments-at-ftx26-powered-by-anthropics-claude/). This system instead quantifies, in real rupee figures, exactly how much cash-position ambiguity it removes before that data would reach a forecaster. See [Metrics](#metrics).
-- **A metrics bug, found and corrected.** Three places in this codebase independently computed a resolved percentage, and all three counted an unconfirmed arbiter candidate as resolved. Found by tracing the figure against the persistence layer's own definition of which rows require human action. The correction moved the headline figure from 93.2% to the current, defensible 90.5%, pinned down by five regression tests.
+- **A dedicated TCS or TDS tax-line matcher.** Razorpay's real recon API exposes [no such field](https://razorpay.com/docs/api/settlements/fetch-recon/), and [Section 194-O liability is conditional on which party makes the final payment](https://razorpay.com/learn/section-194o-tds-for-e-commerce-businesses/) — a legal determination, not something readable off a settlement line. Independently corroborated by [Terra Insight](https://www.terra-insight.com/insights/razorpay-settlement-reconciliation/).
+- **A second cash-forecasting feature.** Razorpay already ships a production Cashflow Forecaster. This system instead quantifies, in real rupee figures, how much cash-position ambiguity it removes before that data reaches one.
+- **A metrics bug, found and corrected.** Three places in this codebase independently computed a resolved percentage, all three counting an unconfirmed arbiter candidate as resolved. Corrected from 93.2% to the current, defensible 90.5%, pinned down by five regression tests.
 - **Bank and ledger integrations are synthetic.** No live bank or accounting-software API is connected. The settlement side has a real, fired connection — see [Live Razorpay Integration](#live-razorpay-integration).
-- **The learned pattern store generalizes the digit reference, not arbitrary wording.** Pass 2.6 lets a differently numbered narration from the same recurring template benefit from a prior confirmation without a fresh one. It doesn't recognize a genuinely different phrasing of the same underlying event, since the surrounding text still has to match exactly. It also needs at least one prior human confirm to exist at all — on a freshly generated batch with no confirmed history, this pass has nothing to match against yet.
-- **The review application is single-user, unauthenticated, local-only.** The right call for this scope, not a claim it's production-ready.
+- **The learned pattern store generalizes the digit reference, not arbitrary wording.** A genuinely different phrasing of the same event still needs a fresh confirm.
+- **The review application is single-user, unauthenticated, local-only** — the right call for this scope, not a claim it's production-ready.
 
 ## Setup
 
 ### Requirements
 
-Python 3.10 or later, for PEP 604 union syntax. The matching engine, persistence layer, and review site itself — `reconcile.py`, `db.py`, `review_server.py`, `settlement_qa.py` — are still zero-third-party-dependency, verified by parsing every import with Python's own `ast` module. Two features layered on top do need real packages, listed in `requirements.txt`: `document_qa.py`'s chat-upload feature needs `pypdf` (PDF text extraction, required) and `pytesseract`/`Pillow` (image OCR, optional — degrades to an honest "OCR isn't available" without the separate Tesseract engine, see [Settlement Q&A](#settlement-qa)); `api/db_pg.py`, the Postgres persistence layer for the separate Vercel-hosted demo (https://reconcile-engine-demo.vercel.app), needs `psycopg`. Running `run_all.py` locally never touches any of them; `review_server.py` only touches `pypdf`/`pytesseract` if you actually upload a file in the chat.
+Python 3.10+. The core — `reconcile.py`, `db.py`, `review_server.py`, `settlement_qa.py` — is zero-third-party-dependency, verified by parsing every import with Python's own `ast` module. Two optional layers need real packages (`requirements.txt`): the chat's document upload needs `pypdf` (required) and `pytesseract`/`Pillow` (optional OCR — degrades to an honest "not available" without the separate Tesseract engine); the separate Postgres-backed Vercel demo needs `psycopg`. Running `run_all.py` locally never touches either.
 
 ### 1. Clone and verify
 
@@ -202,11 +205,11 @@ Opens `http://localhost:8000`, backed directly by the database the previous step
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-CI runs this same command against Python 3.10 and 3.12 on every push, in `.github/workflows/test.yml`.
+CI runs this same command against Python 3.10 and 3.12 on every push.
 
 ### 5. Install Ollama for the arbiter pass
 
-Skip this step to leave Pass 4 on its labeled, low-confidence stand-in response, which still routes correctly to human review.
+Skip this to leave Pass 4 on its labeled, low-confidence stand-in response, which still routes correctly to human review.
 
 ```bash
 # macOS
@@ -222,31 +225,27 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5:0.5b
 ```
 
-Ollama runs as a background service after installation on macOS and Windows. On Linux, start it manually if needed:
-
-```bash
-ollama serve
-```
+Runs as a background service after install on macOS/Windows. On Linux, start it manually: `ollama serve`.
 
 ### 6. Connect the live Razorpay API
 
-Skip this step to stay on the synthetic dataset.
+Skip this to stay on the synthetic dataset.
 
-1. Create a Razorpay account at [razorpay.com](https://razorpay.com). Test mode requires no KYC.
-2. In the Dashboard, switch to Test Mode using the toggle in the top navigation bar.
-3. Go to `Account & Settings`, then `API Keys`, or directly to [dashboard.razorpay.com/#/app/keys](https://dashboard.razorpay.com/#/app/keys).
-4. Generate a test mode key pair. The secret is shown once — copy both values immediately.
-5. Copy `.env.example` to `.env` in the repository root and set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` to the values from step four. `.env` is already gitignored; real credentials go there, not in `.env.example`.
+1. Create a Razorpay account at [razorpay.com](https://razorpay.com) — test mode needs no KYC.
+2. Switch to Test Mode in the Dashboard's top navigation.
+3. Go to `Account & Settings` → `API Keys`, or [dashboard.razorpay.com/#/app/keys](https://dashboard.razorpay.com/#/app/keys).
+4. Generate a test-mode key pair — the secret is shown once.
+5. Copy `.env.example` to `.env` and set `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`. `.env` is gitignored.
 
 ```bash
 python run_all.py --live
 ```
 
-Test-mode credentials correctly return zero settlements. Every bank and ledger row will report as an exception in this mode — that's expected, not a failure of the integration.
+Test-mode credentials correctly return zero settlements — every row reports as an exception in this mode, which is expected, not a failure.
 
-### 7. Install Tesseract for image uploads in the chat
+### 7. Install Tesseract for image uploads in chat
 
-Skip this step to leave the chat's document-upload feature ([`src/document_qa.py`](src/document_qa.py)) able to read text-based PDFs, but not photos or screenshots — it'll say so honestly rather than failing silently. `pypdf` (already in `requirements.txt`) covers the PDF case with no extra setup.
+Skip this to leave document upload able to read PDFs, just not photos or screenshots — it says so honestly rather than failing silently.
 
 ```bash
 # macOS
@@ -258,11 +257,11 @@ sudo apt-get install tesseract-ocr
 # Windows: download the installer from https://github.com/UB-Mannheim/tesseract/wiki
 ```
 
-Everything is local — no image, extracted text, or file ever leaves the machine, the same property Ollama's local inference already has.
+Everything stays local — no image, extracted text, or file ever leaves the machine.
 
 ## Testing
 
-The suite covers the matching engine, persistence layer, validation gate, model-calling logic, live API retry-and-backoff behavior, and the review application's rendering logic. Network calls are substituted at the transport layer only; the decision logic under test always runs for real, against the substituted response.
+Covers the matching engine, persistence layer, validation gate, model-calling logic, live API retry-and-backoff behavior, and the review application's rendering logic. Network calls are substituted at the transport layer only — the decision logic under test always runs for real, against the substituted response.
 
 ## License
 
