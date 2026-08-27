@@ -571,13 +571,15 @@ CHAT_WIDGET = """
   <div class="chat-messages" id="chat-messages">
     <div class="chat-msg bot">Hi there! Happy to help.
 
-Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up.
+Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up. I can also answer batch-wide questions -- an overview of this batch, the status or category breakdown, total settlement value, or the biggest/smallest amount.
 
 Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again.</div>
   </div>
   <div class="chat-suggestions">
+    <button type="button" data-q="give me an overview of this batch">Batch overview?</button>
     <button type="button" data-q="how many are open">How many are open?</button>
-    <button type="button" data-q="what's my resolution rate">Resolution rate?</button>
+    <button type="button" data-q="what's the total settlement value">Total settlement value?</button>
+    <button type="button" data-q="what's the status breakdown">Status breakdown?</button>
     <button type="button" data-q="list DUPLICATE orders">List DUPLICATE orders</button>
     <button type="button" data-q="how much cash is at risk">Cash at risk?</button>
     <button type="button" data-q="how can it be resolved">How can it be resolved?</button>

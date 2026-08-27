@@ -57,6 +57,20 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
     three independent
     reimplementations of "what counts as resolved" silently disagreeing;
     a fourth copy here would risk the exact same drift.
+  - "how does this batch look" / "give me an overview of this batch" --
+    one combined summary (resolved %, open count, cash clarity, top
+    categories), composed from the same real numbers the more specific
+    handlers below already compute -- not a new calculation.
+  - "what's the status breakdown" / "how many are matched" -- counts by
+    the raw pipeline status field across every row, distinct from the
+    category breakdown below.
+  - "how many settlements are in this batch" / "total settlement value"
+    / "how big is this batch" -- whole-batch counts and the full
+    settlement value across every persisted row, not scoped to a
+    category or to open exceptions the way every count/value handler
+    above is.
+  - "what's the biggest exception" / "smallest amount" -- the single
+    highest- or lowest-value row, optionally scoped to a named category.
 
 Fallback for everything else (qa_intent_gate.py / qa_intent_router.py): if
 none of the above keyword shapes match, a gated local model (the same
@@ -454,14 +468,150 @@ def _resolution_rate(question: str) -> str | None:
 
 
 def _category_breakdown(question: str) -> str | None:
+    """Counts by `category` -- deliberately scoped to "...by category"
+    phrasing rather than a bare "breakdown", which used to also swallow
+    "status breakdown" questions that _status_breakdown below is meant to
+    answer instead (a real dispatch collision, caught before shipping)."""
     ql = question.lower()
-    if any(kw in ql for kw in ("breakdown", "by category", "exceptions by")):
+    if any(kw in ql for kw in ("category breakdown", "breakdown by category", "by category", "exceptions by category")):
         rows = db.get_all_exceptions()
         counts = Counter(r["category"] for r in rows if r["category"])
         if not counts:
             return "No categorized exceptions in the last run."
         return "\n".join(f"{cat}: {n}" for cat, n in sorted(counts.items(), key=lambda kv: -kv[1]))
     return None
+
+
+def _batch_summary(question: str) -> str | None:
+    """One combined answer for a broad "how does this batch look"
+    request -- composed entirely from the same real, already-tested
+    numbers the more specific handlers elsewhere in this module compute
+    (RESOLVED_STATUSES, db.compute_cash_clarity, a category Counter), not
+    a new calculation invented for this. A genuine gap: a merchant's
+    first question about a batch is often this broad, before they know
+    which specific count/value/category to ask about by name."""
+    ql = question.lower()
+    if not any(kw in ql for kw in (
+        "overview of this batch", "summarize this batch", "summary of this batch",
+        "batch summary", "how does this batch look", "how is this batch doing",
+        "tell me about this batch", "rundown of this batch", "give me an overview",
+        "how's this batch", "hows this batch",
+    )):
+        return None
+
+    rows = db.get_all_exceptions()
+    if not rows:
+        return "No batch persisted yet -- run the pipeline first."
+
+    resolved = sum(1 for r in rows if r["status"] in RESOLVED_STATUSES)
+    pct = round(100 * resolved / len(rows), 1)
+    open_rows = db.get_open_exceptions()
+    clarity = db.compute_cash_clarity(rows)
+    cats = Counter(r["category"] for r in rows if r["category"])
+    top_cats = ", ".join(f"{cat} ({n})" for cat, n in sorted(cats.items(), key=lambda kv: -kv[1])[:3])
+
+    lines = [
+        f"{len(rows)} row(s) in this batch, {pct}% resolved ({resolved} of {len(rows)}).",
+        f"{len(open_rows)} row(s) still need a decision.",
+        f"Rs.{clarity['at_risk']:,.2f} touched some exception or variance path -- "
+        f"Rs.{clarity['resolved']:,.2f} resolved, Rs.{clarity['pending_review']:,.2f} pending review, "
+        f"Rs.{clarity['still_open']:,.2f} still open.",
+    ]
+    if top_cats:
+        lines.append(f"Top categories: {top_cats}.")
+    return "\n".join(lines)
+
+
+def _status_breakdown(question: str) -> str | None:
+    """Counts by the raw pipeline `status` field (MATCHED, EXCEPTION,
+    MATCHED_LOW_CONFIDENCE, MATCHED_WITH_VARIANCE, ...) across every
+    persisted row -- distinct from _category_breakdown, which counts by
+    `category` and only covers the subset of rows that have one at all.
+    A real gap: there was no way to ask "what's the status breakdown" or
+    "how many are matched vs how many are exceptions" -- every existing
+    handler either scoped to a named category or to needs_action rows."""
+    ql = question.lower()
+    if not any(kw in ql for kw in (
+        "status breakdown", "breakdown by status", "breakdown of status",
+        "by status", "matched vs", "how many matched", "how many are matched",
+        "how many rows matched", "how many settled cleanly",
+    )):
+        return None
+    rows = db.get_all_exceptions()
+    if not rows:
+        return "No batch persisted yet -- run the pipeline first."
+    counts = Counter(r["status"] for r in rows)
+    return "\n".join(f"{status}: {n}" for status, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
+def _batch_totals(question: str) -> str | None:
+    """Whole-batch counts and the full settlement value -- every
+    persisted row, not just the exception/variance-scoped subset
+    _cash_value and _category_count answer. A real gap, found live: "how
+    many settlements are in this batch" and "what's the total settlement
+    value" had no handler at all, since every existing count/value
+    handler is scoped to open exceptions or a specific category."""
+    ql = question.lower()
+    total_value_signal = any(kw in ql for kw in (
+        "total value", "total amount", "total settlement value", "total worth",
+        "grand total", "batch worth", "how much did this batch settle",
+        "total settled", "total net amount",
+    ))
+    count_signal = any(kw in ql for kw in (
+        "how many settlements", "how many orders", "how many rows",
+        "how many total", "total orders", "total settlements", "total rows",
+        "size of this batch", "how big is this batch", "how many records",
+    ))
+    if not (total_value_signal or count_signal):
+        return None
+
+    rows = db.get_all_exceptions()
+    if not rows:
+        return "No batch persisted yet -- run the pipeline first."
+
+    total_value = sum(r["net_amount"] for r in rows if r["net_amount"] is not None)
+    distinct_orders = len({r["order_id"] for r in rows if r["order_id"]})
+    distinct_settlements = len({r["settlement_id"] for r in rows if r["settlement_id"]})
+
+    if total_value_signal and not count_signal:
+        return f"Rs.{total_value:,.2f} total across {len(rows)} row(s) in this batch."
+    if count_signal and not total_value_signal:
+        return (f"{len(rows)} row(s) in this batch, covering {distinct_orders} distinct "
+                f"order(s) and {distinct_settlements} settlement(s).")
+    return (f"{len(rows)} row(s) in this batch ({distinct_orders} order(s), "
+            f"{distinct_settlements} settlement(s)) totaling Rs.{total_value:,.2f}.")
+
+
+def _extreme_amount(question: str) -> str | None:
+    """The single highest- or lowest-value row in the batch, optionally
+    scoped to a named category -- a real gap: net_amount was already
+    persisted per row, but nothing answered "what's the biggest
+    exception" or "which settlement has the highest amount"."""
+    ql = question.lower()
+    wants_max = any(kw in ql for kw in (
+        "biggest", "largest", "highest value", "highest amount", "top amount", "most money",
+    ))
+    wants_min = any(kw in ql for kw in (
+        "smallest", "lowest value", "lowest amount", "least money",
+    ))
+    if not (wants_max or wants_min):
+        return None
+
+    category = _extract_category(question)
+    rows = db.get_all_exceptions()
+    if category:
+        rows = [r for r in rows if r["category"] == category]
+    rows = [r for r in rows if r["net_amount"] is not None]
+    if not rows:
+        scope = f" {category}" if category else ""
+        return f"No{scope} rows with a net amount to compare."
+
+    target = max(rows, key=lambda r: r["net_amount"]) if wants_max else min(rows, key=lambda r: r["net_amount"])
+    label = "largest" if wants_max else "smallest"
+    ident = target["order_id"] or target["settlement_id"] or f"row {target['id']}"
+    cat_part = f", category={target['category']}" if target["category"] else ""
+    return (f"The {label} amount in this batch is Rs.{target['net_amount']:,.2f} -- {ident} "
+            f"(status={target['status']}{cat_part}).")
 
 
 def _resolution_guidance(question: str, context: dict | None) -> str | None:
@@ -574,8 +724,11 @@ FALLBACK_MESSAGE = (
     "or list (\"how many DUPLICATE exceptions\", \"list UNEXPLAINED "
     "orders\"), open items (\"how many are open\"), confirmed/rejected "
     "counts, the resolution rate, cash value (\"how much is at risk\"), "
-    "similar orders (\"any similar orders to order_1032\"), or "
-    "\"how can it be resolved\" once an order or category has come up."
+    "similar orders (\"any similar orders to order_1032\"), the batch as "
+    "a whole (\"how many settlements are in this batch\", \"total "
+    "settlement value\", \"status breakdown\"), the biggest or smallest "
+    "amount (\"what's the largest exception\"), or \"how can it be "
+    "resolved\" once an order or category has come up."
 )
 
 
@@ -629,7 +782,8 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # otherwise get answered as a plain category count first, DUPLICATE
     # being a recognized category name either way.
     for handler in (_cash_value, _resolution_status_count, _category_count,
-                     _open_count, _resolution_rate, _category_breakdown):
+                     _open_count, _batch_summary, _status_breakdown, _batch_totals,
+                     _extreme_amount, _resolution_rate, _category_breakdown):
         result = handler(question)
         if result is not None:
             return result, _updated_referent()

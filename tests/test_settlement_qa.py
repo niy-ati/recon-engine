@@ -463,6 +463,89 @@ class TestCashValue(SettlementQaTestCase):
         self.assertNotIn(f"Rs.{expected['at_risk'] + duplicate_total:,.2f}", result)
 
 
+class TestBatchSummary(SettlementQaTestCase):
+    def test_overview_includes_resolved_percent_and_open_count(self):
+        rows = db.get_all_exceptions()
+        resolved = sum(1 for r in rows if r["status"] in qa.RESOLVED_STATUSES)
+        pct = round(100 * resolved / len(rows), 1)
+        open_rows = db.get_open_exceptions()
+        result = qa.answer("give me an overview of this batch")
+        self.assertIn(f"{len(rows)} row(s) in this batch", result)
+        self.assertIn(f"{pct}% resolved", result)
+        self.assertIn(f"{len(open_rows)} row(s) still need a decision", result)
+
+    def test_summary_matches_compute_cash_clarity_directly(self):
+        """Composed from the same function the cash-position handler and
+        the Overview page both use -- not a fifth reimplementation."""
+        rows = db.get_all_exceptions()
+        expected = db.compute_cash_clarity(rows)
+        result = qa.answer("how does this batch look")
+        self.assertIn(f"Rs.{expected['at_risk']:,.2f}", result)
+        self.assertIn(f"Rs.{expected['resolved']:,.2f}", result)
+
+
+class TestStatusBreakdown(SettlementQaTestCase):
+    def test_status_breakdown_matches_real_counts(self):
+        result = qa.answer("what's the status breakdown")
+        self.assertIn("EXCEPTION: 3", result)
+        self.assertIn("MATCHED: 1", result)
+        self.assertIn("MATCHED_LOW_CONFIDENCE: 1", result)
+
+    def test_how_many_matched_phrasing_also_triggers_status_breakdown(self):
+        result = qa.answer("how many are matched")
+        self.assertIn("MATCHED: 1", result)
+
+    def test_status_breakdown_does_not_collide_with_category_breakdown(self):
+        """Regression guard: a bare "breakdown" substring used to be
+        _category_breakdown's own trigger, which would have swallowed a
+        "status breakdown" question and answered with categories instead
+        of statuses -- a real dispatch collision, caught before shipping."""
+        result = qa.answer("what's the status breakdown")
+        self.assertNotIn("DUPLICATE:", result)
+
+
+class TestBatchTotals(SettlementQaTestCase):
+    def test_settlement_count_matches_real_data(self):
+        result = qa.answer("how many settlements are in this batch")
+        self.assertIn("5 row(s)", result)
+        self.assertIn("5 distinct order(s)", result)
+        self.assertIn("5 settlement(s)", result)
+
+    def test_total_value_is_the_whole_batch_not_just_exceptions(self):
+        """Distinct from _cash_value's "cash position"/"at risk" scope,
+        which deliberately excludes clean MATCHED rows (see
+        compute_cash_clarity's own docstring) -- this handler sums every
+        row's net_amount, MATCHED rows included, so it must not equal the
+        narrower at_risk figure."""
+        rows = db.get_all_exceptions()
+        clarity = db.compute_cash_clarity(rows)
+        whole_batch_total = sum(r["net_amount"] for r in rows if r["net_amount"] is not None)
+        self.assertNotEqual(whole_batch_total, clarity["at_risk"])
+        result = qa.answer("what's the total settlement value")
+        self.assertIn(f"Rs.{whole_batch_total:,.2f}", result)
+
+
+class TestExtremeAmount(SettlementQaTestCase):
+    def test_largest_and_smallest_amount_in_a_batch_with_distinct_values(self):
+        db.persist_results([
+            make_result("order_10", "EXCEPTION", category="DUPLICATE", net=9999.0),
+            make_result("order_11", "EXCEPTION", category="UNEXPLAINED", net=1.0),
+        ], run_id="run-2")
+        biggest = qa.answer("what's the biggest exception")
+        self.assertIn("order_10", biggest)
+        self.assertIn("9,999.00", biggest)
+        smallest = qa.answer("what's the smallest amount")
+        self.assertIn("order_11", smallest)
+        self.assertIn("1.00", smallest)
+
+    def test_extreme_amount_scoped_to_a_category(self):
+        db.persist_results([
+            make_result("order_10", "EXCEPTION", category="DUPLICATE", net=9999.0),
+        ], run_id="run-2")
+        result = qa.answer("what's the largest DUPLICATE amount")
+        self.assertIn("order_10", result)
+
+
 class TestLlmFallbackRouting(SettlementQaTestCase):
     """Tests settlement_qa.py's own fallback wiring, not qa_intent_gate.py's
     or qa_intent_router.py's internals (see test_qa_intent_router.py and
