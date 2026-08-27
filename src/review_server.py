@@ -439,11 +439,23 @@ PAGE_STYLE = """
        display, and floored so it doesn't collapse to nothing on a short
        one. */
     position:fixed; right:var(--sp-8); bottom:calc(var(--sp-8) + 82px); width:460px; max-width:calc(100vw - 40px);
-    height:calc(100vh - 284px); max-height:560px; min-height:320px; background:var(--panel); border-radius:var(--radius-xl);
+    height:calc(100vh - 284px); max-height:560px; min-height:320px; min-width:320px; background:var(--panel); border-radius:var(--radius-xl);
     box-shadow:var(--shadow-high); border:1px solid var(--border-subtle); display:none;
     flex-direction:column; overflow:hidden; z-index:41;
   }
   .chat-panel.open { display:flex; }
+  .chat-panel.maximized {
+    width:min(760px, calc(100vw - 40px)) !important; height:calc(100vh - 190px) !important;
+    max-width:calc(100vw - 40px); max-height:calc(100vh - 190px);
+  }
+  .chat-resize-handle {
+    position:absolute; top:4px; left:4px; width:18px; height:18px; z-index:3;
+    display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.65);
+    cursor:nwse-resize; opacity:0.7;
+  }
+  .chat-resize-handle:hover { opacity:1; }
+  .chat-resize-handle svg { width:100%; height:100%; }
+  .chat-panel.maximized .chat-resize-handle { display:none; }
   .chat-panel-head {
     background:var(--primary); color:#fff; padding:var(--sp-6) var(--sp-7); display:flex;
     align-items:center; justify-content:space-between; flex-shrink:0;
@@ -557,6 +569,9 @@ CHAT_WIDGET = """
   <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H10l-4.5 3.5V17H5.5C4.67 17 4 16.33 4 15.5v-10z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
 </button>
 <div class="chat-panel" id="chat-panel">
+  <div class="chat-resize-handle" id="chat-resize-handle" title="Drag to resize">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2M6 14L14 6M10 14L14 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+  </div>
   <div class="chat-panel-head">
     <div>
       <div class="title">Ask me</div>
@@ -564,6 +579,9 @@ CHAT_WIDGET = """
     <div class="chat-panel-head-actions">
       <button type="button" id="chat-speak-toggle" aria-label="Read answers aloud" title="Read answers aloud" hidden>
         <svg viewBox="0 0 24 24" fill="none"><path d="M4 9v6h4l5 4V5L8 9H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" id="chat-maximize" aria-label="Maximize" title="Maximize">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <button id="chat-close" aria-label="Close">&times;</button>
     </div>
@@ -614,6 +632,59 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     panel.classList.contains("open") ? close() : open();
   });
   closeBtn.addEventListener("click", close);
+
+  // ---- Maximize and manual resize ------------------------------------
+  var maximizeBtn = document.getElementById("chat-maximize");
+  var resizeHandle = document.getElementById("chat-resize-handle");
+  var isMaximized = false;
+  var lastManualSize = null; // {width, height} in px, set once the user drags
+
+  function setMaximized(on) {
+    isMaximized = on;
+    panel.classList.toggle("maximized", on);
+    if (on) {
+      panel.style.width = "";
+      panel.style.height = "";
+    } else if (lastManualSize) {
+      panel.style.width = lastManualSize.width + "px";
+      panel.style.height = lastManualSize.height + "px";
+    } else {
+      panel.style.width = "";
+      panel.style.height = "";
+    }
+    maximizeBtn.setAttribute("aria-label", on ? "Restore" : "Maximize");
+    maximizeBtn.setAttribute("title", on ? "Restore" : "Maximize");
+  }
+  maximizeBtn.addEventListener("click", function () { setMaximized(!isMaximized); });
+
+  // Dragging the top-left corner grows the panel leftward/upward, since
+  // it's anchored to the page by its right and bottom edges -- moving
+  // the mouse left or up should feel like "making it bigger" the same
+  // way it would for a window anchored at that same corner.
+  resizeHandle.addEventListener("mousedown", function (e) {
+    if (isMaximized) return;
+    e.preventDefault();
+    var startX = e.clientX, startY = e.clientY;
+    var rect = panel.getBoundingClientRect();
+    var startWidth = rect.width, startHeight = rect.height;
+    var MIN_WIDTH = 320, MIN_HEIGHT = 320;
+
+    function onMove(e2) {
+      var maxWidth = window.innerWidth - 40;
+      var maxHeight = window.innerHeight - 190; // stays clear of the voice agent widget up top
+      var newWidth = Math.min(maxWidth, Math.max(MIN_WIDTH, startWidth + (startX - e2.clientX)));
+      var newHeight = Math.min(maxHeight, Math.max(MIN_HEIGHT, startHeight + (startY - e2.clientY)));
+      panel.style.width = newWidth + "px";
+      panel.style.height = newHeight + "px";
+      lastManualSize = { width: newWidth, height: newHeight };
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
 
   // ---- Read answers aloud --------------------------------------------
   // Browser-native text-to-speech only (window.speechSynthesis) -- speaks
