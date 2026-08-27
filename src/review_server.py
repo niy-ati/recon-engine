@@ -38,6 +38,8 @@ serif substitute -- sized up from Blade's documented scale for more
 visual weight. This is a private, local dev tool, not an official
 Razorpay product.
 """
+import base64
+import binascii
 import csv
 import json
 import re
@@ -50,6 +52,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import db
+import document_qa
 import settlement_qa
 from config import load_dotenv
 
@@ -62,6 +65,9 @@ OUTPUT_DIR = ROOT / "output"
 ASSETS_DIR = ROOT / "assets"
 
 ASSET_CONTENT_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+
+# ~8MB original file: base64 adds ~33% (~10.9MB) plus a little JSON overhead.
+MAX_UPLOAD_CONTENT_LENGTH = 12 * 1024 * 1024
 
 PAGE_STYLE = """
   :root {
@@ -439,9 +445,16 @@ PAGE_STYLE = """
     flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer;
   }
   .chat-input-row button svg { width:20px; height:20px; }
+  .chat-input-row button.ghost-icon {
+    background:var(--bg); color:var(--muted); border:1px solid var(--border); width:42px; height:42px;
+  }
+  .chat-input-row button.ghost-icon:hover { background:var(--primary-faint); color:var(--primary-strong); border-color:var(--primary-subtle); }
+  .chat-input-row button.ghost-icon svg { width:18px; height:18px; }
+  .chat-input-row button.ghost-icon.recording { background:var(--negative-bg); color:var(--negative); border-color:hsla(4,85%,44%,0.3); animation:mic-pulse 1.1s ease-in-out infinite; }
+  @keyframes mic-pulse { 0%, 100% { box-shadow:0 0 0 0 hsla(4,85%,44%,0.35); } 50% { box-shadow:0 0 0 6px hsla(4,85%,44%,0); } }
 
   @media (prefers-reduced-motion: reduce) {
-    * { transition:none !important; }
+    * { transition:none !important; animation:none !important; }
   }
 """
 
@@ -466,6 +479,8 @@ I can tell you about:
 - the overall resolution rate, or cash at risk
 - similar orders, or how to resolve one once it's come up
 
+You can also tap 📎 to attach a statement (PDF or image) and I'll look up any order or settlement it mentions, or tap 🎤 to just ask out loud.
+
 Everything I say comes straight from this run's real data &mdash; if I'm not sure, I'll say so instead of guessing.</div>
   </div>
   <div class="chat-suggestions">
@@ -476,6 +491,13 @@ Everything I say comes straight from this run's real data &mdash; if I'm not sur
     <button type="button" data-q="how can it be resolved">How can it be resolved?</button>
   </div>
   <div class="chat-input-row">
+    <button type="button" id="chat-attach" class="ghost-icon" aria-label="Attach a document or image" title="Attach a document or image">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M17 8.5l-7.5 7.5a3 3 0 1 1-4.24-4.24l8-8a4.5 4.5 0 1 1 6.36 6.36l-8.5 8.5a1.5 1.5 0 1 1-2.12-2.12l7.5-7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <input type="file" id="chat-file" accept=".pdf,.png,.jpg,.jpeg" hidden>
+    <button type="button" id="chat-mic" class="ghost-icon" aria-label="Ask by voice" title="Ask by voice" hidden>
+      <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
     <input type="text" id="chat-input" placeholder="e.g. what happened to order_1032" autocomplete="off">
     <button id="chat-send" aria-label="Send">
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-7-7 18-3-8-8-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
@@ -538,6 +560,97 @@ Everything I say comes straight from this run's real data &mdash; if I'm not sur
   Array.prototype.slice.call(document.querySelectorAll(".chat-suggestions button")).forEach(function (btn) {
     btn.addEventListener("click", function () { ask(btn.getAttribute("data-q")); });
   });
+
+  // ---- Document/image upload -------------------------------------------
+  // Reads the file locally, sends it as base64 JSON (matching /ask's own
+  // body style) to document_qa.py via /upload -- which only ever reads a
+  // QUERY (an order/settlement ID) out of the file, never an answer; the
+  // real answer still comes from the same settlement_qa.answer() lookup
+  // every typed question uses.
+  var attachBtn = document.getElementById("chat-attach");
+  var fileInput = document.getElementById("chat-file");
+  var MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+  attachBtn.addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    var file = fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      addMessage("That file's too large -- please keep uploads under 8 MB.", "bot");
+      return;
+    }
+    addMessage("📎 " + file.name, "user");
+    var pending = addMessage("reading " + file.name + "...", "bot pending");
+    var reader = new FileReader();
+    reader.onload = function () {
+      var base64 = String(reader.result).split(",")[1] || "";
+      fetch("/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filename: file.name, content_type: file.type, data: base64 })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          pending.textContent = data.answer;
+          pending.className = "chat-msg bot";
+          messages.scrollTop = messages.scrollHeight;
+        })
+        .catch(function () {
+          pending.textContent = "Could not reach the server -- is review_server.py still running?";
+          pending.className = "chat-msg bot";
+        });
+    };
+    reader.onerror = function () {
+      pending.textContent = "Couldn't read that file locally -- mind trying again?";
+      pending.className = "chat-msg bot";
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ---- Voice input --------------------------------------------------
+  // Browser-native speech-to-text only (SpeechRecognition / the
+  // webkit-prefixed form Chrome and Edge ship) -- transcribes speech to
+  // text entirely in the browser, then asks it through the exact same
+  // ask() path as typing it. No audio or transcript is ever sent
+  // anywhere by this code beyond the browser's own built-in recognition
+  // service; nothing new is added server-side. The mic button stays
+  // hidden entirely on a browser without this API, rather than showing
+  // a control that would silently do nothing.
+  var micBtn = document.getElementById("chat-mic");
+  var SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognitionApi) {
+    micBtn.hidden = false;
+    var recognizer = new SpeechRecognitionApi();
+    recognizer.lang = "en-US";
+    recognizer.interimResults = false;
+    recognizer.maxAlternatives = 1;
+    var listening = false;
+
+    recognizer.addEventListener("result", function (e) {
+      var transcript = e.results[0][0].transcript;
+      input.value = transcript;
+      ask(transcript);
+    });
+    recognizer.addEventListener("end", function () {
+      listening = false;
+      micBtn.classList.remove("recording");
+    });
+    recognizer.addEventListener("error", function () {
+      listening = false;
+      micBtn.classList.remove("recording");
+    });
+
+    micBtn.addEventListener("click", function () {
+      if (listening) {
+        recognizer.stop();
+        return;
+      }
+      listening = true;
+      micBtn.classList.add("recording");
+      recognizer.start();
+    });
+  }
 })();
 </script>
 """
@@ -1190,6 +1303,10 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_ask()
             return
 
+        if len(parts) == 1 and parts[0] == "upload":
+            self._handle_upload()
+            return
+
         length = int(self.headers.get("Content-Length", 0))
         fields = parse_qs(self.rfile.read(length).decode("utf-8"))
 
@@ -1238,6 +1355,29 @@ class Handler(BaseHTTPRequestHandler):
 
         answer, context = settlement_qa.answer_with_context(question, context)
         self._respond_json({"answer": answer, "context": context})
+
+    def _handle_upload(self):
+        """The chat widget's document/image upload endpoint. Reads a
+        base64-encoded file (JSON body, matching /ask's own style, rather
+        than parsing multipart/form-data by hand) and hands the raw bytes
+        to document_qa.answer_about_document() -- which only ever
+        extracts a QUERY (an order/settlement ID) from the file, never an
+        answer; the real answer still comes from settlement_qa.answer(),
+        the same grounded path every typed question already uses."""
+        length = int(self.headers.get("Content-Length", 0))
+        if length > MAX_UPLOAD_CONTENT_LENGTH:
+            self._respond_json({"answer": "That file's too large -- please keep uploads under 8 MB."})
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            filename = str(payload.get("filename") or "upload")
+            content_type = str(payload.get("content_type") or "")
+            file_bytes = base64.b64decode(payload.get("data") or "", validate=True)
+        except (ValueError, TypeError, json.JSONDecodeError, binascii.Error):
+            self._respond_json({"answer": "Couldn't read that file -- mind trying again?"})
+            return
+        answer = document_qa.answer_about_document(filename, file_bytes, content_type)
+        self._respond_json({"answer": answer})
 
     def _respond_html(self, html):
         body = html.encode("utf-8")

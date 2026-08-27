@@ -1,8 +1,3 @@
-# The local desktop app -- every module under src/, tests/, and extras/
-# -- uses only the Python standard library, confirmed by parsing every
-# import in the codebase with ast, not by memory. Running run_all.py or
-# review_server.py locally needs nothing below this line.
-#
 # Requires Python 3.10+ (uses PEP 604 union syntax, e.g. `str | None`,
 # without `from __future__ import annotations`).
 #
@@ -16,3 +11,14 @@
 # not a per-function one, which is why it's listed here rather than
 # scoped to api/ -- never imported by src/, tests/, or extras/.
 psycopg[binary]==3.2.3
+
+# document_qa.py's chat-upload feature: pypdf reads a PDF's real text
+# layer (a required dependency for that feature -- it's the only way it
+# reads a PDF at all). pytesseract is the Python side of image OCR, but
+# needs the separate Tesseract engine installed to actually do anything
+# (see README) -- exactly the same kind of optional local dependency
+# Ollama already is for the LLM arbiter; without it, document_qa.py
+# degrades to an honest "OCR isn't available" instead of failing.
+pypdf==6.13.1
+pytesseract==0.3.13
+Pillow>=10.0

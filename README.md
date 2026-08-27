@@ -228,6 +228,22 @@ python run_all.py --live
 
 Test-mode credentials correctly return zero settlements. Every bank and ledger row will report as an exception in this mode — that's expected, not a failure of the integration.
 
+### 7. Install Tesseract for image uploads in the chat
+
+Skip this step to leave the chat's document-upload feature ([`src/document_qa.py`](src/document_qa.py)) able to read text-based PDFs, but not photos or screenshots — it'll say so honestly rather than failing silently. `pypdf` (already in `requirements.txt`) covers the PDF case with no extra setup.
+
+```bash
+# macOS
+brew install tesseract
+
+# Linux
+sudo apt-get install tesseract-ocr
+
+# Windows: download the installer from https://github.com/UB-Mannheim/tesseract/wiki
+```
+
+Everything is local — no image, extracted text, or file ever leaves the machine, the same property Ollama's local inference already has.
+
 ## Testing
 
 The suite covers the matching engine, persistence layer, validation gate, model-calling logic, live API retry-and-backoff behavior, and the review application's rendering logic. Network calls are substituted at the transport layer only; the decision logic under test always runs for real, against the substituted response.
