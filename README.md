@@ -31,7 +31,7 @@ The governing principle: **every action here traces back to a verifiable rule, a
 - A second, independent test looked for a case where trusting the model would have been correct. Three separate framings against the real model produced no reliable correct answer, so the demo ships the failing case rather than a cherry-picked passing one. See [`src/ai_judgment_demo.py`](src/ai_judgment_demo.py).
 
 **Failure recovery.**
-- Ollama unreachable falls through to Anthropic, then to a deterministic stand-in, verified by substituting the network call with one that actually fails. See [AI Usage and Validation](#ai-usage-and-validation).
+- Ollama unreachable falls through to a deterministic stand-in, verified by substituting the network call with one that actually fails. See [AI Usage and Validation](#ai-usage-and-validation).
 - The live Razorpay API call retries with exponential backoff on a network error, verified by making the transport fail twice on purpose and confirming the third attempt recovers. See [Live Razorpay Integration](#live-razorpay-integration).
 - An adversarial UTR-collision trap (two settlements, identical amount, different UTR) runs as part of every standard batch and resolves both correctly, so the matcher can't cross-wire two customers' payments. See [`src/failure_injection_demo.py`](src/failure_injection_demo.py).
 - `review_server.py`'s confirm endpoint had a concurrency race: it runs on a real `ThreadingHTTPServer`, and a stale double-confirm could overwrite a human's decision. Fixed with a conditional write plus a regression test that fails against the old code and passes against the new. See [`src/db.py`](src/db.py)'s `resolve_exception`.
