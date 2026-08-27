@@ -150,7 +150,7 @@ PAGE_STYLE = """
     --ls-tighter: -0.025em;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior:smooth; zoom:0.8; } /* default page scale -- Chrome/Edge/Safari and Firefox 126+; a plain CSS transform would break position:fixed elements, which zoom doesn't */
+  html { scroll-behavior:smooth; }
   body {
     margin:0; background:var(--bg); color:var(--ink); font-family:var(--font);
     font-size:var(--text-sm); line-height:var(--lh-sm); -webkit-font-smoothing:antialiased;
@@ -449,7 +449,6 @@ PAGE_STYLE = """
     align-items:center; justify-content:space-between; flex-shrink:0;
   }
   .chat-panel-head .title { font-family:var(--font-heading); font-weight:700; font-size:17px; }
-  .chat-panel-head .sub { font-size:12px; color:#EAF6FF; margin-top:3px; }
   .chat-panel-head-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
   .chat-panel-head button {
     background:rgba(255,255,255,0.18); border:none; color:#fff; width:34px; height:34px; border-radius:50%;
@@ -561,7 +560,6 @@ CHAT_WIDGET = """
   <div class="chat-panel-head">
     <div>
       <div class="title">Ask me</div>
-      <div class="sub">Reads the same persisted data as every page here</div>
     </div>
     <div class="chat-panel-head-actions">
       <button type="button" id="chat-speak-toggle" aria-label="Read answers aloud" title="Read answers aloud" hidden>
@@ -1010,11 +1008,24 @@ VOICE_AGENT_WIDGET = """
     if (!active) return;
     transcript = "";
     setPhase("listening");
-    recognizer = new SpeechRecognitionApi();
-    recognizer.lang = "en-US";
-    recognizer.continuous = true;
-    recognizer.interimResults = true;
-    recognizer.addEventListener("result", function (e) {
+
+    // A closure-local reference, checked in every handler below, so a
+    // result delivered late by a SUPERSEDED recognizer can never be
+    // mistaken for the current turn's speech. A real bug, found live:
+    // the Web Speech API can still deliver a final "result" for audio it
+    // had already captured just after stop() is called on it -- if that
+    // arrives after a new recognizer has already started for the next
+    // turn, its handler was still closing over the same shared
+    // `transcript` variable and would silently overwrite it with the
+    // PREVIOUS turn's words, then resubmit them -- the same old answer
+    // repeating no matter what was actually just said.
+    var myRecognizer = new SpeechRecognitionApi();
+    recognizer = myRecognizer;
+    myRecognizer.lang = "en-US";
+    myRecognizer.continuous = true;
+    myRecognizer.interimResults = true;
+    myRecognizer.addEventListener("result", function (e) {
+      if (recognizer !== myRecognizer) return; // stale event from a superseded recognizer
       var text = "";
       for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
       transcript = text;
@@ -1033,10 +1044,11 @@ VOICE_AGENT_WIDGET = """
         submit();
       }
     });
-    recognizer.addEventListener("end", function () {
-      if (active && phase === "listening") { try { recognizer.start(); } catch (e) {} }
+    myRecognizer.addEventListener("end", function () {
+      if (recognizer !== myRecognizer) return; // stale event from a superseded recognizer
+      if (active && phase === "listening") { try { myRecognizer.start(); } catch (e) {} }
     });
-    try { recognizer.start(); } catch (e) {}
+    try { myRecognizer.start(); } catch (e) {}
   }
 
   function acquireMicAndStartAnalysis() {

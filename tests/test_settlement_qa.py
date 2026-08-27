@@ -143,6 +143,20 @@ class TestOpenCount(SettlementQaTestCase):
         expected = len(db.get_open_exceptions())
         self.assertIn(f"{expected} row(s)", result)
 
+    def test_natural_phrasing_variants_are_recognized(self):
+        """Regression test for a real bug found live over voice: natural
+        phrasings like "how many orders need my attention" used to miss
+        the exact five-phrase list _open_count required, silently falling
+        through to the honest fallback instead of the real count."""
+        expected = len(db.get_open_exceptions())
+        for phrasing in (
+            "can you tell me how many orders need my attention",
+            "how many are still outstanding",
+        ):
+            with self.subTest(phrasing=phrasing):
+                result = qa.answer(phrasing)
+                self.assertIn(f"{expected} row(s)", result)
+
 
 class TestResolutionRate(SettlementQaTestCase):
     def test_resolution_rate_matches_manual_calculation(self):
@@ -353,6 +367,23 @@ class TestCategoryList(SettlementQaTestCase):
         result = qa.answer("list ROUNDING orders")
         self.assertIn("No rows are categorized as ROUNDING", result)
 
+    def test_plural_category_name_is_recognized(self):
+        """Regression test for a real bug found live over voice:
+        _extract_category only matched the exact singular category token
+        (DUPLICATE), so natural plurals like "duplicates" -- normal
+        spoken/typed phrasing -- silently failed to extract a category at
+        all and fell through to the honest fallback."""
+        result = qa.answer("what about duplicates")
+        self.assertIn("order_2", result)
+        self.assertIn("order_3", result)
+
+    def test_what_about_phrasing_triggers_a_list(self):
+        """"what about X" is a vague but common natural way to ask about a
+        category; the most useful default is treating it like a list
+        request, same as "which orders are X"."""
+        result = qa.answer("what about ON_HOLD_BY_RAZORPAY")
+        self.assertIn("order_4", result)
+
 
 class TestResolutionStatusCount(SettlementQaTestCase):
     def test_confirmed_count(self):
@@ -366,6 +397,16 @@ class TestResolutionStatusCount(SettlementQaTestCase):
         db.resolve_exception(row_id, "reject")
         result = qa.answer("how many rejected")
         self.assertIn("1 row(s) have been rejected", result)
+
+    def test_natural_phrasing_variants_are_recognized(self):
+        """Regression test for a real bug found live over voice: natural
+        phrasings like "how many have i confirmed so far" used to miss the
+        exact three-phrase-per-branch list this handler required, silently
+        falling through to the honest fallback instead of the real count."""
+        row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_2"][0]["id"]
+        db.resolve_exception(row_id, "confirm")
+        result = qa.answer("how many have i confirmed so far")
+        self.assertIn("1 row(s) have been confirmed", result)
 
     def test_needs_clarification_count_is_open_rows_with_a_note(self):
         """"Needs clarification" isn't a resolution_status value in the
@@ -489,6 +530,39 @@ class TestFollowUpContext(SettlementQaTestCase):
         qa.answer("what happened to order_2")
         result = qa.answer("how can it be resolved")
         self.assertIn("Tell me which order or category", result)
+
+    def test_unanswered_category_mention_does_not_clobber_prior_order_context(self):
+        """Regression test for a real bug found live over voice: a
+        question mentioning a category name in passing, with no
+        count/list trigger word, used to overwrite last_category and pop
+        last_order_id from the context BEFORE dispatch even ran -- so once
+        that question inevitably fell through to the honest fallback (it
+        was never actually about the category as a query), the NEXT
+        follow-up ("any similar cases to this one") had already lost the
+        order it needed, even though the intervening question never used
+        it for anything. Context must only update when a real answer was
+        actually found from the order/category it names."""
+        _, ctx = qa.answer_with_context("what happened to order_2")
+        self.assertEqual(ctx["last_order_id"], "order_2")
+
+        result, ctx2 = qa.answer_with_context("duplicate transactions are so annoying honestly", ctx)
+        self.assertEqual(result, qa.FALLBACK_MESSAGE)
+        self.assertEqual(ctx2["last_order_id"], "order_2")
+
+        result3, _ = qa.answer_with_context("are there any similar cases to this one", ctx2)
+        self.assertIn("order_2", result3)
+
+    def test_category_mention_that_is_actually_answered_does_update_context(self):
+        """The counterpart to the regression above: when a category
+        mention DOES lead to a real answer (not the fallback), it's
+        legitimate for the conversation to have moved on -- last_order_id
+        should update away, since the user genuinely just asked about a
+        different category."""
+        _, ctx = qa.answer_with_context("what happened to order_2")
+        result, ctx2 = qa.answer_with_context("what about ON_HOLD_BY_RAZORPAY", ctx)
+        self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+        self.assertEqual(ctx2["last_category"], "ON_HOLD_BY_RAZORPAY")
+        self.assertNotIn("last_order_id", ctx2)
 
 
 if __name__ == "__main__":

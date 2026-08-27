@@ -240,11 +240,15 @@ def _extract_category(question: str) -> str | None:
     its real underscores, like "which orders are ON_HOLD_BY_RAZORPAY").
     Each category's own internal "_" is matched against a literal "_" OR
     whitespace, so both "ON_HOLD_BY_RAZORPAY" and "ON HOLD BY RAZORPAY"
-    are recognized by the same pattern."""
+    are recognized by the same pattern. An optional trailing "S"/"ES" is
+    allowed too -- a real gap, found live: a merchant naturally says "what
+    about duplicates" or "how many partial payments", not the bare
+    singular enum form, and the word-boundary fix above (correctly) no
+    longer lets a plural slide through as a loose substring match."""
     qu = question.upper()
     for category in KNOWN_CATEGORIES:
         pattern = re.escape(category).replace("_", r"[_\s]")
-        if re.search(rf"\b{pattern}\b", qu):
+        if re.search(rf"\b{pattern}(?:ES|S)?\b", qu):
             return category
     if re.search(r"\bon hold\b", question.lower()):
         return "ON_HOLD_BY_RAZORPAY"
@@ -323,7 +327,7 @@ def _category_count(question: str) -> str | None:
     rows = db.get_all_exceptions()
     matching = [r for r in rows if r["category"] == category]
 
-    wants_list = any(kw in ql for kw in ("list", "which order", "which one", "show me", "what are the"))
+    wants_list = any(kw in ql for kw in ("list", "which order", "which one", "show me", "what are the", "what about", "tell me about"))
     if wants_list:
         if not matching:
             return f"No rows are categorized as {category}."
@@ -367,11 +371,17 @@ def _resolution_status_count(question: str) -> str | None:
     ql = question.lower()
     rows = db.get_all_exceptions()
 
-    if any(kw in ql for kw in ("how many confirmed", "how many have been confirmed", "how many rows confirmed")):
+    # "how many" plus a bare "confirm"/"reject" substring, not an exact
+    # phrase match -- a real gap, found live: natural voice phrasing like
+    # "how many have I confirmed so far" doesn't contain any of the fixed
+    # multi-word phrases this used to require verbatim.
+    wants_count = "how many" in ql
+
+    if wants_count and "confirm" in ql:
         count = sum(1 for r in rows if r["resolution_status"] == "CONFIRMED")
         return f"{count} row(s) have been confirmed by a human reviewer."
 
-    if any(kw in ql for kw in ("how many rejected", "how many have been rejected", "how many rows rejected")):
+    if wants_count and "reject" in ql:
         count = sum(1 for r in rows if r["resolution_status"] == "REJECTED")
         return f"{count} row(s) have been rejected by a human reviewer."
 
@@ -414,8 +424,18 @@ def _cash_value(question: str) -> str | None:
 
 
 def _open_count(question: str) -> str | None:
+    """"how many" plus any open-shaped topic word, not a fixed set of
+    exact multi-word phrases -- a real gap, found live: "how many orders
+    need my attention" has "how many" and "need" both present, but not as
+    the single substring "how many need" this used to require verbatim.
+    Safe to broaden: a category-specific "how many X exceptions" is
+    always intercepted by _category_count earlier in the dispatch order,
+    so this never has to tell the two apart itself."""
     ql = question.lower()
-    if any(kw in ql for kw in ("how many open", "how many pending", "how many need", "how many exceptions", "how many are open")):
+    open_signal = any(kw in ql for kw in (
+        "open", "pending", "need", "exceptions", "attention", "unresolved", "outstanding",
+    ))
+    if "how many" in ql and open_signal:
         open_rows = db.get_open_exceptions()
         return f"{len(open_rows)} row(s) currently open, needing a decision."
     return None
@@ -565,28 +585,42 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     order_id = _extract_order_id(question)
     settlement_id = _extract_settlement_id(question)
     category = _extract_category(question)
-    if order_id:
-        referent["last_order_id"] = order_id
-        rows = [r for r in db.get_all_exceptions() if r["order_id"] == order_id]
-        if rows:
-            referent["last_category"] = rows[0]["category"]
-    elif category:
-        referent["last_category"] = category
-        referent.pop("last_order_id", None)
+
+    def _updated_referent() -> dict:
+        # Only actually commit the order/category this question named once
+        # we know the question got a real answer from it -- not merely
+        # because an order/category name appeared in the text. A real bug
+        # found live: "what about duplicates" mentions a category but (with
+        # no count/list trigger) falls through to the honest fallback; if
+        # this update ran unconditionally up front regardless of outcome,
+        # it still overwrote last_category and popped last_order_id, so the
+        # NEXT question ("any similar cases to this one") lost the order
+        # context it needed even though "what about duplicates" itself
+        # never used it for anything.
+        updated = dict(context) if context else {}
+        if order_id:
+            updated["last_order_id"] = order_id
+            rows = [r for r in db.get_all_exceptions() if r["order_id"] == order_id]
+            if rows:
+                updated["last_category"] = rows[0]["category"]
+        elif category:
+            updated["last_category"] = category
+            updated.pop("last_order_id", None)
+        return updated
 
     if settlement_id and not order_id:
-        return _find_settlement(settlement_id), referent
+        return _find_settlement(settlement_id), _updated_referent()
 
     if order_id and not _is_resolution_question(question) and not _is_similarity_question(question):
-        return _find_order(order_id), referent
+        return _find_order(order_id), _updated_referent()
 
     similar = _similar_orders(question, context)
     if similar is not None:
-        return similar, referent
+        return similar, _updated_referent()
 
     guidance = _resolution_guidance(question, context)
     if guidance is not None:
-        return guidance, referent
+        return guidance, _updated_referent()
 
     # _cash_value first: it's gated behind its own money_signal check (a
     # question has to say "how much money"/"cash value"/etc. to match at
@@ -598,7 +632,7 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
                      _open_count, _resolution_rate, _category_breakdown):
         result = handler(question)
         if result is not None:
-            return result, referent
+            return result, _updated_referent()
 
     # None of the keyword shapes matched. Given the extraction and
     # dispatch above, order_id/settlement_id/category are always None by
