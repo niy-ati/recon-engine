@@ -573,7 +573,7 @@ CHAT_WIDGET = """
 
 Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up. I can also answer batch-wide questions -- an overview of this batch, the status or category breakdown, total settlement value, or the biggest/smallest amount.
 
-Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again.</div>
+Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again. Curious about how this system itself works? Ask me why it's not just an LLM, what model it uses, or what the research found.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="give me an overview of this batch">Batch overview?</button>

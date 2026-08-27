@@ -71,6 +71,11 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
     above is.
   - "what's the biggest exception" / "smallest amount" -- the single
     highest- or lowest-value row, optionally scoped to a named category.
+  - "why isn't this just an LLM" / "what model do you use" / "what's the
+    architecture" / "what's your accuracy" / "tell me about Slash" --
+    fixed, human-written answers about THIS SYSTEM itself (not the
+    reconciliation data), sourced from PITCH_NOTES.md. Same canned-text
+    principle as CATEGORY_GUIDANCE -- never model-generated.
 
 Fallback for everything else (qa_intent_gate.py / qa_intent_router.py): if
 none of the above keyword shapes match, a gated local model (the same
@@ -194,6 +199,110 @@ CATEGORY_GUIDANCE = {
         "honestly, not lost money."
     ),
 }
+
+# Fixed, human-written answers about THIS SYSTEM's own architecture, model
+# choice, metrics, and research -- not the reconciliation data itself. Same
+# pattern as CATEGORY_GUIDANCE: canned text a person wrote and can verify,
+# never model-generated, so a question like "why isn't this just an LLM"
+# gets a real, accurate answer instead of the honest fallback -- without
+# opening the door to free-form generation, which would risk exactly the
+# kind of confidently-wrong answer this project's own research (see the
+# Slash-thread finding below) argues against. Every number and claim here
+# matches what's documented in PITCH_NOTES.md, not invented for voice
+# output.
+PROJECT_KNOWLEDGE = [
+    (
+        ("why not llm", "why not use an llm", "why not just use ai", "why not ai",
+         "why isn't this an llm", "why isn't this just an llm", "why not gpt",
+         "why deterministic", "why not generative", "why not use a model for everything"),
+        "This system deliberately avoids letting a model author financial "
+        "facts. Matching is deterministic first -- bank UTR, then order ID, "
+        "then a learned pattern a human already confirmed -- and the one "
+        "place a model touches anything is a narrow tie-break on an "
+        "already-shortlisted candidate, gated at 90 percent confidence and "
+        "never auto-applied. Testing the real local model found it reports "
+        "high confidence even when it picks the wrong candidate, so its "
+        "output is always routed to a human, never trusted outright."
+    ),
+    (
+        ("what model", "which model", "what's ollama", "what is ollama",
+         "tell me about ollama", "do you use gpt", "what ai do you use"),
+        "Ollama, running qwen2.5:0.5b locally, handles exactly one narrow "
+        "job: picking which order a fuzzy-matched candidate most likely "
+        "belongs to, after every deterministic pass has already failed. It "
+        "never writes a category, a reason, or an answer, and its result is "
+        "never auto-applied regardless of reported confidence -- testing "
+        "found it can be just as confident when wrong as when right. No "
+        "paid API key is used anywhere in this system."
+    ),
+    (
+        ("what's the architecture", "what is the architecture", "how does this work",
+         "how does this system work", "explain the architecture", "walk me through the architecture",
+         "tech stack", "what's the tech stack"),
+        "Settlements are matched in passes, cheapest and most certain "
+        "first: exact bank UTR, then order ID against the ledger, then a "
+        "memory of narration patterns a human already confirmed, then an "
+        "unambiguous digit reference, then fuzzy narrowing, and only as a "
+        "last resort a confidence-gated model tie-break. Every outcome, "
+        "human or automated, is written to a persistent SQLite audit "
+        "trail. The core pipeline and review server run on pure Python "
+        "standard library, no external framework."
+    ),
+    (
+        ("what's your accuracy", "what is your accuracy", "resolution rate baseline",
+         "what metrics", "what are your metrics", "how accurate is this",
+         "what's the baseline", "compared to manual", "how much better than manual"),
+        "Manual settlement reconciliation with a spreadsheet typically "
+        "clears about 51 percent of rows. This engine resolves 90.5 "
+        "percent with zero human input on a real 514-row batch, with "
+        "another slice held for a one-click human confirm rather than "
+        "counted as automatically resolved. Re-tested across five "
+        "different random batches, it held between 87 and 91 percent "
+        "every time, not just on one tuned example."
+    ),
+    (
+        ("tell me about slash", "what's slash", "what is slash", "the slash agent",
+         "your research", "what did your research find", "differentiator",
+         "what makes this different", "what's the differentiator"),
+        "The research behind this build traced a real internal Razorpay "
+        "thread about an AI agent called Slash, where two senior "
+        "engineers raised the same concern from different angles: "
+        "correlated failure modes across an agent's actions, and the need "
+        "for a pre-execution enforcement layer deciding what's allowed to "
+        "run before it runs, not just logging after the fact. This "
+        "system's validation gate is exactly that -- nothing a model "
+        "proposes is ever auto-applied unless a specific, proven "
+        "trustworthy tier is explicitly allow-listed, and today that list "
+        "is empty by design."
+    ),
+    (
+        ("why not improve an existing agent", "why not a bigger ai system",
+         "why build this instead", "why this and not"),
+        "Razorpay's own Bookkeeping Agent already posts entries based on "
+        "predefined rules, which by definition can't resolve an exception "
+        "that doesn't match any rule -- a narration worded differently "
+        "across systems, a genuinely ambiguous settlement, a variance "
+        "that needs a plain-English explanation before a human can act. "
+        "This system is built as the residual layer underneath that gap, "
+        "not a replacement for it."
+    ),
+]
+
+
+def _project_knowledge(question: str) -> str | None:
+    """Fixed, human-written answers about the SYSTEM itself -- its own
+    architecture, model choice, metrics, and research -- not the
+    reconciliation data. Checked in _answer() before _resolution_guidance:
+    a bare "why" in a question like "why isn't this just an LLM" would
+    otherwise match _is_resolution_question's generic why_signal and get
+    misrouted to "tell me which order or category you mean" instead of a
+    real answer."""
+    ql = question.lower()
+    for phrases, answer in PROJECT_KNOWLEDGE:
+        if any(p in ql for p in phrases):
+            return answer
+    return None
+
 
 def _is_resolution_question(question: str) -> bool:
     """Matches four related shapes, all answered from the same canned
@@ -773,6 +882,14 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
 
     if order_id and not _is_resolution_question(question) and not _is_similarity_question(question):
         return _find_order(order_id), _updated_referent()
+
+    # Checked before _similar_orders/_resolution_guidance: a project
+    # question like "why isn't this just an LLM" would otherwise trip
+    # _is_resolution_question's bare why_signal and get misrouted to "tell
+    # me which order or category you mean" instead of a real answer.
+    project_answer = _project_knowledge(question)
+    if project_answer is not None:
+        return project_answer, _updated_referent()
 
     similar = _similar_orders(question, context)
     if similar is not None:

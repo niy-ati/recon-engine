@@ -185,6 +185,42 @@ class TestUnknownQuestion(SettlementQaTestCase):
         self.assertIn("don't have a way to answer", result)
 
 
+class TestProjectKnowledge(SettlementQaTestCase):
+    """Fixed, human-written answers about the system itself (architecture,
+    model choice, metrics, research) -- never model-generated, same
+    principle as CATEGORY_GUIDANCE."""
+
+    def test_why_not_llm(self):
+        result = qa.answer("why isn't this just an LLM")
+        self.assertIn("deterministic", result)
+        self.assertNotIn("don't have a way to answer", result)
+
+    def test_what_model_question(self):
+        result = qa.answer("what model do you use")
+        self.assertIn("qwen2.5:0.5b", result)
+
+    def test_architecture_question(self):
+        result = qa.answer("what's the architecture")
+        self.assertIn("UTR", result)
+
+    def test_accuracy_question(self):
+        result = qa.answer("what's your accuracy")
+        self.assertIn("90.5", result)
+
+    def test_slash_research_question(self):
+        result = qa.answer("tell me about slash")
+        self.assertIn("Slash", result)
+
+    def test_why_question_does_not_get_misrouted_to_resolution_guidance(self):
+        """Regression test for a real dispatch collision: a bare "why" in
+        a project question used to trip _is_resolution_question's generic
+        why_signal (no order_id present) and get answered "tell me which
+        order or category you mean" instead of a real answer -- project
+        knowledge must be checked first."""
+        result = qa.answer("why isn't this just an LLM")
+        self.assertNotIn("tell me which order or category", result.lower())
+
+
 class TestResolutionGuidance(SettlementQaTestCase):
     def test_guidance_for_explicit_order(self):
         result = qa.answer("how can order_2 be resolved")
