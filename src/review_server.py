@@ -903,14 +903,6 @@ VOICE_AGENT_WIDGET = """
                                    // playback begins
   var BARGE_MIN_CHARS = 6;        // ~2 short words minimum -- a single stray misheard syllable
                                    // must not be able to fire an interruption on its own
-  var INTERRUPT_THRESHOLD = 46;   // 0-255 scale, amplitude fallback trigger while speaking --
-                                   // see the comment on tick() below for why this runs
-                                   // alongside, not instead of, the recognized-words check
-  var INTERRUPT_GRACE_MS = 900;   // ignore this much of the start of playback, before the
-                                   // amplitude fallback can fire at all
-  var INTERRUPT_SUSTAIN_MS = 280; // amplitude must stay above the threshold continuously for
-                                   // this long -- a brief echo spike doesn't sustain the way a
-                                   // person actually talking does
 
   var active = false;             // whole feature turned on, via the button click
   var phase = "idle";             // "listening" | "thinking" | "speaking"
@@ -920,12 +912,7 @@ VOICE_AGENT_WIDGET = """
   var botUtteranceWords = null;   // Set of the bot's own current-utterance words, for
                                    // distinguishing an echo of the bot's own voice from a real
                                    // interruption -- see isGenuineInterruption()
-  var speakingSince = 0;
-  var loudSince = null;           // when the current continuous loud stretch started while speaking, or null
-  var interruptedThisTurn = false; // guards against both trigger signals (amplitude and
-                                    // recognized-words) firing interrupt() for the same turn --
-                                    // without this, both could fire within the same instant and
-                                    // spawn two separate "next turn" recognizers
+  var interruptedThisTurn = false; // guards interrupt() against firing twice for the same turn
   var audioCtx = null;
   var analyser = null;
   var mediaStream = null;
@@ -937,12 +924,11 @@ VOICE_AGENT_WIDGET = """
 
   function setPhase(next) {
     phase = next;
-    loudSince = null;
     btn.classList.remove("listening", "thinking");
     waveEl.classList.remove("simulated");
     if (next === "listening") { btn.classList.add("listening"); statusEl.textContent = "Listening\\u2026"; }
     if (next === "thinking") { btn.classList.add("thinking"); statusEl.textContent = "Thinking\\u2026"; resetBars(); }
-    if (next === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); speakingSince = Date.now(); interruptedThisTurn = false; }
+    if (next === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); interruptedThisTurn = false; }
   }
 
   // Distinguishes a real interruption from the bot's own voice bleeding
@@ -1176,21 +1162,18 @@ VOICE_AGENT_WIDGET = """
       source.connect(analyser);
       var data = new Uint8Array(analyser.frequencyBinCount);
 
-      // Two independent signals can trigger a barge-in while speaking,
-      // not just one -- a real bug, found live, in each direction:
-      // amplitude alone used to self-interrupt on the bot's own echo
-      // (fixed once by tuning thresholds, but the deeper fix turned out
-      // to be the utterance-GC bug in speak()); recognized-words alone,
-      // tried next, turned out to under-fire -- speech recognition has to
-      // transcribe a human voice mixed with loud TTS playback through the
-      // same mic, which it doesn't always manage to do at all, so a
-      // genuine interruption could go undetected with no fallback. Now
-      // BOTH run: sustained loud amplitude (below) is a blunt but
-      // reliable "something is happening" signal that doesn't depend on
-      // transcription succeeding; isGenuineInterruption's recognized-word
-      // comparison (in startBargeInListening) can also fire independently
-      // and usually faster when it does manage to transcribe. Either one
-      // is enough.
+      // Interruption while speaking is decided by startBargeInListening()'s
+      // recognized-words comparison ONLY, not by amplitude here. Amplitude
+      // was tried twice: it self-interrupts on the bot's own echo (raw mic
+      // volume can't tell that apart from real speech at all -- no
+      // threshold survives it), and it was briefly reinstated as a
+      // fallback for a period when the recognized-words path had a real
+      // bug (see startBargeInListening's own comment: a turnId
+      // off-by-one meant it never actually started) that made it look
+      // permanently silent. That bug is fixed now, so amplitude's
+      // self-interrupt problem is no longer worth trading for -- this
+      // loop only drives the waveform visualization and the
+      // listening-phase silence-timer fallback.
       function tick() {
         if (!analyser) return;
         analyser.getByteFrequencyData(data);
@@ -1199,13 +1182,6 @@ VOICE_AGENT_WIDGET = """
         if (phase === "listening" && avg > VOLUME_THRESHOLD) {
           clearTimeout(silenceTimer);
           silenceTimer = setTimeout(submit, SILENCE_MS);
-        } else if (phase === "speaking" && Date.now() - speakingSince > INTERRUPT_GRACE_MS) {
-          if (avg > INTERRUPT_THRESHOLD) {
-            if (loudSince === null) loudSince = Date.now();
-            if (Date.now() - loudSince > INTERRUPT_SUSTAIN_MS) interrupt();
-          } else {
-            loudSince = null;
-          }
         }
         rafId = requestAnimationFrame(tick);
       }
