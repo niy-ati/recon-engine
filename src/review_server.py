@@ -150,7 +150,7 @@ PAGE_STYLE = """
     --ls-tighter: -0.025em;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior:smooth; }
+  html { scroll-behavior:smooth; zoom:0.8; } /* default page scale -- Chrome/Edge/Safari and Firefox 126+; a plain CSS transform would break position:fixed elements, which zoom doesn't */
   body {
     margin:0; background:var(--bg); color:var(--ink); font-family:var(--font);
     font-size:var(--text-sm); line-height:var(--lh-sm); -webkit-font-smoothing:antialiased;
@@ -168,9 +168,8 @@ PAGE_STYLE = """
     padding:var(--sp-8) var(--sp-6); display:flex; flex-direction:column; gap:var(--sp-9);
     position:sticky; top:0; height:100vh; border-right:1px solid var(--border-subtle);
   }
-  aside.rail .brand { display:flex; flex-direction:column; gap:7px; }
-  aside.rail .brand .wordmark-logo { height:22px; width:auto; display:block; }
-  aside.rail .brand .feature-name { font-size:12.5px; font-weight:600; color:var(--muted); }
+  aside.rail .brand { display:flex; flex-direction:column; }
+  aside.rail .brand .wordmark-logo { height:22px; width:auto; display:block; margin-left:-6px; }
   aside.rail nav { display:flex; flex-direction:column; gap:4px; }
   aside.rail nav a {
     display:flex; align-items:center; gap:var(--sp-4); padding:11px var(--sp-5);
@@ -430,8 +429,17 @@ PAGE_STYLE = """
   .chat-toggle:hover { transform:translateY(-2px) scale(1.04); box-shadow:0 14px 30px -6px var(--primary-glow); }
   .chat-toggle svg { width:29px; height:29px; }
   .chat-panel {
+    /* height is computed, not a flat constant, so its top edge always
+       stays a fixed 170px clear of the viewport top -- a real bug, found
+       live: the old flat 660px/82vh sizing let this panel's own close
+       button end up hidden behind the voice agent widget (z-index 60,
+       fixed to the true page top) on any ordinary laptop screen height,
+       since 660px plus the panel's own bottom offset regularly reached
+       past that. capped so it can't grow arbitrarily tall on a big
+       display, and floored so it doesn't collapse to nothing on a short
+       one. */
     position:fixed; right:var(--sp-8); bottom:calc(var(--sp-8) + 82px); width:460px; max-width:calc(100vw - 40px);
-    height:660px; max-height:82vh; background:var(--panel); border-radius:var(--radius-xl);
+    height:calc(100vh - 284px); max-height:560px; min-height:320px; background:var(--panel); border-radius:var(--radius-xl);
     box-shadow:var(--shadow-high); border:1px solid var(--border-subtle); display:none;
     flex-direction:column; overflow:hidden; z-index:41;
   }
@@ -546,13 +554,13 @@ PAGE_STYLE = """
 """
 
 CHAT_WIDGET = """
-<button class="chat-toggle" id="chat-toggle" aria-label="Ask about this batch" title="Ask about this batch">
+<button class="chat-toggle" id="chat-toggle" aria-label="Ask me" title="Ask me">
   <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H10l-4.5 3.5V17H5.5C4.67 17 4 16.33 4 15.5v-10z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
 </button>
 <div class="chat-panel" id="chat-panel">
   <div class="chat-panel-head">
     <div>
-      <div class="title">Ask about this batch</div>
+      <div class="title">Ask me</div>
       <div class="sub">Reads the same persisted data as every page here</div>
     </div>
     <div class="chat-panel-head-actions">
@@ -1267,7 +1275,6 @@ def render_shell(
   <aside class="rail">
     <div class="brand">
       <img class="wordmark-logo" src="/assets/razorpay-logo.svg" alt="Razorpay">
-      <div class="feature-name">Settlement Reconciliation</div>
     </div>
     <nav>{nav_html}</nav>
   </aside>
