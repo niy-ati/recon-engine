@@ -83,6 +83,78 @@ class TestRenderDonut(unittest.TestCase):
         self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
 
 
+def make_row(status, category=None, resolution_status="OPEN", needs_action=None, **overrides):
+    row = {
+        "id": 1, "order_id": "order_1", "settlement_id": "setl_1", "net_amount": 100.0,
+        "status": status, "category": category, "reason": "test reason", "narration": "",
+        "replay_log": "[]", "resolution_status": resolution_status,
+        "resolution_note": None,
+        "needs_action": needs_action if needs_action is not None else ("yes" if status in ("EXCEPTION", "MATCHED_LOW_CONFIDENCE") else "no"),
+    }
+    row.update(overrides)
+    return row
+
+
+class TestRenderRowResolutionColumn(unittest.TestCase):
+    """Regression tests for a real bug found live: the Records page (which
+    calls render_row with show_actions=False) rendered resolution_status
+    verbatim -- and that field defaults to OPEN for every row, changing
+    only when a human clicks Confirm/Reject in the Queue. A clean MATCHED
+    row never appears in the Queue at all (needs_action is "no" for it),
+    so nobody ever acts on it and it stays OPEN forever -- identically to
+    a genuine FUZZY_MATCH_NEEDS_REVIEW row still awaiting a decision. Both
+    showed the bare word "OPEN", making an already-resolved row and a row
+    genuinely needing review look the same in this column."""
+
+    def test_clean_match_shows_auto_resolved_not_open(self):
+        row = make_row("MATCHED")
+        html = review_server.render_row(row, show_actions=False)
+        self.assertIn("Auto-resolved", html)
+        self.assertNotIn(">OPEN<", html)
+
+    def test_genuine_pending_exception_shows_awaiting_decision_not_bare_open(self):
+        row = make_row("EXCEPTION", category="FUZZY_MATCH_NEEDS_REVIEW")
+        html = review_server.render_row(row, show_actions=False)
+        self.assertIn("Awaiting decision", html)
+        self.assertNotIn(">OPEN<", html)
+
+    def test_resolution_column_wording_differs_from_status_columns_needs_review(self):
+        """MATCHED_LOW_CONFIDENCE's own Status-column label is also
+        "Needs review" (STATUS_LABELS) -- a different axis (the
+        pipeline's classification, not whether a human has acted). Using
+        the same words in both columns on the same row would read as a
+        duplicate rather than two distinct facts, so the Resolution
+        column must not reuse that exact phrase."""
+        row = make_row("MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW")
+        html = review_server.render_row(row, show_actions=False)
+        self.assertIn("Awaiting decision", html)
+        self.assertEqual(html.count("Needs review"), 1)  # only the Status column's own label
+
+    def test_auto_resolved_and_awaiting_decision_are_visually_distinct(self):
+        """The actual regression: these two rows used to render an
+        identical "OPEN" pill despite being in completely different
+        states. They must not collide."""
+        clean = review_server.render_row(make_row("MATCHED"), show_actions=False)
+        pending = review_server.render_row(
+            make_row("EXCEPTION", category="FUZZY_MATCH_NEEDS_REVIEW"), show_actions=False
+        )
+        self.assertNotEqual(clean, pending)
+        self.assertIn("pill positive", clean)
+        self.assertIn("pill notice", pending)
+
+    def test_confirmed_row_still_shows_confirmed(self):
+        row = make_row("EXCEPTION", category="DUPLICATE", resolution_status="CONFIRMED", needs_action="yes")
+        html = review_server.render_row(row, show_actions=False)
+        self.assertIn("CONFIRMED", html)
+        self.assertIn("pill positive", html)
+
+    def test_rejected_row_still_shows_rejected(self):
+        row = make_row("EXCEPTION", category="UNEXPLAINED", resolution_status="REJECTED", needs_action="yes")
+        html = review_server.render_row(row, show_actions=False)
+        self.assertIn("REJECTED", html)
+        self.assertIn("pill negative", html)
+
+
 class TestReadableCategory(unittest.TestCase):
     """Regression tests for a real UI complaint: category cards showed the
     raw enum value (FUZZY_MATCH_NEEDS_REVIEW, ON_HOLD_BY_RAZORPAY) verbatim

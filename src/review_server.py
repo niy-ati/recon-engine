@@ -1805,8 +1805,29 @@ def render_row(r: dict, show_actions: bool = True) -> str:
           <button class="pending" type="submit">{ICON_NOTE} Save note</button>
         </form>"""
     else:
-        resolution_tone = {"CONFIRMED": "positive", "REJECTED": "negative"}.get(r["resolution_status"], "information")
-        actions_html = f'<span class="pill {resolution_tone}">{escape(r["resolution_status"])}</span>'
+        # resolution_status defaults to OPEN for every row and only ever
+        # changes when a human clicks Confirm/Reject in the Queue -- a
+        # clean MATCHED row never appears in the Queue at all (needs_action
+        # is "no" for it), so nobody ever acts on it and it stays OPEN
+        # forever, identically to a genuine FUZZY_MATCH_NEEDS_REVIEW row
+        # still awaiting a decision. A real bug, found live: this page
+        # showed the bare literal "OPEN" for both, making an already
+        # cleanly-matched row and a row genuinely needing review look the
+        # same in this column. needs_action is the field that actually
+        # distinguishes them -- resolution_status alone doesn't.
+        # Worded differently from STATUS_LABELS' own "Needs review" (used
+        # in the Status column for MATCHED_LOW_CONFIDENCE) -- that's the
+        # pipeline's classification of the row; this is whether a human
+        # has acted on it yet, a different axis. The same words in two
+        # adjacent columns on the same row would read as a duplicate, not
+        # two distinct facts.
+        if r["needs_action"] == "no":
+            actions_html = '<span class="pill positive">Auto-resolved</span>'
+        elif r["resolution_status"] == "OPEN":
+            actions_html = '<span class="pill notice">Awaiting decision</span>'
+        else:
+            resolution_tone = {"CONFIRMED": "positive", "REJECTED": "negative"}.get(r["resolution_status"], "information")
+            actions_html = f'<span class="pill {resolution_tone}">{escape(r["resolution_status"])}</span>'
 
     category_html = (
         f'<span class="cat" title="{escape(r["category"])}">{readable_category(r["category"])}</span>'
