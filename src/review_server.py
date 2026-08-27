@@ -479,13 +479,11 @@ CHAT_WIDGET = """
     <button id="chat-close" aria-label="Close">&times;</button>
   </div>
   <div class="chat-messages" id="chat-messages">
-    <div class="chat-msg bot">Hi there! Happy to help you make sense of this reconciliation run.
+    <div class="chat-msg bot">Hi there! Happy to help.
 
 Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up.
 
-Got a statement handy? Tap 📎 to attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap 🎤 and just ask out loud.
-
-Everything I tell you comes straight from this run's real data, so if I'm ever not sure, I'll say so instead of guessing.</div>
+Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Just ask out loud.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="how many are open">How many are open?</button>
@@ -593,7 +591,7 @@ Everything I tell you comes straight from this run's real data, so if I'm ever n
       addMessage("That file's too large -- please keep uploads under 8 MB.", "bot");
       return;
     }
-    addMessage("📎 " + file.name, "user");
+    addMessage("Attached: " + file.name, "user");
     var pending = addMessage("reading " + file.name + "...", "bot pending");
     var reader = new FileReader();
     reader.onload = function () {

@@ -152,7 +152,7 @@ Reconciliation of settlement, bank, and ledger data for a single direct-to-consu
 
 ### Requirements
 
-Python 3.10 or later, for PEP 604 union syntax. Zero third-party Python dependencies for the local app itself — `src/`, `tests/`, and `extras/` — verified by parsing every import in those directories with Python's own `ast` module. `requirements.txt` lists one package, `psycopg`, needed only by `api/db_pg.py`, the Postgres persistence layer for the separate Vercel-hosted demo (https://reconcile-engine-demo.vercel.app); running `run_all.py` or `review_server.py` locally never touches it.
+Python 3.10 or later, for PEP 604 union syntax. The matching engine, persistence layer, and review site itself — `reconcile.py`, `db.py`, `review_server.py`, `settlement_qa.py` — are still zero-third-party-dependency, verified by parsing every import with Python's own `ast` module. Two features layered on top do need real packages, listed in `requirements.txt`: `document_qa.py`'s chat-upload feature needs `pypdf` (PDF text extraction, required) and `pytesseract`/`Pillow` (image OCR, optional — degrades to an honest "OCR isn't available" without the separate Tesseract engine, see [Settlement Q&A](#settlement-qa)); `api/db_pg.py`, the Postgres persistence layer for the separate Vercel-hosted demo (https://reconcile-engine-demo.vercel.app), needs `psycopg`. Running `run_all.py` locally never touches any of them; `review_server.py` only touches `pypdf`/`pytesseract` if you actually upload a file in the chat.
 
 ### 1. Clone and verify
 
