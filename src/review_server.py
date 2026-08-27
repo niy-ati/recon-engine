@@ -510,7 +510,7 @@ CHAT_WIDGET = """
 
 Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up.
 
-Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Just ask out loud.</div>
+Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="how many are open">How many are open?</button>
@@ -524,7 +524,7 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
       <svg viewBox="0 0 24 24" fill="none"><path d="M17 8.5l-7.5 7.5a3 3 0 1 1-4.24-4.24l8-8a4.5 4.5 0 1 1 6.36 6.36l-8.5 8.5a1.5 1.5 0 1 1-2.12-2.12l7.5-7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <input type="file" id="chat-file" accept=".pdf,.png,.jpg,.jpeg" hidden>
-    <button type="button" id="chat-mic" class="ghost-icon" aria-label="Ask by voice" title="Ask by voice" hidden>
+    <button type="button" id="chat-mic" class="ghost-icon" aria-label="Start voice conversation" title="Start voice conversation" hidden>
       <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     </button>
     <input type="text" id="chat-input" placeholder="e.g. what happened to order_1032" autocomplete="off">
@@ -568,10 +568,16 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     });
   }
 
-  function speak(text) {
-    if (!speechEnabled || !window.speechSynthesis) return;
+  function speak(text, onEnd) {
+    if (!speechEnabled || !window.speechSynthesis) {
+      if (onEnd) onEnd();
+      return;
+    }
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    var utterance = new SpeechSynthesisUtterance(text);
+    if (onEnd) utterance.addEventListener("end", onEnd);
+    utterance.addEventListener("error", function () { if (onEnd) onEnd(); });
+    window.speechSynthesis.speak(utterance);
   }
 
   function addMessage(text, cls) {
@@ -592,8 +598,8 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     return el;
   }
 
-  function ask(question) {
-    if (!question) return;
+  function ask(question, onSpoken) {
+    if (!question) { if (onSpoken) onSpoken(); return; }
     addMessage(question, "user");
     input.value = "";
     var pending = addTypingIndicator();
@@ -608,11 +614,12 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
         pending.className = "chat-msg bot";
         context = data.context || {};
         messages.scrollTop = messages.scrollHeight;
-        speak(data.answer);
+        speak(data.answer, onSpoken);
       })
       .catch(function () {
         pending.textContent = "Could not reach the server -- is review_server.py still running?";
         pending.className = "chat-msg bot";
+        if (onSpoken) onSpoken();
       });
   }
 
@@ -672,13 +679,23 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     reader.readAsDataURL(file);
   });
 
-  // ---- Voice input --------------------------------------------------
+  // ---- Voice conversation loop ---------------------------------------
   // Browser-native speech-to-text only (SpeechRecognition / the
   // webkit-prefixed form Chrome and Edge ship) -- transcribes speech to
   // text entirely in the browser, then asks it through the exact same
-  // ask() path as typing it. No audio or transcript is ever sent
-  // anywhere by this code beyond the browser's own built-in recognition
-  // service; nothing new is added server-side. The mic button stays
+  // ask() path as typing it. No audio, transcript, or answer is ever
+  // sent anywhere by this code beyond the browser's own built-in speech
+  // services; nothing new is added server-side, and no cloud model is
+  // involved -- the same settlement_qa.py lookup (with Pass 4's gated
+  // Ollama fallback for phrasing it doesn't recognize) answers every
+  // question exactly as it would if typed.
+  //
+  // One click turns this into a hands-free loop, not a single question:
+  // listen -> answer -> speak -> listen again, automatically, until
+  // clicked again. It only ever restarts listening AFTER the spoken
+  // answer finishes (speak()'s onEnd callback), so the microphone is
+  // never open while the browser's own voice is playing -- otherwise it
+  // would risk hearing and transcribing itself. The mic button stays
   // hidden entirely on a browser without this API, rather than showing
   // a control that would silently do nothing.
   var micBtn = document.getElementById("chat-mic");
@@ -689,30 +706,51 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     recognizer.lang = "en-US";
     recognizer.interimResults = false;
     recognizer.maxAlternatives = 1;
-    var listening = false;
+    var voiceLoopActive = false;
+    var gotResult = false;
 
+    function startListening() {
+      try { recognizer.start(); } catch (e) { /* already listening -- ignore */ }
+    }
+
+    recognizer.addEventListener("start", function () {
+      micBtn.classList.add("recording");
+    });
     recognizer.addEventListener("result", function (e) {
+      gotResult = true;
       var transcript = e.results[0][0].transcript;
       input.value = transcript;
-      ask(transcript);
+      ask(transcript, function () {
+        if (voiceLoopActive) startListening();
+      });
     });
     recognizer.addEventListener("end", function () {
-      listening = false;
       micBtn.classList.remove("recording");
+      // Silence/timeout with nothing actually said -- keep the loop
+      // alive instead of going quiet; a short delay avoids a tight
+      // start/end thrash if the browser fires these back to back.
+      if (voiceLoopActive && !gotResult) {
+        setTimeout(function () { if (voiceLoopActive) startListening(); }, 400);
+      }
+      gotResult = false;
     });
     recognizer.addEventListener("error", function () {
-      listening = false;
       micBtn.classList.remove("recording");
     });
 
     micBtn.addEventListener("click", function () {
-      if (listening) {
+      if (voiceLoopActive) {
+        voiceLoopActive = false;
         recognizer.stop();
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        micBtn.setAttribute("aria-label", "Start voice conversation");
+        micBtn.setAttribute("title", "Start voice conversation");
         return;
       }
-      listening = true;
-      micBtn.classList.add("recording");
-      recognizer.start();
+      voiceLoopActive = true;
+      micBtn.setAttribute("aria-label", "Stop voice conversation");
+      micBtn.setAttribute("title", "Stop voice conversation");
+      startListening();
     });
   }
 })();
