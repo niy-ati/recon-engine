@@ -886,40 +886,88 @@ VOICE_AGENT_WIDGET = """
                                    // timer only matters if a browser never marks a result final
                                    // in continuous mode
   var VOLUME_THRESHOLD = 10;      // 0-255 scale, average of getByteFrequencyData -- listening
-  var INTERRUPT_THRESHOLD = 46;   // higher bar while speaking -- must be a real, close voice to
-                                   // barge in, not the browser's own playback bleeding into the
-                                   // mic (echoCancellation below helps, but isn't perfect over
-                                   // speakers rather than headphones)
-  var INTERRUPT_GRACE_MS = 900;   // ignore this much of the start of playback -- a real bug,
-                                   // found live: the bot's own voice through the speakers was
-                                   // crossing the volume threshold and interrupting itself after
-                                   // barely a word
-  var INTERRUPT_SUSTAIN_MS = 280; // volume must stay above the threshold continuously for this
-                                   // long before it counts as a real interruption -- a brief echo
-                                   // spike doesn't sustain the way a person actually talking does
+  var BARGE_START_DELAY_MS = 400; // small delay before barge-in recognition starts listening,
+                                   // covering the recognizer's own startup noise right as
+                                   // playback begins
+  var BARGE_MIN_CHARS = 6;        // ~2 short words minimum -- a single stray misheard syllable
+                                   // must not be able to fire an interruption on its own
 
   var active = false;             // whole feature turned on, via the button click
   var phase = "idle";             // "listening" | "thinking" | "speaking"
   var recognizer = null;
+  var bargeRecognizer = null;
+  var bargeStartTimer = null;
+  var botUtteranceWords = null;   // Set of the bot's own current-utterance words, for
+                                   // distinguishing an echo of the bot's own voice from a real
+                                   // interruption -- see isGenuineInterruption()
   var audioCtx = null;
   var analyser = null;
   var mediaStream = null;
   var rafId = null;
   var silenceTimer = null;
   var turnId = 0;                 // invalidates a stale speak() onEnd after an interrupt
-  var speakingSince = 0;
-  var loudSince = null;           // when the current continuous loud stretch started while speaking, or null
   var transcript = "";
   var context = {};
 
   function setPhase(next) {
     phase = next;
-    loudSince = null;
     btn.classList.remove("listening", "thinking");
     waveEl.classList.remove("simulated");
     if (next === "listening") { btn.classList.add("listening"); statusEl.textContent = "Listening\\u2026"; }
     if (next === "thinking") { btn.classList.add("thinking"); statusEl.textContent = "Thinking\\u2026"; resetBars(); }
-    if (next === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); speakingSince = Date.now(); }
+    if (next === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); }
+  }
+
+  // Distinguishes a real interruption from the bot's own voice bleeding
+  // back into the mic through the speakers -- a real bug, found live
+  // (twice): raw mic volume can't tell the two apart at all, since an
+  // echo of the bot's own TTS crosses any fixed loudness threshold just
+  // as easily as a person actually talking does (getUserMedia's
+  // echoCancellation constraint is built around a known WebRTC/<audio>
+  // playback reference; SpeechSynthesis output isn't guaranteed to be
+  // part of that reference at all). Recognized WORDS can tell the two
+  // apart where raw volume can't: an echo of the bot's own speech
+  // transcribes back to (most of) the bot's own sentence, while a person
+  // interrupting says something the bot never said. Majority-novel-words
+  // rather than any-novel-word so a single misheard word doesn't fire it.
+  function isGenuineInterruption(text) {
+    if (text.length < BARGE_MIN_CHARS) return false;
+    var words = text.split(/\\s+/).filter(Boolean);
+    if (words.length < 2) return false;
+    if (!botUtteranceWords) return true;
+    var novel = words.filter(function (w) { return !botUtteranceWords.has(w); });
+    return novel.length / words.length > 0.5;
+  }
+
+  function startBargeInListening() {
+    if (!hasAudioApi) return;
+    clearTimeout(bargeStartTimer);
+    var myTurnAtStart = turnId;
+    bargeStartTimer = setTimeout(function () {
+      if (phase !== "speaking" || turnId !== myTurnAtStart) return;
+      var br = new SpeechRecognitionApi();
+      bargeRecognizer = br;
+      br.lang = "en-US";
+      br.continuous = true;
+      br.interimResults = true;
+      br.addEventListener("result", function (e) {
+        if (bargeRecognizer !== br || phase !== "speaking") return;
+        var text = "";
+        for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+        if (isGenuineInterruption(text.trim().toLowerCase())) interrupt();
+      });
+      br.addEventListener("end", function () {
+        if (bargeRecognizer !== br) return;
+        if (phase === "speaking" && active) { try { br.start(); } catch (e) {} }
+      });
+      try { br.start(); } catch (e) {}
+    }, BARGE_START_DELAY_MS);
+  }
+
+  function stopBargeInListening() {
+    clearTimeout(bargeStartTimer);
+    if (bargeRecognizer) { try { bargeRecognizer.stop(); } catch (e) {} }
+    bargeRecognizer = null;
   }
 
   function resetBars() {
@@ -967,8 +1015,14 @@ VOICE_AGENT_WIDGET = """
   // the browser) and starts listening for the new question right away.
   function interrupt() {
     turnId++; // any in-flight speak() onEnd for this turn is now stale and becomes a no-op
+    stopBargeInListening();
     if (window.speechSynthesis) window.speechSynthesis.cancel();
-    beginListening();
+    // A brief delay before the next recognizer starts: stop() ends a
+    // SpeechRecognition session asynchronously, and starting a new
+    // instance before the old one has actually released can throw
+    // InvalidStateError in some browsers -- silently leaving the next
+    // turn never listening at all, worse than the bug being fixed here.
+    setTimeout(beginListening, 80);
   }
 
   function submit() {
@@ -992,6 +1046,8 @@ VOICE_AGENT_WIDGET = """
         context = data.context || {};
         transcriptEl.textContent = data.answer;
         setPhase("speaking");
+        botUtteranceWords = new Set(data.answer.toLowerCase().split(/\\s+/).filter(Boolean));
+        startBargeInListening();
         speak(data.answer, function (myTurn) {
           if (myTurn !== turnId) return; // superseded by an interrupt already
           if (active) beginListening(); else close();
@@ -1008,6 +1064,7 @@ VOICE_AGENT_WIDGET = """
   // acquired in open().
   function beginListening() {
     if (!active) return;
+    stopBargeInListening();
     transcript = "";
     setPhase("listening");
 
@@ -1066,6 +1123,12 @@ VOICE_AGENT_WIDGET = """
       source.connect(analyser);
       var data = new Uint8Array(analyser.frequencyBinCount);
 
+      // Interruption while speaking is decided by startBargeInListening()'s
+      // recognized-words comparison, not by amplitude here -- raw mic
+      // volume can't tell the bot's own echoed voice apart from a real
+      // interruption (see isGenuineInterruption's comment). This loop
+      // still drives the waveform visualization every frame, and still
+      // drives the listening-phase silence-timer fallback.
       function tick() {
         if (!analyser) return;
         analyser.getByteFrequencyData(data);
@@ -1074,13 +1137,6 @@ VOICE_AGENT_WIDGET = """
         if (phase === "listening" && avg > VOLUME_THRESHOLD) {
           clearTimeout(silenceTimer);
           silenceTimer = setTimeout(submit, SILENCE_MS);
-        } else if (phase === "speaking" && Date.now() - speakingSince > INTERRUPT_GRACE_MS) {
-          if (avg > INTERRUPT_THRESHOLD) {
-            if (loudSince === null) loudSince = Date.now();
-            if (Date.now() - loudSince > INTERRUPT_SUSTAIN_MS) interrupt();
-          } else {
-            loudSince = null;
-          }
         }
         rafId = requestAnimationFrame(tick);
       }
@@ -1106,6 +1162,7 @@ VOICE_AGENT_WIDGET = """
     waveEl.classList.remove("simulated");
     resetBars();
     stopAudioAnalysis();
+    stopBargeInListening();
     if (recognizer) { try { recognizer.stop(); } catch (e) {} }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   }

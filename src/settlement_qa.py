@@ -490,12 +490,19 @@ def _batch_summary(question: str) -> str | None:
     a new calculation invented for this. A genuine gap: a merchant's
     first question about a batch is often this broad, before they know
     which specific count/value/category to ask about by name."""
+    # Bare keywords ("overview", "summary", "rundown", ...), not a fixed
+    # phrase requiring an exact wrapper like "of THIS batch" -- a real gap,
+    # found live: "give an overview of the WHOLE batch" and "overview of
+    # the batch" (no "this") both missed the original phrase list
+    # entirely. Safe to match these words alone since nothing else in this
+    # module's vocabulary uses them for anything else.
     ql = question.lower()
     if not any(kw in ql for kw in (
-        "overview of this batch", "summarize this batch", "summary of this batch",
-        "batch summary", "how does this batch look", "how is this batch doing",
-        "tell me about this batch", "rundown of this batch", "give me an overview",
-        "how's this batch", "hows this batch",
+        "overview", "summary", "summarize", "rundown", "recap",
+        "how does this batch look", "how does the batch look",
+        "how is this batch doing", "how is the batch doing",
+        "how's this batch", "hows this batch", "how's the batch", "hows the batch",
+        "tell me about this batch", "tell me about the batch",
     )):
         return None
 
