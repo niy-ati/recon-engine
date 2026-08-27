@@ -271,6 +271,25 @@ PAGE_STYLE = """
   .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:20px; font-weight:700; color:var(--ink); }
   .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
+  /* Cash-value-by-category chart -- same four semantic tones the category
+     cards already use (never a separate categorical palette), so a bar
+     here reads as the same category a viewer already recognizes from the
+     cards above it. */
+  .hbar-chart { display:flex; flex-direction:column; gap:var(--sp-5); }
+  .hbar-row { display:grid; grid-template-columns:160px 1fr 100px; align-items:center; gap:var(--sp-5); }
+  .hbar-label { font-size:12.5px; font-weight:600; color:var(--ink); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hbar-track {
+    background:var(--bg); border-radius:var(--radius-pill); height:14px; overflow:hidden;
+    box-shadow:inset 0 0 0 1px var(--border); transition:box-shadow 0.15s;
+  }
+  .hbar-row:hover .hbar-track { box-shadow:inset 0 0 0 1px var(--border), 0 0 0 3px var(--primary-subtle); }
+  .hbar-fill { height:100%; border-radius:var(--radius-pill); transition:width 0.6s ease-out; }
+  .hbar-fill.tone-positive { background:var(--positive); }
+  .hbar-fill.tone-notice { background:var(--notice); }
+  .hbar-fill.tone-negative { background:var(--negative); }
+  .hbar-fill.tone-information { background:var(--information); }
+  .hbar-value { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-weight:700; font-size:12.5px; color:var(--ink); text-align:right; }
+
   /* ------------------------------------------------------------ Panels -- */
   .panel { background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l); box-shadow:var(--shadow-low); overflow:hidden; margin-bottom:var(--sp-8); }
   .panel .panel-head { padding:var(--sp-7) var(--sp-8); border-bottom:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; }
@@ -1010,15 +1029,50 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
     </div>"""
 
 
+def render_cash_by_category(by_category_value: dict, by_category_count: dict) -> str:
+    """Horizontal bar chart, one bar per category, sized by rupee value --
+    not just row count. The category cards above already answer "which
+    category has the most ROWS"; this answers the genuinely different
+    question of which one holds the most MONEY, a distinction that
+    matters (a category with few rows can still hold the largest rupee
+    value). Same per-category sum settlement_qa.py's own "how much money
+    is in X" chat answer uses -- no DUPLICATE exclusion here, since a
+    category-scoped total is a different question than the overall
+    at-risk figure db.compute_cash_clarity() answers below, where that
+    exclusion actually applies."""
+    if not by_category_value:
+        return ""
+    ranked = sorted(by_category_value.items(), key=lambda kv: -kv[1])
+    max_value = ranked[0][1] or 1.0
+    rows_html = "".join(
+        f"""<div class="hbar-row">
+              <span class="hbar-label">{readable_category(cat)}</span>
+              <div class="hbar-track" title="Rs.{value:,.2f} across {by_category_count[cat]} row(s)">
+                <div class="hbar-fill tone-{CATEGORY_TONES.get(cat, 'information')}" style="width:{max(value / max_value * 100, 2):.1f}%"></div>
+              </div>
+              <span class="hbar-value">Rs.{value:,.0f}</span>
+            </div>"""
+        for cat, value in ranked
+    )
+    return f"""
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Cash value by category</h2></div>
+      <div class="panel-body"><div class="hbar-chart">{rows_html}</div></div>
+    </div>"""
+
+
 def render_overview() -> str:
     all_rows = db.get_all_exceptions()
     open_rows = db.get_open_exceptions()
     donut_html = render_donut(all_rows)
 
     by_category = defaultdict(int)
+    by_category_value = defaultdict(float)
     for r in all_rows:
         if r["category"]:
             by_category[r["category"]] += 1
+            if r["net_amount"] is not None:
+                by_category_value[r["category"]] += r["net_amount"]
 
     category_cards = "".join(
         f"""<a class="category-card tone-{CATEGORY_TONES.get(cat, 'information')}" href="/records?q={cat}">
@@ -1030,6 +1084,8 @@ def render_overview() -> str:
             </a>"""
         for cat, count in sorted(by_category.items(), key=lambda kv: -kv[1])
     ) or '<div class="empty-state">No categorized exceptions.</div>'
+
+    cash_by_category_html = render_cash_by_category(by_category_value, by_category)
 
     report_info = parse_last_report()
     throughput_stat = ""
@@ -1063,6 +1119,7 @@ def render_overview() -> str:
       <div class="panel-head"><h2 style="margin:0">Exceptions by category</h2></div>
       <div class="panel-body"><div class="category-grid">{category_cards}</div></div>
     </div>
+    {cash_by_category_html}
     {render_cash_clarity(all_rows)}"""
     return render_shell("overview", "Overview", "", body)
 
