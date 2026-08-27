@@ -83,6 +83,32 @@ class TestRenderDonut(unittest.TestCase):
         self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
 
 
+class TestRenderPassBar(unittest.TestCase):
+    """Regression test for a real bug found live: this bar's middle bucket
+    was labeled "AI-assisted", the exact same word the Records page's own
+    status filter uses for a narrower, different thing -- literally only
+    the MATCHED_AI_ASSISTED status (which stays at 0 rows today, since
+    AUTO_APPLY_TRUSTED_TIERS is empty by design). This bucket also folds
+    in MATCHED_LOW_CONFIDENCE, so the bar showed a nonzero percentage
+    while filtering Records by "AI-assisted" showed zero rows -- looked
+    like a contradiction, not two different scopes sharing a label."""
+
+    def test_bucket_is_labeled_ai_touched_not_ai_assisted(self):
+        rows = [{"status": "MATCHED"}, {"status": "MATCHED_LOW_CONFIDENCE"}, {"status": "EXCEPTION"}]
+        html = review_server.render_pass_bar(rows)
+        self.assertIn("AI-touched", html)
+        self.assertNotIn("AI-assisted", html)
+
+    def test_bucket_includes_both_low_confidence_and_auto_applied(self):
+        rows = (
+            [{"status": "MATCHED"}] * 5
+            + [{"status": "MATCHED_LOW_CONFIDENCE"}] * 2
+            + [{"status": "MATCHED_AI_ASSISTED"}] * 1
+        )
+        html = review_server.render_pass_bar(rows)
+        self.assertIn("<b>38%</b>", html)  # 3 of 8 rows, matching the actual filterable statuses combined
+
+
 def make_row(status, category=None, resolution_status="OPEN", needs_action=None, **overrides):
     row = {
         "id": 1, "order_id": "order_1", "settlement_id": "setl_1", "net_amount": 100.0,

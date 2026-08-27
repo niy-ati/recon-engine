@@ -1416,7 +1416,18 @@ CATEGORY_LABELS = {
 # this stays a 3-bucket summary instead of repeating it.
 PASS_BUCKETS = [
     ("Deterministic", ["MATCHED", "MATCHED_WITH_VARIANCE", "MATCHED_EXACT_REFERENCE", "MATCHED_LEARNED_PATTERN"], "positive"),
-    ("AI-assisted", ["MATCHED_AI_ASSISTED", "MATCHED_LOW_CONFIDENCE"], "information"),
+    # Labeled "AI-touched", not "AI-assisted" -- a real bug, found live: the
+    # Records page's own status filter has a DIFFERENT, narrower
+    # "AI-assisted" option that matches only the literal MATCHED_AI_ASSISTED
+    # status (currently 0 rows, since AUTO_APPLY_TRUSTED_TIERS is empty by
+    # design -- see validation_gate.py). This bucket also includes
+    # MATCHED_LOW_CONFIDENCE (currently all 14 of this bucket's rows) --
+    # the arbiter proposed something but it was held for a human, not
+    # auto-applied. Using the same word "AI-assisted" for both looked like
+    # a contradiction: the bar shows a nonzero percentage here, but
+    # filtering Records by "AI-assisted" shows zero rows. Distinct wording
+    # makes clear this is a broader bucket than any single filterable status.
+    ("AI-touched", ["MATCHED_AI_ASSISTED", "MATCHED_LOW_CONFIDENCE"], "information"),
     ("Unresolved", ["EXCEPTION"], "negative"),
 ]
 
@@ -1554,7 +1565,7 @@ def render_donut(all_rows: list[dict]) -> str:
 
 def render_pass_bar(all_rows: list[dict]) -> str:
     """Collapses the 7-way status breakdown into 3 buckets -- deterministic,
-    AI-assisted, unresolved -- the comparison the pitch actually rests on.
+    AI-touched, unresolved -- the comparison the pitch actually rests on.
     The donut above already covers the granular view, so this earns its
     place by showing something the donut doesn't: how rarely the arbiter
     is needed at all."""
