@@ -633,6 +633,17 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     });
   }
 
+  var activeUtterance = null; // kept alive outside speak()'s own scope --
+                               // a real, well-documented Chrome bug: a
+                               // SpeechSynthesisUtterance with no
+                               // reference held anywhere but a function's
+                               // local variable can be garbage-collected
+                               // mid-speech, which silently stops playback
+                               // after just a couple of words with no
+                               // error event at all. This was mistaken
+                               // for a self-interrupt bug and "fixed"
+                               // twice on that theory before the actual
+                               // cause was found.
   function speak(text, onEnd) {
     if (!speechEnabled || !window.speechSynthesis) {
       if (onEnd) onEnd();
@@ -640,6 +651,7 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     }
     window.speechSynthesis.cancel();
     var utterance = new SpeechSynthesisUtterance(text);
+    activeUtterance = utterance;
     if (onEnd) utterance.addEventListener("end", onEnd);
     utterance.addEventListener("error", function () { if (onEnd) onEnd(); });
     window.speechSynthesis.speak(utterance);
@@ -999,11 +1011,25 @@ VOICE_AGENT_WIDGET = """
     }
   }
 
+  var activeUtterance = null; // kept alive outside speak()'s own scope --
+                               // a real, well-documented Chrome bug: a
+                               // SpeechSynthesisUtterance with no
+                               // reference held anywhere but a function's
+                               // local variable can be garbage-collected
+                               // mid-speech, silently stopping playback
+                               // after just a couple of words with no
+                               // error event at all. This was mistaken
+                               // for a self-interrupt bug and "fixed"
+                               // twice on that theory (the amplitude
+                               // threshold tuning, then the content-based
+                               // barge-in detection above) before the
+                               // actual cause was found.
   function speak(text, onEnd) {
     var myTurn = ++turnId;
     if (!window.speechSynthesis) { if (onEnd) onEnd(myTurn); return; }
     window.speechSynthesis.cancel();
     var utterance = new SpeechSynthesisUtterance(text);
+    activeUtterance = utterance;
     utterance.addEventListener("end", function () { if (onEnd) onEnd(myTurn); });
     utterance.addEventListener("error", function () { if (onEnd) onEnd(myTurn); });
     window.speechSynthesis.speak(utterance);
