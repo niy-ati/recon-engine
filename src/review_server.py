@@ -861,31 +861,46 @@ VOICE_AGENT_WIDGET = """
   for (var b = 0; b < WAVE_BAR_COUNT; b++) waveEl.appendChild(document.createElement("span"));
   var bars = waveEl.querySelectorAll("span");
 
-  var SILENCE_MS = 2000;
-  var VOLUME_THRESHOLD = 10; // 0-255 scale, average of getByteFrequencyData
+  var SILENCE_MS = 2000;          // pause length while listening that finalizes the question
+  var VOLUME_THRESHOLD = 10;      // 0-255 scale, average of getByteFrequencyData -- listening
+  var INTERRUPT_THRESHOLD = 34;   // higher bar while speaking -- must be a real, close voice to
+                                   // barge in, not the browser's own playback bleeding into the
+                                   // mic (echoCancellation below helps, but isn't perfect over
+                                   // speakers rather than headphones)
+  var INTERRUPT_GRACE_MS = 350;   // ignore the first moment of playback (its own onset click/pop)
 
-  var active = false;        // whole feature turned on, via the button click
+  var active = false;             // whole feature turned on, via the button click
+  var phase = "idle";             // "listening" | "thinking" | "speaking"
   var recognizer = null;
   var audioCtx = null;
   var analyser = null;
   var mediaStream = null;
   var rafId = null;
   var silenceTimer = null;
+  var turnId = 0;                 // invalidates a stale speak() onEnd after an interrupt
+  var speakingSince = 0;
   var transcript = "";
   var context = {};
 
-  function setState(state) {
+  function setPhase(next) {
+    phase = next;
     btn.classList.remove("listening", "thinking");
     waveEl.classList.remove("simulated");
-    if (state === "listening") { btn.classList.add("listening"); statusEl.textContent = "Listening\\u2026"; }
-    if (state === "thinking") { btn.classList.add("thinking"); statusEl.textContent = "Thinking\\u2026"; resetBars(); }
-    if (state === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); }
+    if (next === "listening") { btn.classList.add("listening"); statusEl.textContent = "Listening\\u2026"; }
+    if (next === "thinking") { btn.classList.add("thinking"); statusEl.textContent = "Thinking\\u2026"; resetBars(); }
+    if (next === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); speakingSince = Date.now(); }
   }
 
   function resetBars() {
     for (var i = 0; i < bars.length; i++) bars[i].style.height = "5px";
   }
 
+  // The mic stream and analyser are acquired once per session (on open)
+  // and stay alive across every turn -- listening, thinking, and
+  // speaking -- rather than being reacquired each turn. That's what
+  // makes barge-in possible: the analyser is already watching amplitude
+  // during "speaking", so an interruption can be noticed the instant it
+  // happens instead of only after the mic reopens.
   function stopAudioAnalysis() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
@@ -906,25 +921,36 @@ VOICE_AGENT_WIDGET = """
   }
 
   function speak(text, onEnd) {
-    if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
+    var myTurn = ++turnId;
+    if (!window.speechSynthesis) { if (onEnd) onEnd(myTurn); return; }
     window.speechSynthesis.cancel();
     var utterance = new SpeechSynthesisUtterance(text);
-    if (onEnd) utterance.addEventListener("end", onEnd);
-    utterance.addEventListener("error", function () { if (onEnd) onEnd(); });
+    utterance.addEventListener("end", function () { if (onEnd) onEnd(myTurn); });
+    utterance.addEventListener("error", function () { if (onEnd) onEnd(myTurn); });
     window.speechSynthesis.speak(utterance);
   }
 
+  // Interrupts a reply in progress the instant the user starts talking
+  // over it -- cancels the browser's speech immediately (not waiting for
+  // its own onEnd, which cancel() may or may not still fire depending on
+  // the browser) and starts listening for the new question right away.
+  function interrupt() {
+    turnId++; // any in-flight speak() onEnd for this turn is now stale and becomes a no-op
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    beginListening();
+  }
+
   function submit() {
-    stopAudioAnalysis();
+    clearTimeout(silenceTimer);
     if (recognizer) { try { recognizer.stop(); } catch (e) {} }
     var question = transcript.trim();
     transcript = "";
     if (!question) {
-      if (active) startListening();
+      beginListening();
       return;
     }
     transcriptEl.textContent = question;
-    setState("thinking");
+    setPhase("thinking");
     fetch("/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -934,19 +960,45 @@ VOICE_AGENT_WIDGET = """
       .then(function (data) {
         context = data.context || {};
         transcriptEl.textContent = data.answer;
-        setState("speaking");
-        speak(data.answer, function () { if (active) startListening(); else close(); });
+        setPhase("speaking");
+        speak(data.answer, function (myTurn) {
+          if (myTurn !== turnId) return; // superseded by an interrupt already
+          if (active) beginListening(); else close();
+        });
       })
       .catch(function () {
         transcriptEl.textContent = "Could not reach the server -- is review_server.py still running?";
-        if (active) startListening();
+        beginListening();
       });
   }
 
-  function startListening() {
+  // Restarts speech recognition for a fresh turn -- does NOT touch the
+  // mic stream or analyser, which stay open for the whole session once
+  // acquired in open().
+  function beginListening() {
+    if (!active) return;
     transcript = "";
-    setState("listening");
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+    setPhase("listening");
+    recognizer = new SpeechRecognitionApi();
+    recognizer.lang = "en-US";
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+    recognizer.addEventListener("result", function (e) {
+      var text = "";
+      for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+      transcript = text;
+      if (text.trim()) transcriptEl.textContent = text;
+    });
+    recognizer.addEventListener("end", function () {
+      if (active && phase === "listening") { try { recognizer.start(); } catch (e) {} }
+    });
+    try { recognizer.start(); } catch (e) {}
+  }
+
+  function acquireMicAndStartAnalysis() {
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true }
+    }).then(function (stream) {
       if (!active) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
       mediaStream = stream;
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -961,32 +1013,21 @@ VOICE_AGENT_WIDGET = """
         analyser.getByteFrequencyData(data);
         renderBars(data);
         var avg = data.reduce(function (a, b) { return a + b; }, 0) / data.length;
-        if (avg > VOLUME_THRESHOLD) {
+        if (phase === "listening" && avg > VOLUME_THRESHOLD) {
           clearTimeout(silenceTimer);
           silenceTimer = setTimeout(submit, SILENCE_MS);
+        } else if (phase === "speaking" && avg > INTERRUPT_THRESHOLD &&
+                   Date.now() - speakingSince > INTERRUPT_GRACE_MS) {
+          interrupt();
         }
         rafId = requestAnimationFrame(tick);
       }
       tick();
+      beginListening();
     }).catch(function () {
       active = false;
       close();
     });
-
-    recognizer = new SpeechRecognitionApi();
-    recognizer.lang = "en-US";
-    recognizer.continuous = true;
-    recognizer.interimResults = true;
-    recognizer.addEventListener("result", function (e) {
-      var text = "";
-      for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
-      transcript = text;
-      if (text.trim()) transcriptEl.textContent = text;
-    });
-    recognizer.addEventListener("end", function () {
-      if (active && analyser) { try { recognizer.start(); } catch (e) {} }
-    });
-    try { recognizer.start(); } catch (e) {}
   }
 
   function open() {
@@ -997,6 +1038,7 @@ VOICE_AGENT_WIDGET = """
 
   function close() {
     active = false;
+    turnId++;
     panel.hidden = true;
     btn.classList.remove("open", "listening", "thinking");
     waveEl.classList.remove("simulated");
@@ -1010,7 +1052,7 @@ VOICE_AGENT_WIDGET = """
     if (active) { close(); return; }
     active = true;
     open();
-    startListening();
+    acquireMicAndStartAnalysis();
   });
   closeBtn.addEventListener("click", close);
 })();

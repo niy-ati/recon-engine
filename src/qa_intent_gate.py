@@ -47,7 +47,21 @@ def route_gated(question: str) -> str | None:
     through settlement_qa.py's deterministic path, or None if nothing
     should be trusted -- Ollama unreachable, low confidence, an
     "unknown" classification, or (today, always) an untrusted tier.
-    Never returns a guess."""
+    Never returns a guess.
+
+    Skips the Ollama call entirely when TRUSTED_TIERS is empty, rather
+    than making the real network round-trip and discarding its result --
+    a real latency bug, found live: with nothing on the trusted list, no
+    result from any tier could ever pass the check below regardless of
+    what the model says, so the call was pure wasted time (2-5s warm, up
+    to ~80s cold per llm_matcher.py's own docs) on every question that
+    missed the deterministic keyword match above it. That became
+    painfully visible once questions started arriving as natural speech
+    instead of typed text -- spoken phrasing rarely matches a keyword
+    shape, so this fallback fired on nearly every voice turn. Behavior is
+    identical either way; this only removes the pointless wait."""
+    if not TRUSTED_TIERS:
+        return None
     routed = qa_intent_router.route(question)
     if routed is None:
         return None
