@@ -94,11 +94,11 @@ class TestOrderLookup(SettlementQaTestCase):
 class TestCategoryCount(SettlementQaTestCase):
     def test_duplicate_count_matches_real_data(self):
         result = qa.answer("how many DUPLICATE exceptions")
-        self.assertIn("2 row(s)", result)
+        self.assertIn("2 rows", result)
 
     def test_on_hold_phrasing_variant(self):
         result = qa.answer("what's on hold right now")
-        self.assertIn("1 settlement(s) on hold", result)
+        self.assertIn("1 settlement on hold", result)
 
     def test_category_name_alone_is_not_treated_as_a_count_request(self):
         """Regression test for a live bug: merely mentioning a category
@@ -130,10 +130,10 @@ class TestCategoryCount(SettlementQaTestCase):
         survive (checked against db.get_open_exceptions() directly, not a
         hand-picked number), not get replaced by a bogus, always-zero
         ROUNDING-scoped one -- there is no ROUNDING row in this fixture at
-        all, so the bug's old answer would have been "0 row(s)"."""
+        all, so the bug's old answer would have been "0 rows"."""
         expected = len(db.get_open_exceptions())
         result = qa.answer("how many exceptions are surrounding this batch, in general")
-        self.assertIn(f"{expected} row(s)", result)
+        self.assertIn(qa._plural(expected, "row"), result)
         self.assertNotIn("ROUNDING", result)
 
 
@@ -141,7 +141,7 @@ class TestOpenCount(SettlementQaTestCase):
     def test_open_count_matches_needs_action_rows(self):
         result = qa.answer("how many are open")
         expected = len(db.get_open_exceptions())
-        self.assertIn(f"{expected} row(s)", result)
+        self.assertIn(qa._plural(expected, "row"), result)
 
     def test_natural_phrasing_variants_are_recognized(self):
         """Regression test for a real bug found live over voice: natural
@@ -155,7 +155,7 @@ class TestOpenCount(SettlementQaTestCase):
         ):
             with self.subTest(phrasing=phrasing):
                 result = qa.answer(phrasing)
-                self.assertIn(f"{expected} row(s)", result)
+                self.assertIn(qa._plural(expected, "row"), result)
 
 
 class TestResolutionRate(SettlementQaTestCase):
@@ -277,14 +277,14 @@ class TestResolutionGuidance(SettlementQaTestCase):
 
     def test_why_question_for_explicit_category_gets_real_guidance(self):
         """Regression test for a live bug: "why u think tehy are duplicate"
-        used to get answered "11 row(s) categorized as DUPLICATE" by
+        used to get answered "11 rows categorized as DUPLICATE" by
         _category_count, since it happens to mention the category name --
         not an answer to "why" at all. "why" is now a resolution-question
         trigger, so this routes to the real CATEGORY_GUIDANCE text, which
         already opens with what the category means."""
         result = qa.answer("why u think tehy are duplicate")
         self.assertIn("excluded from cash totals", result)
-        self.assertNotIn("row(s) categorized as", result)
+        self.assertNotIn("categorized as", result)
 
     def test_bare_why_follow_up_uses_context_category(self):
         _, ctx = qa.answer_with_context("list DUPLICATE orders")
@@ -316,7 +316,7 @@ class TestSimilarOrders(SettlementQaTestCase):
         """order_2 and order_3 are both DUPLICATE in the shared fixture."""
         result = qa.answer("any similar orders to order_2")
         self.assertIn("order_3", result)
-        self.assertIn("1 other row(s) share that exact category", result)
+        self.assertIn("1 other row shares that exact category", result)
 
     def test_no_match_is_reported_honestly_not_guessed(self):
         """order_1 has no category and no narration -- nothing to match on,
@@ -385,7 +385,7 @@ class TestCategoryList(SettlementQaTestCase):
         result = qa.answer("list DUPLICATE orders")
         self.assertIn("order_2", result)
         self.assertIn("order_3", result)
-        self.assertIn("2 row(s)", result)
+        self.assertIn("2 rows", result)
 
     def test_which_orders_phrasing_also_triggers_a_list(self):
         result = qa.answer("which orders are ON_HOLD_BY_RAZORPAY")
@@ -396,7 +396,7 @@ class TestCategoryList(SettlementQaTestCase):
         not change the existing count-only answer for the original
         phrasing this function already had a test for."""
         result = qa.answer("how many DUPLICATE exceptions")
-        self.assertIn("2 row(s)", result)
+        self.assertIn("2 rows", result)
         self.assertNotIn("order_2", result)
 
     def test_list_of_empty_category_is_honest_not_fabricated(self):
@@ -426,13 +426,13 @@ class TestResolutionStatusCount(SettlementQaTestCase):
         row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_2"][0]["id"]
         db.resolve_exception(row_id, "confirm")
         result = qa.answer("how many have been confirmed")
-        self.assertIn("1 row(s) have been confirmed", result)
+        self.assertIn("1 row has been confirmed", result)
 
     def test_rejected_count(self):
         row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_3"][0]["id"]
         db.resolve_exception(row_id, "reject")
         result = qa.answer("how many rejected")
-        self.assertIn("1 row(s) have been rejected", result)
+        self.assertIn("1 row has been rejected", result)
 
     def test_natural_phrasing_variants_are_recognized(self):
         """Regression test for a real bug found live over voice: natural
@@ -442,7 +442,7 @@ class TestResolutionStatusCount(SettlementQaTestCase):
         row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_2"][0]["id"]
         db.resolve_exception(row_id, "confirm")
         result = qa.answer("how many have i confirmed so far")
-        self.assertIn("1 row(s) have been confirmed", result)
+        self.assertIn("1 row has been confirmed", result)
 
     def test_needs_clarification_count_is_open_rows_with_a_note(self):
         """"Needs clarification" isn't a resolution_status value in the
@@ -452,11 +452,11 @@ class TestResolutionStatusCount(SettlementQaTestCase):
         row_id = [r for r in db.get_all_exceptions() if r["order_id"] == "order_4"][0]["id"]
         db.add_note(row_id, "waiting on merchant reply")
         result = qa.answer("how many rows need clarification")
-        self.assertIn("1 row(s) are still open with a clarification note", result)
+        self.assertIn("1 row is still open with a clarification note", result)
 
     def test_zero_confirmed_is_reported_honestly(self):
         result = qa.answer("how many have been confirmed")
-        self.assertIn("0 row(s) have been confirmed", result)
+        self.assertIn("0 rows have been confirmed", result)
 
 
 class TestCashValue(SettlementQaTestCase):
@@ -506,9 +506,9 @@ class TestBatchSummary(SettlementQaTestCase):
         pct = round(100 * resolved / len(rows), 1)
         open_rows = db.get_open_exceptions()
         result = qa.answer("give me an overview of this batch")
-        self.assertIn(f"{len(rows)} row(s) in this batch", result)
+        self.assertIn(f"{qa._plural(len(rows), 'row')} in this batch", result)
         self.assertIn(f"{pct}% resolved", result)
-        self.assertIn(f"{len(open_rows)} row(s) still need a decision", result)
+        self.assertIn(f"{qa._plural(len(open_rows), 'row')} still need a decision", result)
 
     def test_summary_matches_compute_cash_clarity_directly(self):
         """Composed from the same function the cash-position handler and
@@ -543,9 +543,9 @@ class TestStatusBreakdown(SettlementQaTestCase):
 class TestBatchTotals(SettlementQaTestCase):
     def test_settlement_count_matches_real_data(self):
         result = qa.answer("how many settlements are in this batch")
-        self.assertIn("5 row(s)", result)
-        self.assertIn("5 distinct order(s)", result)
-        self.assertIn("5 settlement(s)", result)
+        self.assertIn("5 rows", result)
+        self.assertIn("5 orders", result)
+        self.assertIn("5 settlements", result)
 
     def test_total_value_is_the_whole_batch_not_just_exceptions(self):
         """Distinct from _cash_value's "cash position"/"at risk" scope,

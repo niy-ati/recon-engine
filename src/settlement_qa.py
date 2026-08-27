@@ -215,76 +215,58 @@ PROJECT_KNOWLEDGE = [
         ("why not llm", "why not use an llm", "why not just use ai", "why not ai",
          "why isn't this an llm", "why isn't this just an llm", "why not gpt",
          "why deterministic", "why not generative", "why not use a model for everything"),
-        "This system deliberately avoids letting a model author financial "
-        "facts. Matching is deterministic first -- bank UTR, then order ID, "
-        "then a learned pattern a human already confirmed -- and the one "
-        "place a model touches anything is a narrow tie-break on an "
-        "already-shortlisted candidate, gated at 90 percent confidence and "
-        "never auto-applied. Testing the real local model found it reports "
-        "high confidence even when it picks the wrong candidate, so its "
-        "output is always routed to a human, never trusted outright."
+        "Matching is deterministic, not model-generated -- bank UTR, then "
+        "order ID, then a learned pattern. The one place a model touches "
+        "anything is a narrow tie-break, gated at 90 percent confidence and "
+        "never auto-applied, because testing found it can be confidently "
+        "wrong."
     ),
     (
         ("what model", "which model", "what's ollama", "what is ollama",
          "tell me about ollama", "do you use gpt", "what ai do you use"),
-        "Ollama, running qwen2.5:0.5b locally, handles exactly one narrow "
-        "job: picking which order a fuzzy-matched candidate most likely "
-        "belongs to, after every deterministic pass has already failed. It "
-        "never writes a category, a reason, or an answer, and its result is "
-        "never auto-applied regardless of reported confidence -- testing "
-        "found it can be just as confident when wrong as when right. No "
-        "paid API key is used anywhere in this system."
+        "A local Ollama model, qwen2.5:0.5b, handles one narrow job: "
+        "picking which order a fuzzy match most likely belongs to, after "
+        "every deterministic pass fails. Its result is never auto-applied "
+        "-- no paid API key is used anywhere."
     ),
     (
         ("what's the architecture", "what is the architecture", "how does this work",
          "how does this system work", "explain the architecture", "walk me through the architecture",
          "tech stack", "what's the tech stack"),
         "Settlements are matched in passes, cheapest and most certain "
-        "first: exact bank UTR, then order ID against the ledger, then a "
-        "memory of narration patterns a human already confirmed, then an "
-        "unambiguous digit reference, then fuzzy narrowing, and only as a "
-        "last resort a confidence-gated model tie-break. Every outcome, "
-        "human or automated, is written to a persistent SQLite audit "
-        "trail. The core pipeline and review server run on pure Python "
-        "standard library, no external framework."
+        "first: bank UTR, then order ID, then learned patterns, then "
+        "fuzzy narrowing, and only as a last resort a gated model "
+        "tie-break. Every outcome is written to a persistent audit trail, "
+        "built on pure Python standard library."
     ),
     (
         ("what's your accuracy", "what is your accuracy", "resolution rate baseline",
          "what metrics", "what are your metrics", "how accurate is this",
          "what's the baseline", "compared to manual", "how much better than manual"),
-        "Manual settlement reconciliation with a spreadsheet typically "
-        "clears about 51 percent of rows. This engine resolves 90.5 "
-        "percent with zero human input on a real 514-row batch, with "
-        "another slice held for a one-click human confirm rather than "
-        "counted as automatically resolved. Re-tested across five "
-        "different random batches, it held between 87 and 91 percent "
-        "every time, not just on one tuned example."
+        "Manual reconciliation typically clears about 51 percent of rows. "
+        "This engine resolves 90.5 percent with zero human input on a "
+        "real 514-row batch, holding between 87 and 91 percent across "
+        "five different re-tested batches."
     ),
     (
         ("tell me about slash", "what's slash", "what is slash", "the slash agent",
          "your research", "what did your research find", "differentiator",
          "what makes this different", "what's the differentiator"),
-        "The research behind this build traced a real internal Razorpay "
-        "thread about an AI agent called Slash, where two senior "
-        "engineers raised the same concern from different angles: "
-        "correlated failure modes across an agent's actions, and the need "
-        "for a pre-execution enforcement layer deciding what's allowed to "
-        "run before it runs, not just logging after the fact. This "
-        "system's validation gate is exactly that -- nothing a model "
-        "proposes is ever auto-applied unless a specific, proven "
+        "Research traced a real internal Razorpay thread about an AI "
+        "agent called Slash, where engineers raised the need for a "
+        "pre-execution enforcement layer deciding what's allowed to run "
+        "before it runs. This system's validation gate is exactly that -- "
+        "nothing a model proposes auto-applies unless a proven "
         "trustworthy tier is explicitly allow-listed, and today that list "
         "is empty by design."
     ),
     (
         ("why not improve an existing agent", "why not a bigger ai system",
          "why build this instead", "why this and not"),
-        "Razorpay's own Bookkeeping Agent already posts entries based on "
+        "Razorpay's own Bookkeeping Agent posts entries based on "
         "predefined rules, which by definition can't resolve an exception "
-        "that doesn't match any rule -- a narration worded differently "
-        "across systems, a genuinely ambiguous settlement, a variance "
-        "that needs a plain-English explanation before a human can act. "
-        "This system is built as the residual layer underneath that gap, "
-        "not a replacement for it."
+        "no rule matches. This system is built as the residual layer "
+        "underneath that gap, not a replacement for it."
     ),
 ]
 
@@ -378,6 +360,13 @@ def _extract_category(question: str) -> str | None:
     return None
 
 
+def _plural(count: int, word: str) -> str:
+    """"1 row" / "5 rows" -- not the "row(s)" placeholder every count used
+    to read out as literally, which is fine written down but awkward and
+    unnatural spoken aloud over voice."""
+    return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
 def _find_order(order_id: str) -> str:
     """Includes each row's net_amount -- a real bug, found live: a money
     question naming a specific order ("how much money is stuck in
@@ -390,7 +379,7 @@ def _find_order(order_id: str) -> str:
     if not rows:
         return f"No record of {order_id} in the last reconciliation run."
 
-    lines = [f"{order_id}: {len(rows)} row(s) found."]
+    lines = [f"{order_id}: {_plural(len(rows), 'row')} found."]
     for r in rows:
         amount = f" net=Rs.{r['net_amount']:,.2f}" if r["net_amount"] is not None else ""
         lines.append(
@@ -414,7 +403,7 @@ def _find_settlement(settlement_id: str) -> str:
     if not rows:
         return f"No record of {settlement_id} in the last reconciliation run."
 
-    lines = [f"{settlement_id}: {len(rows)} row(s) found."]
+    lines = [f"{settlement_id}: {_plural(len(rows), 'row')} found."]
     for r in rows:
         amount = f" net=Rs.{r['net_amount']:,.2f}" if r["net_amount"] is not None else ""
         lines.append(
@@ -457,7 +446,7 @@ def _category_count(question: str) -> str | None:
         order_ids = [r["order_id"] for r in matching if r["order_id"]]
         shown = order_ids[:15]
         more = f", and {len(order_ids) - 15} more" if len(order_ids) > 15 else ""
-        return f"{len(matching)} row(s) categorized as {category}: {', '.join(shown)}{more}."
+        return f"{_plural(len(matching), 'row')} categorized as {category}: {', '.join(shown)}{more}."
 
     # wants_count gates BOTH branches below -- the ON_HOLD_BY_RAZORPAY one
     # used to fire on "on hold" alone with no count check at all, a real
@@ -479,8 +468,8 @@ def _category_count(question: str) -> str | None:
         return None
 
     if category == "ON_HOLD_BY_RAZORPAY":
-        return f"{len(matching)} settlement(s) on hold (ON_HOLD_BY_RAZORPAY)."
-    return f"{len(matching)} row(s) categorized as {category}."
+        return f"{_plural(len(matching), 'settlement')} on hold (ON_HOLD_BY_RAZORPAY)."
+    return f"{_plural(len(matching), 'row')} categorized as {category}."
 
 
 def _resolution_status_count(question: str) -> str | None:
@@ -502,15 +491,18 @@ def _resolution_status_count(question: str) -> str | None:
 
     if wants_count and "confirm" in ql:
         count = sum(1 for r in rows if r["resolution_status"] == "CONFIRMED")
-        return f"{count} row(s) have been confirmed by a human reviewer."
+        verb = "has" if count == 1 else "have"
+        return f"{_plural(count, 'row')} {verb} been confirmed by a human reviewer."
 
     if wants_count and "reject" in ql:
         count = sum(1 for r in rows if r["resolution_status"] == "REJECTED")
-        return f"{count} row(s) have been rejected by a human reviewer."
+        verb = "has" if count == 1 else "have"
+        return f"{_plural(count, 'row')} {verb} been rejected by a human reviewer."
 
     if any(kw in ql for kw in ("need clarification", "needs clarification", "have a note", "with a note", "clarification note")):
         count = sum(1 for r in rows if r["resolution_status"] == "OPEN" and r.get("resolution_note"))
-        return f"{count} row(s) are still open with a clarification note attached."
+        verb = "is" if count == 1 else "are"
+        return f"{_plural(count, 'row')} {verb} still open with a clarification note attached."
 
     return None
 
@@ -560,7 +552,7 @@ def _open_count(question: str) -> str | None:
     ))
     if "how many" in ql and open_signal:
         open_rows = db.get_open_exceptions()
-        return f"{len(open_rows)} row(s) currently open, needing a decision."
+        return f"{_plural(len(open_rows), 'row')} currently open, needing a decision."
     return None
 
 
@@ -627,8 +619,8 @@ def _batch_summary(question: str) -> str | None:
     top_cats = ", ".join(f"{cat} ({n})" for cat, n in sorted(cats.items(), key=lambda kv: -kv[1])[:3])
 
     lines = [
-        f"{len(rows)} row(s) in this batch, {pct}% resolved ({resolved} of {len(rows)}).",
-        f"{len(open_rows)} row(s) still need a decision.",
+        f"{_plural(len(rows), 'row')} in this batch, {pct}% resolved ({resolved} of {len(rows)}).",
+        f"{_plural(len(open_rows), 'row')} still need a decision.",
         f"Rs.{clarity['at_risk']:,.2f} touched some exception or variance path -- "
         f"Rs.{clarity['resolved']:,.2f} resolved, Rs.{clarity['pending_review']:,.2f} pending review, "
         f"Rs.{clarity['still_open']:,.2f} still open.",
@@ -690,12 +682,12 @@ def _batch_totals(question: str) -> str | None:
     distinct_settlements = len({r["settlement_id"] for r in rows if r["settlement_id"]})
 
     if total_value_signal and not count_signal:
-        return f"Rs.{total_value:,.2f} total across {len(rows)} row(s) in this batch."
+        return f"Rs.{total_value:,.2f} total across {_plural(len(rows), 'row')} in this batch."
     if count_signal and not total_value_signal:
-        return (f"{len(rows)} row(s) in this batch, covering {distinct_orders} distinct "
-                f"order(s) and {distinct_settlements} settlement(s).")
-    return (f"{len(rows)} row(s) in this batch ({distinct_orders} order(s), "
-            f"{distinct_settlements} settlement(s)) totaling Rs.{total_value:,.2f}.")
+        return (f"{_plural(len(rows), 'row')} in this batch, covering "
+                f"{_plural(distinct_orders, 'order')} and {_plural(distinct_settlements, 'settlement')}.")
+    return (f"{_plural(len(rows), 'row')} in this batch ({_plural(distinct_orders, 'order')}, "
+            f"{_plural(distinct_settlements, 'settlement')}) totaling Rs.{total_value:,.2f}.")
 
 
 def _extreme_amount(question: str) -> str | None:
@@ -827,7 +819,8 @@ def _similar_orders(question: str, context: dict | None) -> str | None:
     if same_category:
         shown = same_category[:5]
         more = f", and {len(same_category) - 5} more" if len(same_category) > 5 else ""
-        lines.append(f"{len(same_category)} other row(s) share that exact category: {', '.join(shown)}{more}.")
+        verb = "shares" if len(same_category) == 1 else "share"
+        lines.append(f"{_plural(len(same_category), 'other row')} {verb} that exact category: {', '.join(shown)}{more}.")
     if narration_matches:
         lines.append(f"Narration wording is closely similar to: {', '.join(narration_matches)}.")
     return "\n".join(lines)
