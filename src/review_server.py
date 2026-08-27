@@ -485,40 +485,60 @@ PAGE_STYLE = """
 
   /* --------------------------------------------------- Global voice agent */
   /* Persistent, site-wide -- lives in every page's shell, not just inside
-     the chat panel, so it's reachable without opening anything. */
+     the chat panel, so it's reachable without opening anything. Same
+     brand blue and elevation language as the chat toggle, so it reads as
+     part of the same product, not a bolted-on widget. */
   #voice-agent-btn {
     position:fixed; top:var(--sp-7); right:var(--sp-8); z-index:60;
-    width:52px; height:52px; border-radius:50%; border:1px solid var(--border-subtle);
-    background:var(--panel); color:var(--primary-strong); cursor:pointer;
-    display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-mid);
-    transition:box-shadow 0.18s, background 0.18s, color 0.18s;
+    display:flex; align-items:center; gap:10px; border:none; cursor:pointer;
+    padding:8px 18px 8px 8px; border-radius:var(--radius-pill);
+    background:var(--primary); color:#fff; box-shadow:0 8px 20px -6px var(--primary-glow);
+    font-family:var(--font); font-size:13.5px; font-weight:700; letter-spacing:0.01em;
+    transition:box-shadow 0.18s, transform 0.18s;
   }
-  #voice-agent-btn:hover { box-shadow:var(--shadow-high); }
-  #voice-agent-btn svg { width:21px; height:21px; }
-  #voice-agent-btn.listening {
-    background:var(--primary); color:#fff; border-color:transparent;
-    animation:voice-pulse-ring 1.6s ease-out infinite;
+  #voice-agent-btn:hover { box-shadow:0 10px 26px -6px var(--primary-glow); transform:translateY(-1px); }
+  #voice-agent-btn .voice-agent-icon-wrap {
+    width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.22);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
   }
-  #voice-agent-btn.thinking { background:var(--notice); color:#fff; border-color:transparent; }
+  #voice-agent-btn svg { width:16px; height:16px; }
+  #voice-agent-btn.listening { animation:voice-pulse-ring 1.6s ease-out infinite; }
+  #voice-agent-btn.thinking { background:var(--notice); box-shadow:0 8px 20px -6px hsla(25,100%,44%,0.35); }
+  #voice-agent-btn.open .voice-agent-icon-wrap { background:rgba(255,255,255,0.32); }
   @keyframes voice-pulse-ring {
     0% { box-shadow:0 0 0 0 var(--primary-glow); }
     100% { box-shadow:0 0 0 16px hsla(204,100%,50%,0); }
   }
-  .voice-bars { display:flex; align-items:center; justify-content:center; gap:3px; height:22px; }
-  .voice-bars span { width:3px; background:#fff; border-radius:2px; height:6px; transition:height 0.08s ease-out; }
 
-  .voice-agent-response {
-    position:fixed; top:84px; right:var(--sp-8); z-index:60; width:290px;
+  /* The interactive panel a click opens -- stays open through listening,
+     thinking, and speaking, updating live rather than only appearing
+     after the fact. */
+  .voice-agent-panel {
+    position:fixed; top:80px; right:var(--sp-8); z-index:60; width:300px;
     background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l);
-    box-shadow:var(--shadow-high); padding:var(--sp-6); font-size:13px; animation:chat-msg-in 0.2s ease-out;
+    box-shadow:var(--shadow-high); overflow:hidden; animation:chat-msg-in 0.2s ease-out;
   }
-  .voice-agent-response .voice-agent-q { color:var(--muted); font-style:italic; margin:0 var(--sp-6) var(--sp-3) 0; }
-  .voice-agent-response .voice-agent-a { color:var(--ink); line-height:1.5; white-space:pre-wrap; }
-  .voice-agent-close {
-    position:absolute; top:6px; right:8px; background:none; border:none; color:var(--faint);
-    cursor:pointer; font-size:17px; line-height:1; padding:4px;
-  }
-  .voice-agent-close:hover { color:var(--muted); }
+  .voice-agent-panel-head { display:flex; align-items:center; gap:8px; padding:12px 8px 12px 16px; background:var(--primary-faint); border-bottom:1px solid var(--border-subtle); }
+  .voice-agent-panel-title { font-family:var(--font-heading); font-weight:700; font-size:13.5px; color:var(--primary-strong); }
+  .voice-agent-panel-status { font-size:11.5px; font-weight:600; color:var(--muted); margin-left:auto; }
+  #voice-agent-close { background:none; border:none; color:var(--faint); cursor:pointer; font-size:17px; line-height:1; padding:6px; }
+  #voice-agent-close:hover { color:var(--muted); }
+
+  /* Google-Assistant-style vertical bar waveform -- real amplitude data
+     while listening (Web Audio API AnalyserNode on the mic stream), a
+     staggered CSS animation while speaking (browser TTS output has no
+     accessible amplitude signal to read from). */
+  .voice-agent-wave { display:flex; align-items:center; justify-content:center; gap:2.5px; height:56px; padding:0 14px; background:var(--bg); }
+  .voice-agent-wave span { width:3px; border-radius:2px; background:var(--primary); height:5px; transition:height 0.08s ease-out; }
+  .voice-agent-wave.simulated span { animation:voice-wave-simulated 0.9s ease-in-out infinite; background:var(--information); }
+  .voice-agent-wave.simulated span:nth-child(2n) { animation-delay:0.08s; }
+  .voice-agent-wave.simulated span:nth-child(3n) { animation-delay:0.16s; }
+  .voice-agent-wave.simulated span:nth-child(4n) { animation-delay:0.24s; }
+  .voice-agent-wave.simulated span:nth-child(5n) { animation-delay:0.12s; }
+  .voice-agent-wave.simulated span:nth-child(7n) { animation-delay:0.3s; }
+  @keyframes voice-wave-simulated { 0%, 100% { height:5px; } 50% { height:32px; } }
+
+  .voice-agent-transcript { padding:12px 16px 14px; font-size:12.5px; color:var(--ink); line-height:1.55; white-space:pre-wrap; max-height:180px; overflow-y:auto; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition:none !important; animation:none !important; }
@@ -804,19 +824,23 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
 # nothing new server-side, no cloud call, nothing sent anywhere beyond
 # this browser's own built-in speech APIs.
 VOICE_AGENT_WIDGET = """
-<button id="voice-agent-btn" aria-label="Ask by voice" title="Ask by voice" hidden>
-  <svg id="voice-agent-mic-icon" viewBox="0 0 24 24" fill="none">
-    <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.7"/>
-    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-  </svg>
-  <div id="voice-agent-bars" class="voice-bars" hidden>
-    <span></span><span></span><span></span><span></span><span></span>
-  </div>
+<button id="voice-agent-btn" aria-label="Voice Agent" title="Voice Agent" hidden>
+  <span class="voice-agent-icon-wrap">
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+  </span>
+  <span class="voice-agent-label">Voice Agent</span>
 </button>
-<div id="voice-agent-response" class="voice-agent-response" hidden>
-  <button type="button" id="voice-agent-close" class="voice-agent-close" aria-label="Dismiss">&times;</button>
-  <div class="voice-agent-q" id="voice-agent-q"></div>
-  <div class="voice-agent-a" id="voice-agent-a"></div>
+<div id="voice-agent-panel" class="voice-agent-panel" hidden>
+  <div class="voice-agent-panel-head">
+    <span class="voice-agent-panel-title">Voice Agent</span>
+    <span class="voice-agent-panel-status" id="voice-agent-status">Listening&hellip;</span>
+    <button type="button" id="voice-agent-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="voice-agent-wave" id="voice-agent-wave"></div>
+  <div class="voice-agent-transcript" id="voice-agent-transcript">Say something -- ask about an order, a settlement, or how much is at risk.</div>
 </div>
 <script>
 (function () {
@@ -826,14 +850,16 @@ VOICE_AGENT_WIDGET = """
   if (!SpeechRecognitionApi || !hasAudioApi) return;
 
   var btn = document.getElementById("voice-agent-btn");
-  var micIcon = document.getElementById("voice-agent-mic-icon");
-  var bars = document.getElementById("voice-agent-bars").querySelectorAll("span");
-  var barsWrap = document.getElementById("voice-agent-bars");
-  var responseCard = document.getElementById("voice-agent-response");
-  var qEl = document.getElementById("voice-agent-q");
-  var aEl = document.getElementById("voice-agent-a");
+  var panel = document.getElementById("voice-agent-panel");
+  var statusEl = document.getElementById("voice-agent-status");
+  var waveEl = document.getElementById("voice-agent-wave");
+  var transcriptEl = document.getElementById("voice-agent-transcript");
   var closeBtn = document.getElementById("voice-agent-close");
   btn.hidden = false;
+
+  var WAVE_BAR_COUNT = 24;
+  for (var b = 0; b < WAVE_BAR_COUNT; b++) waveEl.appendChild(document.createElement("span"));
+  var bars = waveEl.querySelectorAll("span");
 
   var SILENCE_MS = 2000;
   var VOLUME_THRESHOLD = 10; // 0-255 scale, average of getByteFrequencyData
@@ -850,10 +876,14 @@ VOICE_AGENT_WIDGET = """
 
   function setState(state) {
     btn.classList.remove("listening", "thinking");
-    if (state === "listening") btn.classList.add("listening");
-    if (state === "thinking") btn.classList.add("thinking");
-    micIcon.hidden = state === "listening";
-    barsWrap.hidden = state !== "listening";
+    waveEl.classList.remove("simulated");
+    if (state === "listening") { btn.classList.add("listening"); statusEl.textContent = "Listening\\u2026"; }
+    if (state === "thinking") { btn.classList.add("thinking"); statusEl.textContent = "Thinking\\u2026"; resetBars(); }
+    if (state === "speaking") { statusEl.textContent = "Speaking\\u2026"; waveEl.classList.add("simulated"); }
+  }
+
+  function resetBars() {
+    for (var i = 0; i < bars.length; i++) bars[i].style.height = "5px";
   }
 
   function stopAudioAnalysis() {
@@ -868,17 +898,11 @@ VOICE_AGENT_WIDGET = """
   }
 
   function renderBars(freqData) {
-    var step = Math.floor(freqData.length / bars.length);
+    var step = Math.floor(freqData.length / bars.length) || 1;
     for (var i = 0; i < bars.length; i++) {
       var v = freqData[i * step] || 0;
-      bars[i].style.height = Math.max(6, Math.min(22, 6 + (v / 255) * 16)) + "px";
+      bars[i].style.height = Math.max(5, Math.min(44, 5 + (v / 255) * 40)) + "px";
     }
-  }
-
-  function showResponse(question, answer) {
-    qEl.textContent = question;
-    aEl.textContent = answer;
-    responseCard.hidden = false;
   }
 
   function speak(text, onEnd) {
@@ -899,6 +923,7 @@ VOICE_AGENT_WIDGET = """
       if (active) startListening();
       return;
     }
+    transcriptEl.textContent = question;
     setState("thinking");
     fetch("/ask", {
       method: "POST",
@@ -908,11 +933,12 @@ VOICE_AGENT_WIDGET = """
       .then(function (r) { return r.json(); })
       .then(function (data) {
         context = data.context || {};
-        showResponse(question, data.answer);
-        speak(data.answer, function () { if (active) startListening(); else setState("idle"); });
+        transcriptEl.textContent = data.answer;
+        setState("speaking");
+        speak(data.answer, function () { if (active) startListening(); else close(); });
       })
       .catch(function () {
-        showResponse(question, "Could not reach the server -- is review_server.py still running?");
+        transcriptEl.textContent = "Could not reach the server -- is review_server.py still running?";
         if (active) startListening();
       });
   }
@@ -944,7 +970,7 @@ VOICE_AGENT_WIDGET = """
       tick();
     }).catch(function () {
       active = false;
-      setState("idle");
+      close();
     });
 
     recognizer = new SpeechRecognitionApi();
@@ -955,6 +981,7 @@ VOICE_AGENT_WIDGET = """
       var text = "";
       for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
       transcript = text;
+      if (text.trim()) transcriptEl.textContent = text;
     });
     recognizer.addEventListener("end", function () {
       if (active && analyser) { try { recognizer.start(); } catch (e) {} }
@@ -962,24 +989,30 @@ VOICE_AGENT_WIDGET = """
     try { recognizer.start(); } catch (e) {}
   }
 
-  function stopEverything() {
+  function open() {
+    panel.hidden = false;
+    btn.classList.add("open");
+    transcriptEl.textContent = "Say something -- ask about an order, a settlement, or how much is at risk.";
+  }
+
+  function close() {
     active = false;
+    panel.hidden = true;
+    btn.classList.remove("open", "listening", "thinking");
+    waveEl.classList.remove("simulated");
+    resetBars();
     stopAudioAnalysis();
     if (recognizer) { try { recognizer.stop(); } catch (e) {} }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
-    setState("idle");
   }
 
   btn.addEventListener("click", function () {
-    if (active) {
-      stopEverything();
-      return;
-    }
+    if (active) { close(); return; }
     active = true;
-    responseCard.hidden = true;
+    open();
     startListening();
   });
-  closeBtn.addEventListener("click", function () { responseCard.hidden = true; });
+  closeBtn.addEventListener("click", close);
 })();
 </script>
 """
