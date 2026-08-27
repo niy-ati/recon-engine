@@ -886,11 +886,17 @@ VOICE_AGENT_WIDGET = """
                                    // timer only matters if a browser never marks a result final
                                    // in continuous mode
   var VOLUME_THRESHOLD = 10;      // 0-255 scale, average of getByteFrequencyData -- listening
-  var INTERRUPT_THRESHOLD = 34;   // higher bar while speaking -- must be a real, close voice to
+  var INTERRUPT_THRESHOLD = 46;   // higher bar while speaking -- must be a real, close voice to
                                    // barge in, not the browser's own playback bleeding into the
                                    // mic (echoCancellation below helps, but isn't perfect over
                                    // speakers rather than headphones)
-  var INTERRUPT_GRACE_MS = 350;   // ignore the first moment of playback (its own onset click/pop)
+  var INTERRUPT_GRACE_MS = 900;   // ignore this much of the start of playback -- a real bug,
+                                   // found live: the bot's own voice through the speakers was
+                                   // crossing the volume threshold and interrupting itself after
+                                   // barely a word
+  var INTERRUPT_SUSTAIN_MS = 280; // volume must stay above the threshold continuously for this
+                                   // long before it counts as a real interruption -- a brief echo
+                                   // spike doesn't sustain the way a person actually talking does
 
   var active = false;             // whole feature turned on, via the button click
   var phase = "idle";             // "listening" | "thinking" | "speaking"
@@ -902,11 +908,13 @@ VOICE_AGENT_WIDGET = """
   var silenceTimer = null;
   var turnId = 0;                 // invalidates a stale speak() onEnd after an interrupt
   var speakingSince = 0;
+  var loudSince = null;           // when the current continuous loud stretch started while speaking, or null
   var transcript = "";
   var context = {};
 
   function setPhase(next) {
     phase = next;
+    loudSince = null;
     btn.classList.remove("listening", "thinking");
     waveEl.classList.remove("simulated");
     if (next === "listening") { btn.classList.add("listening"); statusEl.textContent = "Listening\\u2026"; }
@@ -1052,9 +1060,13 @@ VOICE_AGENT_WIDGET = """
         if (phase === "listening" && avg > VOLUME_THRESHOLD) {
           clearTimeout(silenceTimer);
           silenceTimer = setTimeout(submit, SILENCE_MS);
-        } else if (phase === "speaking" && avg > INTERRUPT_THRESHOLD &&
-                   Date.now() - speakingSince > INTERRUPT_GRACE_MS) {
-          interrupt();
+        } else if (phase === "speaking" && Date.now() - speakingSince > INTERRUPT_GRACE_MS) {
+          if (avg > INTERRUPT_THRESHOLD) {
+            if (loudSince === null) loudSince = Date.now();
+            if (Date.now() - loudSince > INTERRUPT_SUSTAIN_MS) interrupt();
+          } else {
+            loudSince = null;
+          }
         }
         rafId = requestAnimationFrame(tick);
       }
