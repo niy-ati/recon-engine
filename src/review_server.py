@@ -873,9 +873,10 @@ VOICE_AGENT_WIDGET = """
   for (var b = 0; b < WAVE_BAR_COUNT; b++) waveEl.appendChild(document.createElement("span"));
   var bars = waveEl.querySelectorAll("span");
 
-  var SILENCE_MS = 700;           // pause length while listening that finalizes the question --
-                                   // short enough to feel immediate, long enough not to cut off
-                                   // an ordinary breath mid-sentence
+  var SILENCE_MS = 600;           // fallback only -- the recognizer's own isFinal result (below)
+                                   // is what actually triggers a reply in the normal case; this
+                                   // timer only matters if a browser never marks a result final
+                                   // in continuous mode
   var VOLUME_THRESHOLD = 10;      // 0-255 scale, average of getByteFrequencyData -- listening
   var INTERRUPT_THRESHOLD = 34;   // higher bar while speaking -- must be a real, close voice to
                                    // barge in, not the browser's own playback bleeding into the
@@ -1002,6 +1003,19 @@ VOICE_AGENT_WIDGET = """
       for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
       transcript = text;
       if (text.trim()) transcriptEl.textContent = text;
+
+      // The browser's own speech engine already knows when it considers
+      // this utterance finished (isFinal) -- real acoustic/linguistic
+      // end-of-speech detection, not a blind timer. Submitting the
+      // instant that fires is what actually makes this feel as fast as
+      // Gemini/GPT voice mode; the volume-based silence timer below is
+      // only a fallback in case a browser never marks a result final in
+      // continuous mode.
+      var last = e.results[e.results.length - 1];
+      if (last && last.isFinal && phase === "listening") {
+        clearTimeout(silenceTimer);
+        submit();
+      }
     });
     recognizer.addEventListener("end", function () {
       if (active && phase === "listening") { try { recognizer.start(); } catch (e) {} }
