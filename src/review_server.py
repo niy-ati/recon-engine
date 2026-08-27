@@ -483,6 +483,43 @@ PAGE_STYLE = """
   .chat-input-row button.ghost-icon.recording { background:var(--negative-bg); color:var(--negative); border-color:hsla(4,85%,44%,0.3); animation:mic-pulse 1.1s ease-in-out infinite; }
   @keyframes mic-pulse { 0%, 100% { box-shadow:0 0 0 0 hsla(4,85%,44%,0.35); } 50% { box-shadow:0 0 0 6px hsla(4,85%,44%,0); } }
 
+  /* --------------------------------------------------- Global voice agent */
+  /* Persistent, site-wide -- lives in every page's shell, not just inside
+     the chat panel, so it's reachable without opening anything. */
+  #voice-agent-btn {
+    position:fixed; top:var(--sp-7); right:var(--sp-8); z-index:60;
+    width:52px; height:52px; border-radius:50%; border:1px solid var(--border-subtle);
+    background:var(--panel); color:var(--primary-strong); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-mid);
+    transition:box-shadow 0.18s, background 0.18s, color 0.18s;
+  }
+  #voice-agent-btn:hover { box-shadow:var(--shadow-high); }
+  #voice-agent-btn svg { width:21px; height:21px; }
+  #voice-agent-btn.listening {
+    background:var(--primary); color:#fff; border-color:transparent;
+    animation:voice-pulse-ring 1.6s ease-out infinite;
+  }
+  #voice-agent-btn.thinking { background:var(--notice); color:#fff; border-color:transparent; }
+  @keyframes voice-pulse-ring {
+    0% { box-shadow:0 0 0 0 var(--primary-glow); }
+    100% { box-shadow:0 0 0 16px hsla(204,100%,50%,0); }
+  }
+  .voice-bars { display:flex; align-items:center; justify-content:center; gap:3px; height:22px; }
+  .voice-bars span { width:3px; background:#fff; border-radius:2px; height:6px; transition:height 0.08s ease-out; }
+
+  .voice-agent-response {
+    position:fixed; top:84px; right:var(--sp-8); z-index:60; width:290px;
+    background:var(--panel); border:1px solid var(--border-subtle); border-radius:var(--radius-l);
+    box-shadow:var(--shadow-high); padding:var(--sp-6); font-size:13px; animation:chat-msg-in 0.2s ease-out;
+  }
+  .voice-agent-response .voice-agent-q { color:var(--muted); font-style:italic; margin:0 var(--sp-6) var(--sp-3) 0; }
+  .voice-agent-response .voice-agent-a { color:var(--ink); line-height:1.5; white-space:pre-wrap; }
+  .voice-agent-close {
+    position:absolute; top:6px; right:8px; background:none; border:none; color:var(--faint);
+    cursor:pointer; font-size:17px; line-height:1; padding:4px;
+  }
+  .voice-agent-close:hover { color:var(--muted); }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition:none !important; animation:none !important; }
   }
@@ -757,6 +794,196 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
 </script>
 """
 
+# A persistent, site-wide voice control -- distinct from the chat panel's
+# own mic (which needs the panel open first). Lives in the top-right
+# corner of every page via render_shell(), so it's reachable without
+# opening anything. Deliberately NOT a chat window: activating it shows a
+# small, self-dismissing card with just the last question and answer,
+# not a message history. Same trust story as everywhere else in this
+# app -- the answer still comes from settlement_qa.answer() over /ask,
+# nothing new server-side, no cloud call, nothing sent anywhere beyond
+# this browser's own built-in speech APIs.
+VOICE_AGENT_WIDGET = """
+<button id="voice-agent-btn" aria-label="Ask by voice" title="Ask by voice" hidden>
+  <svg id="voice-agent-mic-icon" viewBox="0 0 24 24" fill="none">
+    <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </svg>
+  <div id="voice-agent-bars" class="voice-bars" hidden>
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+</button>
+<div id="voice-agent-response" class="voice-agent-response" hidden>
+  <button type="button" id="voice-agent-close" class="voice-agent-close" aria-label="Dismiss">&times;</button>
+  <div class="voice-agent-q" id="voice-agent-q"></div>
+  <div class="voice-agent-a" id="voice-agent-a"></div>
+</div>
+<script>
+(function () {
+  var SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var hasAudioApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+                        (window.AudioContext || window.webkitAudioContext));
+  if (!SpeechRecognitionApi || !hasAudioApi) return;
+
+  var btn = document.getElementById("voice-agent-btn");
+  var micIcon = document.getElementById("voice-agent-mic-icon");
+  var bars = document.getElementById("voice-agent-bars").querySelectorAll("span");
+  var barsWrap = document.getElementById("voice-agent-bars");
+  var responseCard = document.getElementById("voice-agent-response");
+  var qEl = document.getElementById("voice-agent-q");
+  var aEl = document.getElementById("voice-agent-a");
+  var closeBtn = document.getElementById("voice-agent-close");
+  btn.hidden = false;
+
+  var SILENCE_MS = 2000;
+  var VOLUME_THRESHOLD = 10; // 0-255 scale, average of getByteFrequencyData
+
+  var active = false;        // whole feature turned on, via the button click
+  var recognizer = null;
+  var audioCtx = null;
+  var analyser = null;
+  var mediaStream = null;
+  var rafId = null;
+  var silenceTimer = null;
+  var transcript = "";
+  var context = {};
+
+  function setState(state) {
+    btn.classList.remove("listening", "thinking");
+    if (state === "listening") btn.classList.add("listening");
+    if (state === "thinking") btn.classList.add("thinking");
+    micIcon.hidden = state === "listening";
+    barsWrap.hidden = state !== "listening";
+  }
+
+  function stopAudioAnalysis() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    clearTimeout(silenceTimer);
+    if (mediaStream) mediaStream.getTracks().forEach(function (t) { t.stop(); });
+    mediaStream = null;
+    if (audioCtx) audioCtx.close();
+    audioCtx = null;
+    analyser = null;
+  }
+
+  function renderBars(freqData) {
+    var step = Math.floor(freqData.length / bars.length);
+    for (var i = 0; i < bars.length; i++) {
+      var v = freqData[i * step] || 0;
+      bars[i].style.height = Math.max(6, Math.min(22, 6 + (v / 255) * 16)) + "px";
+    }
+  }
+
+  function showResponse(question, answer) {
+    qEl.textContent = question;
+    aEl.textContent = answer;
+    responseCard.hidden = false;
+  }
+
+  function speak(text, onEnd) {
+    if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
+    window.speechSynthesis.cancel();
+    var utterance = new SpeechSynthesisUtterance(text);
+    if (onEnd) utterance.addEventListener("end", onEnd);
+    utterance.addEventListener("error", function () { if (onEnd) onEnd(); });
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function submit() {
+    stopAudioAnalysis();
+    if (recognizer) { try { recognizer.stop(); } catch (e) {} }
+    var question = transcript.trim();
+    transcript = "";
+    if (!question) {
+      if (active) startListening();
+      return;
+    }
+    setState("thinking");
+    fetch("/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: question, context: context })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        context = data.context || {};
+        showResponse(question, data.answer);
+        speak(data.answer, function () { if (active) startListening(); else setState("idle"); });
+      })
+      .catch(function () {
+        showResponse(question, "Could not reach the server -- is review_server.py still running?");
+        if (active) startListening();
+      });
+  }
+
+  function startListening() {
+    transcript = "";
+    setState("listening");
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      if (!active) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+      mediaStream = stream;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var source = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      var data = new Uint8Array(analyser.frequencyBinCount);
+
+      function tick() {
+        if (!analyser) return;
+        analyser.getByteFrequencyData(data);
+        renderBars(data);
+        var avg = data.reduce(function (a, b) { return a + b; }, 0) / data.length;
+        if (avg > VOLUME_THRESHOLD) {
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(submit, SILENCE_MS);
+        }
+        rafId = requestAnimationFrame(tick);
+      }
+      tick();
+    }).catch(function () {
+      active = false;
+      setState("idle");
+    });
+
+    recognizer = new SpeechRecognitionApi();
+    recognizer.lang = "en-US";
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+    recognizer.addEventListener("result", function (e) {
+      var text = "";
+      for (var i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+      transcript = text;
+    });
+    recognizer.addEventListener("end", function () {
+      if (active && analyser) { try { recognizer.start(); } catch (e) {} }
+    });
+    try { recognizer.start(); } catch (e) {}
+  }
+
+  function stopEverything() {
+    active = false;
+    stopAudioAnalysis();
+    if (recognizer) { try { recognizer.stop(); } catch (e) {} }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    setState("idle");
+  }
+
+  btn.addEventListener("click", function () {
+    if (active) {
+      stopEverything();
+      return;
+    }
+    active = true;
+    responseCard.hidden = true;
+    startListening();
+  });
+  closeBtn.addEventListener("click", function () { responseCard.hidden = true; });
+})();
+</script>
+"""
+
 INTERACTIVITY_SCRIPT = """
 <script>
 (function () {
@@ -950,6 +1177,7 @@ def render_shell(
   </main>
   {extra_script}
   {CHAT_WIDGET}
+  {VOICE_AGENT_WIDGET}
 </body>
 </html>"""
 
