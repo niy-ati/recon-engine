@@ -125,9 +125,15 @@ PAGE_STYLE = """
     --radius-xl: 28px;
     --radius-pill: 9999px;
 
-    /* Blade's real spacing scale (packages/blade/.../global/spacing.ts) */
-    --sp-1: 2px; --sp-2: 4px; --sp-3: 8px; --sp-4: 12px; --sp-5: 16px;
-    --sp-6: 20px; --sp-7: 24px; --sp-8: 32px; --sp-9: 40px; --sp-10: 48px; --sp-11: 56px;
+    /* Blade's real spacing scale (packages/blade/.../global/spacing.ts),
+       tightened further from Blade's own values -- real user feedback,
+       found live: even Blade's ratios read as too spacious/oversized on
+       an ordinary laptop screen for a data-dense reconciliation tool,
+       where the point is fitting more real information into one view,
+       not marketing-page breathing room. Same proportions between
+       steps, just a smaller multiplier throughout. */
+    --sp-1: 2px; --sp-2: 4px; --sp-3: 6px; --sp-4: 10px; --sp-5: 14px;
+    --sp-6: 16px; --sp-7: 20px; --sp-8: 24px; --sp-9: 32px; --sp-10: 36px; --sp-11: 44px;
 
     /* Blade's own published type scale (packages/blade/.../typography.ts,
        onDesktop) is tuned for marketing/hero copy -- a 58px page title.
@@ -145,7 +151,7 @@ PAGE_STYLE = """
     --text-xl:  20px;  --lh-xl:  27px;
     --text-2xl: 24px;  --lh-2xl: 30px;
     --text-3xl: 28px;  --lh-3xl: 34px;
-    --text-4xl: 32px;  --lh-4xl: 38px;
+    --text-4xl: 26px;  --lh-4xl: 32px;
     --ls-tight: -0.013em; /* Blade letterSpacings.50, -1.3% */
     --ls-tighter: -0.025em;
   }
@@ -204,12 +210,12 @@ PAGE_STYLE = """
     min-width:340px; transition:box-shadow 0.22s, transform 0.22s;
   }
   .donut-card:hover { box-shadow:var(--shadow-high); transform:translateY(-3px); }
-  .donut { width:144px; height:144px; border-radius:50%; flex-shrink:0; position:relative; }
+  .donut { width:120px; height:120px; border-radius:50%; flex-shrink:0; position:relative; }
   .donut .donut-label {
     position:absolute; inset:22px; background:var(--panel); border-radius:50%;
     display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:inset 0 0 0 1px var(--border-subtle);
   }
-  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:21px; line-height:1; color:var(--primary); font-weight:700; letter-spacing:var(--ls-tighter); }
+  .donut .donut-label b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:18px; line-height:1; color:var(--primary); font-weight:700; letter-spacing:var(--ls-tighter); }
   .donut .donut-label span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; font-weight:600; }
   .legend { display:flex; flex-direction:column; gap:11px; font-size:13.5px; }
   .legend .row { display:flex; align-items:center; gap:10px; }
@@ -224,16 +230,16 @@ PAGE_STYLE = """
     display:flex; flex-direction:column; gap:var(--sp-5); transition:box-shadow 0.22s, transform 0.22s, border-color 0.22s;
   }
   .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); border-color:var(--primary-subtle); }
-  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:34px; line-height:1.1; color:var(--ink); font-weight:700; letter-spacing:var(--ls-tighter); }
+  .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:27px; line-height:1.1; color:var(--ink); font-weight:700; letter-spacing:var(--ls-tighter); }
   .stat .stat-label { font-size:13px; color:var(--muted); font-weight:600; }
   .stat.tint-primary .icon-badge { background:var(--primary-subtle); color:var(--primary-strong); }
   .stat.tint-notice .icon-badge { background:var(--notice-bg); color:var(--notice); }
   .stat.tint-positive .icon-badge { background:var(--positive-bg); color:var(--positive); }
   .icon-badge {
-    width:48px; height:48px; border-radius:var(--radius-m); display:flex; align-items:center; justify-content:center;
+    width:40px; height:40px; border-radius:var(--radius-m); display:flex; align-items:center; justify-content:center;
     background:var(--primary-subtle); color:var(--primary-strong); flex-shrink:0;
   }
-  .icon-badge svg { width:24px; height:24px; }
+  .icon-badge svg { width:20px; height:20px; }
 
   /* Clickable exception-category cards -- colored by what the category
      actually means (explained variance reads positive, a genuine gap
@@ -246,7 +252,7 @@ PAGE_STYLE = """
   }
   .category-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-high); }
   .category-card-text { display:flex; flex-direction:column; min-width:0; }
-  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:26px; font-weight:700; line-height:1.1; letter-spacing:var(--ls-tighter); }
+  .category-card-text b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:21px; font-weight:700; line-height:1.1; letter-spacing:var(--ls-tighter); }
   .category-card-text span { font-size:13px; font-weight:600; letter-spacing:0.01em; margin-top:2px; }
   .category-card.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
   .category-card.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
@@ -267,7 +273,7 @@ PAGE_STYLE = """
   .stack-legend { display:flex; gap:var(--sp-8); margin-top:var(--sp-6); flex-wrap:wrap; }
   .stack-legend .item { display:flex; align-items:center; gap:10px; }
   .stack-legend .swatch { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
-  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:20px; font-weight:700; color:var(--ink); }
+  .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:17px; font-weight:700; color:var(--ink); }
   .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
   /* Cash-value-by-category chart -- same four semantic tones the category
@@ -412,7 +418,7 @@ PAGE_STYLE = """
     padding:var(--sp-8); transition:box-shadow 0.22s, transform 0.22s; display:flex; flex-direction:column; gap:var(--sp-5);
   }
   .source-card:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); }
-  .source-card .value { font-size:28px; font-weight:700; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
+  .source-card .value { font-size:23px; font-weight:700; font-family:var(--font-heading); font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:var(--ls-tighter); }
   .source-card .label { font-size:13px; color:var(--muted); font-weight:600; }
 
   /* ------------------------------------------------------- Chat widget - */
