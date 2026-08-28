@@ -1,0 +1,19 @@
+# Render "Blueprint" file -- lets Render auto-detect this whole service
+# from the repo in one step ("New +" -> "Blueprint" -> pick this repo)
+# instead of manually configuring a Web Service by hand.
+#
+# DATABASE_URL is deliberately left as sync: false -- a real secret (the
+# Neon Postgres connection string) has no business being committed to
+# this file. Render will prompt for it once when the blueprint is first
+# applied; use the exact same value already set on the Vercel project so
+# both deployments read and write the same live data, not two drifted
+# copies.
+services:
+  - type: web
+    name: reconcile-engine
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false
