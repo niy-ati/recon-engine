@@ -108,6 +108,45 @@ class TestExtractImageText(unittest.TestCase):
         self.assertEqual(result, "")
 
 
+class TestRemoteOcrFallback(unittest.TestCase):
+    """OCR_SERVICE_URL exists for exactly one real situation: the Vercel
+    deployment can't install Tesseract at all, so it forwards the image
+    to the Render deployment's own /ocr endpoint instead. These tests
+    mock the HTTP round trip -- a real network call has no place in a
+    unit test -- but exercise the actual fallback wiring in
+    _extract_image_text, not just _remote_ocr in isolation."""
+
+    def test_no_url_configured_returns_none(self):
+        with patch.dict("os.environ", {}, clear=False):
+            import os
+            os.environ.pop("OCR_SERVICE_URL", None)
+            self.assertIsNone(dq._remote_ocr(b"some image bytes"))
+
+    def test_falls_back_to_remote_when_local_tesseract_missing(self):
+        fake_response = MagicMock()
+        fake_response.read.return_value = b'{"text": "order_2 needs review"}'
+        fake_response.__enter__.return_value = fake_response
+        with patch.dict("os.environ", {"OCR_SERVICE_URL": "https://reconcile-engine.onrender.com"}), \
+             patch.object(dq, "pytesseract", None), \
+             patch.object(dq.urllib.request, "urlopen", return_value=fake_response) as mock_urlopen:
+            result = dq._extract_image_text(b"some image bytes")
+        self.assertEqual(result, "order_2 needs review")
+        mock_urlopen.assert_called_once()
+        called_request = mock_urlopen.call_args[0][0]
+        self.assertTrue(called_request.full_url.endswith("/ocr"))
+
+    def test_remote_failure_degrades_to_none_not_an_exception(self):
+        """A cold-starting or unreachable Render instance must degrade
+        exactly like a missing local Tesseract binary does -- an honest
+        "OCR isn't available" upstream, never a raised error surfacing to
+        the chat widget."""
+        with patch.dict("os.environ", {"OCR_SERVICE_URL": "https://reconcile-engine.onrender.com"}), \
+             patch.object(dq, "pytesseract", None), \
+             patch.object(dq.urllib.request, "urlopen", side_effect=dq.urllib.error.URLError("unreachable")):
+            result = dq._extract_image_text(b"some image bytes")
+        self.assertIsNone(result)
+
+
 class TestAnswerAboutDocument(unittest.TestCase):
     """Integration-style: seeds real data and checks the full path from
     extracted text to the real settlement_qa.answer() lookup, mocking

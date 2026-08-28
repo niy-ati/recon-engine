@@ -2022,6 +2022,10 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_upload()
             return
 
+        if len(parts) == 1 and parts[0] == "ocr":
+            self._handle_ocr()
+            return
+
         length = int(self.headers.get("Content-Length", 0))
         fields = parse_qs(self.rfile.read(length).decode("utf-8"))
 
@@ -2093,6 +2097,29 @@ class Handler(BaseHTTPRequestHandler):
             return
         answer = document_qa.answer_about_document(filename, file_bytes, content_type)
         self._respond_json({"answer": answer})
+
+    def _handle_ocr(self):
+        """The Render deployment's own side of document_qa.py's
+        OCR_SERVICE_URL fallback -- called by the Vercel deployment
+        (which can't install Tesseract at all) with raw image bytes,
+        returns just the extracted text, nothing else. Deliberately
+        separate from /upload: that endpoint returns a full grounded
+        answer via document_qa.answer_about_document(); this one returns
+        only the OCR step so the CALLER still does its own ID lookup and
+        answer generation locally -- the response shape stays identical
+        whether OCR happened locally or by asking this endpoint for it."""
+        length = int(self.headers.get("Content-Length", 0))
+        if length > MAX_UPLOAD_CONTENT_LENGTH:
+            self._respond_json({"text": None})
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            file_bytes = base64.b64decode(payload.get("data") or "", validate=True)
+        except (ValueError, TypeError, json.JSONDecodeError, binascii.Error):
+            self._respond_json({"text": None})
+            return
+        text = document_qa._extract_image_text(file_bytes)
+        self._respond_json({"text": text})
 
     def _respond_html(self, html):
         body = html.encode("utf-8")

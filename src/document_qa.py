@@ -11,24 +11,38 @@ fallible, so what this module produces is a QUERY, never an ANSWER -- the
 answer still comes entirely from the persisted database via the existing
 lookup, exactly like every other question in this chat.
 
-Two extraction paths, both fully local -- no file, image, or extracted
-text is ever sent anywhere over the network, the same "nothing leaves the
-machine" property Pass 4's Ollama arbiter already has:
-  - PDF: pypdf's own text-layer extraction. Works for any PDF with real,
-    selectable text (an exported bank statement, say) -- not for a
-    scanned page saved as a PDF with no text layer at all.
+Two extraction paths:
+  - PDF: pypdf's own text-layer extraction, always fully local -- works
+    for any PDF with real, selectable text (an exported bank statement,
+    say), not for a scanned page saved as a PDF with no text layer.
   - Image (PNG/JPG): OCR via pytesseract, which needs the Tesseract
     engine installed separately (see README) -- exactly the same kind of
     optional local dependency Ollama already is for the LLM arbiter. If
-    either the Python package or the Tesseract binary isn't present,
-    this returns an honest "OCR isn't available" message instead of
-    silently producing nothing or guessing -- the same discipline
-    llm_matcher.py already applies when Ollama isn't reachable.
+    neither the Python package nor the Tesseract binary is present *and*
+    OCR_SERVICE_URL isn't set, this returns an honest "OCR isn't
+    available" message instead of silently producing nothing or
+    guessing -- the same discipline llm_matcher.py already applies when
+    Ollama isn't reachable.
+
+OCR_SERVICE_URL exists for exactly one real situation: Vercel's
+serverless functions can't install the Tesseract system binary at all
+(see render_main.py's own docstring), so the Vercel deployment sets this
+to the Render deployment's own URL -- which can install it -- and
+forwards just the image bytes there for extraction, using the resulting
+text exactly as if OCR had run locally. This is never a third-party
+cloud OCR API; it's this same project's own second deployment, doing
+the one thing Vercel structurally can't. Unset (the desktop app's normal
+case), extraction stays exactly as local as every other feature here.
 
 Capped at MAX_IDS_LOOKED_UP found IDs per document so one statement
 listing hundreds of orders can't flood the chat panel.
 """
+import base64
 import io
+import json
+import os
+import urllib.error
+import urllib.request
 
 import pypdf
 
@@ -57,19 +71,44 @@ def _extract_pdf_text(file_bytes: bytes) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
-def _extract_image_text(file_bytes: bytes) -> str | None:
-    """Returns None if OCR isn't available on this machine -- either the
-    pytesseract package isn't installed, or it is but the separate
-    Tesseract engine binary isn't -- distinct from an empty string
-    (OCR ran fine but found no legible text). The caller must not treat
-    these the same way."""
-    if pytesseract is None:
+def _remote_ocr(file_bytes: bytes) -> str | None:
+    """Forwards image bytes to OCR_SERVICE_URL's own /ocr endpoint (the
+    Render deployment, which can install Tesseract) and returns the text
+    it found -- or None on any failure (unreachable, cold-starting,
+    non-200, malformed response), so the caller falls through to the
+    same honest "OCR isn't available" message a missing local Tesseract
+    already produces. Never raises -- a flaky remote call must degrade
+    exactly like a missing local binary does, not surface as an error."""
+    base_url = os.environ.get("OCR_SERVICE_URL")
+    if not base_url:
         return None
+    payload = json.dumps({"data": base64.b64encode(file_bytes).decode("ascii")}).encode()
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/ocr",
+        data=payload,
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            body = json.loads(resp.read())
+        return body.get("text")
+    except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def _extract_image_text(file_bytes: bytes) -> str | None:
+    """Returns None if OCR isn't available at all -- neither a local
+    Tesseract install nor a reachable OCR_SERVICE_URL fallback -- distinct
+    from an empty string (OCR ran fine but found no legible text). The
+    caller must not treat these the same way."""
+    if pytesseract is None:
+        return _remote_ocr(file_bytes)
     try:
         image = Image.open(io.BytesIO(file_bytes))
         return pytesseract.image_to_string(image)
     except pytesseract.TesseractNotFoundError:
-        return None
+        return _remote_ocr(file_bytes)
     except UnidentifiedImageError:
         # Not a real/parseable image file (corrupt upload, wrong format
         # despite the extension) -- distinct from "OCR unavailable": the
