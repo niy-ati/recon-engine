@@ -633,7 +633,20 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
   var context = {};
 
   function open() { panel.classList.add("open"); input.focus(); }
-  function close() { panel.classList.remove("open"); }
+  // Closing the panel must actually stop everything in-flight, not just
+  // hide it -- a real bug, found live: the close button only removed the
+  // "open" class, so an in-progress spoken answer (or the hands-free
+  // voice loop still listening for the next turn) kept right on running
+  // after the panel visually disappeared.
+  function close() {
+    panel.classList.remove("open");
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (typeof voiceLoopActive !== "undefined") voiceLoopActive = false;
+    if (typeof recognizer !== "undefined" && recognizer) {
+      try { recognizer.stop(); } catch (e) {}
+    }
+    if (typeof micBtn !== "undefined" && micBtn) micBtn.classList.remove("recording");
+  }
   toggle.addEventListener("click", function () {
     panel.classList.contains("open") ? close() : open();
   });
