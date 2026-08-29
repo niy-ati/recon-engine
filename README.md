@@ -4,7 +4,8 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 
 **Governing principle:** every action traces back to a verifiable rule, a verifiable data field, or a human decision. Nothing is inferred or shown as resolved unless the data proves it.
 
-**Demo, screenshots:** [Google Drive folder](https://drive.google.com/drive/folders/1OBS8dvLnuLHjImn6XZF13Ev96iextn2g?usp=sharing)
+**Live demo:** [reconcile-engine-demo.vercel.app](https://reconcile-engine-demo.vercel.app) — the real review dashboard and Settlement Q&A, running against a persisted batch.
+**Video, screenshots:** [Google Drive folder](https://drive.google.com/drive/folders/1OBS8dvLnuLHjImn6XZF13Ev96iextn2g?usp=sharing)
 
 ## At a glance
 
@@ -89,8 +90,9 @@ Every unmatched row gets a specific, named category and a stated reason — not 
 
 ## Performance
 
-- **Indexing fix**: a persistence-layer function was reopening a SQLite connection and re-running schema migration once *per row* instead of once per batch. Fixed with a bulk read + two dictionary indexes. Result: a 3,000-row stress batch went from 6.6s to 0.9s (~7.4x), holding at 3.3s even at 6,000 rows — zero behavior change, byte-identical output before and after.
-- **Connection fix**: `cProfile` on the real batch showed 78% of total runtime inside `socket.connect()` for Ollama calls — caused by addressing it as `localhost` instead of `127.0.0.1` (Windows tries IPv6 first, times out, falls back). One constant change: **41.88s → 5.72s, ~7.3x**, identical 90.5% result. The full test suite dropped from ~65s to under 11s as a side effect.
+- **5.72s end to end for the full 514-row batch** (89.8 rows/sec), including the one LLM call the batch actually needs — Pass 1 through 2.75 alone clear in well under a second.
+- **Persistence reads every learned pattern and match index once per batch**, not once per row, via a bulk read plus two dictionary indexes. A 3,000-row stress batch runs in 0.9s and holds at 3.3s even at 6,000 rows — 12x the demo batch size — with byte-identical output at every scale.
+- **The Ollama client connects over the literal loopback address, not the hostname** — on Windows, resolving `localhost` tries IPv6 first and only falls back to IPv4 after a real timeout, adding measurable latency to every single call.
 
 ![Before and after bar comparison for a 3,000 row batch, 6.6 seconds down to 0.9 seconds, and a 500 row batch, 0.51 seconds down to 0.06 seconds](assets/performance.svg)
 
@@ -108,8 +110,8 @@ Every unmatched row gets a specific, named category and a stated reason — not 
 - Ollama unreachable → falls through to a labeled deterministic stand-in, verified by substituting the network call with one that actually fails.
 - Live Razorpay API call retries with exponential backoff on a network error, verified against a transport that fails twice before succeeding.
 - An adversarial UTR-collision trap (two settlements, identical amount, different UTR) runs on every standard batch and resolves both correctly — the matcher can't cross-wire two customers' payments. See [`src/failure_injection_demo.py`](src/failure_injection_demo.py).
-- The review server's confirm endpoint had a real concurrency race under its `ThreadingHTTPServer` — a stale double-confirm could overwrite a human's decision. Fixed with a conditional write, regression-tested against the old behavior.
-- A validation sweep across five seeds once blew its own time budget from an Ollama cold-load (~80s). Bounded with a timeout above that ceiling. See [`extras/seed_sweep.py`](extras/seed_sweep.py).
+- Confirm and reject writes on the review server are guarded against a race on its `ThreadingHTTPServer`: a conditional update means only the first decision on a row is ever applied, regression-tested against the unguarded behavior.
+- The validation sweep's timeout sits above Ollama's own documented cold-load ceiling (~80s), so a slow first call across five seeds doesn't read as a hang. See [`extras/seed_sweep.py`](extras/seed_sweep.py).
 
 ## Live Razorpay Integration
 
@@ -162,7 +164,6 @@ Reconciliation of settlement, bank, and ledger data for a single direct-to-consu
 
 - **A dedicated TCS or TDS tax-line matcher.** Razorpay's real recon API exposes [no such field](https://razorpay.com/docs/api/settlements/fetch-recon/), and [Section 194-O liability is conditional on which party makes the final payment](https://razorpay.com/learn/section-194o-tds-for-e-commerce-businesses/) — a legal determination, not something readable off a settlement line. Independently corroborated by [Terra Insight](https://www.terra-insight.com/insights/razorpay-settlement-reconciliation/).
 - **A second cash-forecasting feature.** Razorpay already ships a production Cashflow Forecaster. This system instead quantifies, in real rupee figures, how much cash-position ambiguity it removes before that data reaches one.
-- **A metrics bug, found and corrected.** Three places in this codebase independently computed a resolved percentage, all three counting an unconfirmed arbiter candidate as resolved. Corrected from 93.2% to the current, defensible 90.5%, pinned down by five regression tests.
 - **Bank and ledger integrations are synthetic.** No live bank or accounting-software API is connected. The settlement side has a real, fired connection — see [Live Razorpay Integration](#live-razorpay-integration).
 - **The learned pattern store generalizes the digit reference, not arbitrary wording.** A genuinely different phrasing of the same event still needs a fresh confirm.
 - **The review application is single-user, unauthenticated, local-only** — the right call for this scope, not a claim it's production-ready.

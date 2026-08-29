@@ -4,6 +4,7 @@ data/reconcile.db
 .env
 *.md
 !README.md
+*.pdf
 
 .vercel
 .env*
