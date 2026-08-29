@@ -623,6 +623,22 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
   </div>
 </div>
 <script>
+// Shared by the chat widget and the Voice Agent below -- both read answers
+// aloud via speechSynthesis, and the same answer text is shown on screen
+// verbatim (order_1032, FUZZY_MATCH_NEEDS_REVIEW). Spoken out loud, an
+// underscore reads as the literal word "underscore" and "e.g." gets
+// spelled out letter by letter, so this cleans the text for speech only --
+// the on-screen text is never touched.
+function speechify(text) {
+  return String(text)
+    .replace(/\\be\\.g\\.\\s*/gi, "for example ")
+    .replace(/\\bi\\.e\\.\\s*/gi, "that is ")
+    .replace(/_/g, " ")
+    .replace(/\\s{2,}/g, " ")
+    .trim();
+}
+</script>
+<script>
 (function () {
   var toggle = document.getElementById("chat-toggle");
   var panel = document.getElementById("chat-panel");
@@ -740,7 +756,7 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
       return;
     }
     window.speechSynthesis.cancel();
-    var utterance = new SpeechSynthesisUtterance(text);
+    var utterance = new SpeechSynthesisUtterance(speechify(text));
     activeUtterance = utterance;
     if (onEnd) utterance.addEventListener("end", onEnd);
     utterance.addEventListener("error", function () { if (onEnd) onEnd(); });
@@ -1119,7 +1135,7 @@ VOICE_AGENT_WIDGET = """
     var myTurn = ++turnId;
     if (!window.speechSynthesis) { if (onEnd) onEnd(myTurn); return; }
     window.speechSynthesis.cancel();
-    var utterance = new SpeechSynthesisUtterance(text);
+    var utterance = new SpeechSynthesisUtterance(speechify(text));
     activeUtterance = utterance;
     utterance.addEventListener("end", function () { if (onEnd) onEnd(myTurn); });
     utterance.addEventListener("error", function () { if (onEnd) onEnd(myTurn); });
