@@ -6,6 +6,7 @@ the real data/reconcile.db.
 import sys
 import tempfile
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
@@ -530,6 +531,105 @@ class TestBatchSummary(SettlementQaTestCase):
         result = qa.answer("how does this batch look")
         self.assertIn(f"Rs.{expected['at_risk']:,.2f}", result)
         self.assertIn(f"Rs.{expected['resolved']:,.2f}", result)
+
+
+class TestAiNarrativeSummary(SettlementQaTestCase):
+    """_ai_narrative_summary is a genuinely heavier AI role than Pass 4's
+    candidate-picking -- the model writes prose, not just a label. Gated
+    more strictly than Pass 4, though: every number in its output is
+    fact-checked against the real, already-computed facts before it's
+    ever shown. These tests mock the Ollama HTTP call -- a live model
+    call has no place in a unit test -- except the one at the bottom,
+    which is a genuine end-to-end run, skipped if Ollama isn't reachable."""
+
+    def test_trigger_reaches_the_handler(self):
+        with patch.object(qa, "_generate_narrative", return_value=None):
+            result = qa.answer("narrate this batch for me")
+        # falls back to the deterministic template, but must not be the
+        # generic fallback -- proves the trigger actually routed here
+        self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+        self.assertIn("rows in this batch", result)
+
+    def test_honest_narrative_using_only_real_numbers_is_accepted(self):
+        facts = qa._batch_facts()
+        honest_text = (
+            f"This batch has {facts['total_rows']} rows, {facts['resolved_pct']}% resolved."
+        )
+        with patch.object(qa, "_generate_narrative", return_value=honest_text):
+            result = qa.answer("narrate this batch for me")
+        self.assertEqual(result, honest_text)
+
+    def test_real_hallucination_found_live_is_rejected_not_shown(self):
+        """This exact text is what the real local model (qwen2.5:0.5b)
+        actually produced the first time this feature was tested live,
+        given the real facts for this fixture's batch shape -- not a
+        hypothetical adversarial case. It invented "54.5%" (not derivable
+        from any real number it was given) and confused a rupee amount
+        for a transaction count. The validator must reject the whole
+        response, not show a partially-wrong answer with the one bad
+        number quietly left in."""
+        facts = qa._batch_facts()
+        real_model_output = (
+            "A settlement reconciliation batch for a merchant revealed that 90.5% of the "
+            "transactions were resolved, with 465 resolved transactions out of a total of 514. "
+            "The remaining 54.5% of the transactions were open and at risk, with a total of "
+            "291,313.9 transactions. The merchant's cash balance was 83,681.66, and the "
+            "remaining balance was 30,254.68. The remaining 177,377.56 transactions were still "
+            "open, with a total of 177,377.56."
+        )
+        with patch.object(qa, "_generate_narrative", return_value=real_model_output):
+            result = qa.answer("narrate this batch for me")
+        self.assertNotEqual(result, real_model_output)
+        self.assertNotIn("54.5", result)
+        self.assertIn("rows in this batch", result)  # the honest deterministic fallback
+
+    def test_ollama_unreachable_falls_back_cleanly(self):
+        with patch.object(qa, "_generate_narrative", return_value=None):
+            result = qa.answer("tell me a story about this batch")
+        self.assertIn("rows in this batch", result)
+
+    def test_trailing_sentence_period_is_not_mistaken_for_part_of_the_number(self):
+        """Regression test for a real bug found live in the same test run
+        that surfaced the hallucination above: "...a total of 514. The
+        remaining..." used to have its number-matching regex swallow the
+        sentence-ending period, capturing "514." instead of "514" -- never
+        in the allowed set no matter how the real 514 is formatted, a
+        false rejection of an honestly-reported number."""
+        self.assertEqual(qa._numbers_in("a total of 514. The remaining"), ["514"])
+
+
+def _ollama_is_running():
+    try:
+        urllib.request.urlopen("http://127.0.0.1:11434", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(_ollama_is_running(), "Ollama is not running on 127.0.0.1:11434")
+class TestAiNarrativeSummaryRealOllama(SettlementQaTestCase):
+    """A genuine end-to-end run against the real local model, skipped
+    (not faked) if it isn't reachable -- mirrors test_qa_intent_gate.py's
+    own TestRealOllamaIntegration pattern."""
+
+    def test_real_call_either_passes_validation_or_falls_back_cleanly(self):
+        """Either outcome is legitimate here -- the point of this test is
+        only that a live call through the real model, then through the
+        real validator, completes without error, returns a non-empty
+        answer, and never contains an invented number. It deliberately
+        doesn't assert specific wording: a validated AI response's own
+        phrasing isn't under this code's control, only its numbers are
+        -- that's the actual scope of what the validator checks, found
+        live while writing this same test (see the note on
+        _allowed_numeric_tokens: a real, correctly-matched number can
+        still be attached to the wrong concept by the model's own
+        phrasing, and that's a different, harder problem than the one
+        this gate solves)."""
+        facts = qa._batch_facts()
+        result = qa.answer("narrate this batch for me")
+        self.assertTrue(result)
+        allowed = qa._allowed_numeric_tokens(facts)
+        self.assertTrue(all(tok in allowed for tok in qa._numbers_in(result)))
 
 
 class TestStatusBreakdown(SettlementQaTestCase):

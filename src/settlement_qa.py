@@ -95,12 +95,16 @@ evidence). It activates automatically once a specific tier is shown,
 empirically, not to share that failure mode.
 """
 import difflib
+import json
 import re
 import sys
+import urllib.error
+import urllib.request
 from collections import Counter
 
 import db
 import qa_intent_gate
+from llm_matcher import OLLAMA_MODEL, OLLAMA_URL
 
 ORDER_ID_PATTERN = re.compile(
     r"\border[\s_,:#-]*(?:number|no\.?)?[\s_,:#-]*(\d+)\b", re.IGNORECASE
@@ -622,27 +626,202 @@ def _batch_summary(question: str) -> str | None:
     )):
         return None
 
+    facts = _batch_facts()
+    if facts is None:
+        return "No batch persisted yet -- run the pipeline first."
+    return _render_batch_summary(facts)
+
+
+def _batch_facts() -> dict | None:
+    """The single source of real, verified numbers both _batch_summary's
+    deterministic template and _ai_narrative_summary's gated LLM
+    narration are built from -- computed once, here, so the two can
+    never independently drift the way this project's own metrics bug
+    (three separate reimplementations of "what counts as resolved"
+    silently disagreeing) already happened once. Returns None on an
+    empty batch, not an empty dict, so callers can't accidentally render
+    a summary of nothing."""
     rows = db.get_all_exceptions()
     if not rows:
-        return "No batch persisted yet -- run the pipeline first."
-
+        return None
     resolved = sum(1 for r in rows if r["status"] in RESOLVED_STATUSES)
     pct = round(100 * resolved / len(rows), 1)
     open_rows = db.get_open_exceptions()
     clarity = db.compute_cash_clarity(rows)
     cats = Counter(r["category"] for r in rows if r["category"])
-    top_cats = ", ".join(f"{cat} ({n})" for cat, n in sorted(cats.items(), key=lambda kv: -kv[1])[:3])
+    top_categories = sorted(cats.items(), key=lambda kv: -kv[1])[:3]
+    return {
+        "total_rows": len(rows),
+        "resolved_count": resolved,
+        "resolved_pct": pct,
+        "open_count": len(open_rows),
+        "at_risk": clarity["at_risk"],
+        "resolved_cash": clarity["resolved"],
+        "pending_review_cash": clarity["pending_review"],
+        "still_open_cash": clarity["still_open"],
+        "top_categories": top_categories,  # list of (category, count) tuples
+    }
 
+
+def _render_batch_summary(facts: dict) -> str:
+    """The plain, human-written template -- shared by _batch_summary
+    directly and by _ai_narrative_summary as its honest fallback when
+    the model's narration doesn't pass validation."""
+    top_cats = ", ".join(f"{cat} ({n})" for cat, n in facts["top_categories"])
     lines = [
-        f"{_plural(len(rows), 'row')} in this batch, {pct}% resolved ({resolved} of {len(rows)}).",
-        f"{_plural(len(open_rows), 'row')} still need a decision.",
-        f"Rs.{clarity['at_risk']:,.2f} touched some exception or variance path -- "
-        f"Rs.{clarity['resolved']:,.2f} resolved, Rs.{clarity['pending_review']:,.2f} pending review, "
-        f"Rs.{clarity['still_open']:,.2f} still open.",
+        f"{_plural(facts['total_rows'], 'row')} in this batch, {facts['resolved_pct']}% resolved "
+        f"({facts['resolved_count']} of {facts['total_rows']}).",
+        f"{_plural(facts['open_count'], 'row')} still need a decision.",
+        f"Rs.{facts['at_risk']:,.2f} touched some exception or variance path -- "
+        f"Rs.{facts['resolved_cash']:,.2f} resolved, Rs.{facts['pending_review_cash']:,.2f} pending review, "
+        f"Rs.{facts['still_open_cash']:,.2f} still open.",
     ]
     if top_cats:
         lines.append(f"Top categories: {top_cats}.")
     return "\n".join(lines)
+
+
+# A warm Ollama call is 2-5s; this feature has to feel snappy in a live
+# chat/voice demo, so it doesn't wait out the full ~80s cold-load window
+# Pass 4's own arbiter call does (llm_matcher.OLLAMA cold-start comment) --
+# it just falls back to the deterministic summary instead if the model
+# isn't warm and ready.
+NARRATIVE_OLLAMA_TIMEOUT = 20
+
+_NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")  # not \.?\d* -- that let a bare
+# sentence-ending period after a whole number ("514.") get swallowed as
+# part of the number itself, found live: the real model's own output
+# ended a clause with "...out of a total of 514. The remaining...", and
+# the old pattern captured "514." instead of "514", which is never in
+# the allowed set no matter how the real 514 is formatted. Requiring at
+# least one digit after the decimal point fixes the false rejection
+# without weakening the real hallucination check.
+
+
+def _numbers_in(text: str) -> list[str]:
+    return [tok.replace(",", "") for tok in _NUMBER_RE.findall(text)]
+
+
+def _allowed_numeric_tokens(facts: dict) -> set[str]:
+    """Every number the model is allowed to have written, rendered in
+    every reasonable format a float might come out in -- this is what
+    catches a hallucinated number in its output, not what catches honest
+    formatting variance in a real one. Small counts 0-5 are allowed
+    unconditionally: harmless structural phrasing ("the top three
+    categories") isn't the risk this guards against -- an invented
+    rupee figure or percentage is."""
+    allowed = {str(n) for n in range(0, 6)}
+    raw = [
+        facts["total_rows"], facts["resolved_count"], facts["resolved_pct"],
+        facts["open_count"], facts["at_risk"], facts["resolved_cash"],
+        facts["pending_review_cash"], facts["still_open_cash"],
+    ] + [n for _, n in facts["top_categories"]]
+    for n in raw:
+        if isinstance(n, float):
+            allowed.add(f"{n:.2f}")
+            allowed.add(f"{n:.1f}")
+            allowed.add(f"{n:g}")
+            if n == int(n):
+                allowed.add(str(int(n)))
+        else:
+            allowed.add(str(n))
+    return allowed
+
+
+def _generate_narrative(facts: dict) -> str | None:
+    """Asks Ollama to write the batch's narrative in plain English, from
+    ONLY these already-computed facts -- never raw rows it could invent
+    a plausible-sounding but wrong detail from. Returns None on any
+    failure to reach the model, a malformed response, or an empty
+    narration -- the caller falls back to the deterministic template in
+    every one of those cases, exactly like a missing local Tesseract or
+    an unreachable Ollama already degrades honestly elsewhere in this
+    codebase."""
+    prompt = (
+        "Write a short, plain-English paragraph (2-3 sentences) summarizing "
+        "a settlement reconciliation batch for a merchant, using ONLY these "
+        "exact facts. Do not add, estimate, or re-round any number "
+        "differently than given, and do not mention any number not listed "
+        "here.\n"
+        f"Facts: {json.dumps(facts, default=str)}\n"
+        "Respond with ONLY the paragraph text, no preamble, no markdown."
+    )
+    body = json.dumps({
+        "model": OLLAMA_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "options": {"temperature": 0},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        OLLAMA_URL, data=body, method="POST",
+        headers={"content-type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=NARRATIVE_OLLAMA_TIMEOUT) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, ConnectionRefusedError, TimeoutError, json.JSONDecodeError):
+        return None
+
+    text = payload.get("message", {}).get("content", "").strip()
+    return text or None
+
+
+def _ai_narrative_summary(question: str) -> str | None:
+    """A genuinely heavier AI role than Pass 4's candidate-picking:
+    Ollama writes the batch's plain-English narrative here, not a
+    human-authored template. Gated MORE strictly than Pass 4 ever is,
+    though -- the model receives ONLY the already-computed facts
+    _batch_facts() produces as structured input, never raw rows it
+    could invent a plausible-sounding detail from, and before its text
+    is ever shown, every number it wrote is extracted and cross-checked
+    against those exact facts. One invented number -- anything not
+    present in what it was actually given -- discards the whole
+    response and falls back to the same deterministic template
+    _batch_summary already uses, never a partially-wrong AI answer.
+    This is the same validation-gate principle applied to natural-
+    language generation instead of candidate-selection: a bigger job
+    for the model, proven safe by fact-checking the actual output, not
+    by trusting a reported confidence score the way Pass 4's own
+    positional-bias finding already showed can't be trusted alone.
+
+    Tested live against the real model before shipping, not just
+    against a mocked response: it genuinely invented "54.5%" -- a number
+    derivable from none of the real facts it was given -- and confused a
+    rupee amount for a transaction count. Rejected correctly, silently.
+
+    Honest scope limit, also found live: the gate checks that every
+    number in the output actually EXISTS among the real facts -- it
+    does not verify the number is attached to the right CONCEPT. A
+    real, correctly-matched figure can still be misattributed by the
+    model's own phrasing (calling a pending-review cash figure a
+    "resolved cash" figure, say) and pass this gate, since that number
+    genuinely is one of the real facts. Catching that would need
+    semantic verification of the whole sentence, not just its numbers --
+    a real next step, not built here."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in (
+        "narrate this batch", "narrate the batch",
+        "tell me a story about this batch", "tell a story about this batch",
+        "explain this batch in plain english", "plain english version",
+        "give me a written summary", "write me a paragraph about this batch",
+        "write a paragraph about this batch",
+    )):
+        return None
+
+    facts = _batch_facts()
+    if facts is None:
+        return "No batch persisted yet -- run the pipeline first."
+
+    narrative = _generate_narrative(facts)
+    if narrative is not None:
+        allowed = _allowed_numeric_tokens(facts)
+        if all(tok in allowed for tok in _numbers_in(narrative)):
+            return narrative
+        # The model wrote a number that isn't in what it was given --
+        # rejected outright, not shown with a caveat. Falls through to
+        # the honest deterministic version below.
+
+    return _render_batch_summary(facts)
 
 
 def _status_breakdown(question: str) -> str | None:
@@ -913,9 +1092,13 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # order matters, since "how much money is in DUPLICATE" would
     # otherwise get answered as a plain category count first, DUPLICATE
     # being a recognized category name either way.
+    # _ai_narrative_summary before _batch_summary: "give me a written
+    # summary" contains the bare word "summary", which _batch_summary's
+    # own trigger list also matches -- checking the AI path first means
+    # the more specific, intended handler wins that overlap.
     for handler in (_cash_value, _resolution_status_count, _category_count,
-                     _open_count, _batch_summary, _status_breakdown, _batch_totals,
-                     _extreme_amount, _resolution_rate, _category_breakdown):
+                     _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
+                     _batch_totals, _extreme_amount, _resolution_rate, _category_breakdown):
         result = handler(question)
         if result is not None:
             return result, _updated_referent()

@@ -136,7 +136,7 @@ Four pages, one stdlib `http.server`, no framework — **Overview**, **Queue**, 
 
 ## Settlement Q&A
 
-Plain-language questions about the batch, answered by [`src/settlement_qa.py`](src/settlement_qa.py) — **retrieval from the real persisted data, never generated.** A question outside what it recognizes gets an honest "I don't have a way to answer that," never a guess. It can't take an action either — confirming or rejecting still goes through the review queue's own buttons.
+Plain-language questions about the batch, answered by [`src/settlement_qa.py`](src/settlement_qa.py) — **retrieval from the real persisted data, not a model's guess.** A question outside what it recognizes gets an honest "I don't have a way to answer that," never a guess. It can't take an action either — confirming or rejecting still goes through the review queue's own buttons. One exception, deliberately gated: see "A narrated version" below.
 
 **What you can ask:**
 
@@ -147,6 +147,7 @@ Plain-language questions about the batch, answered by [`src/settlement_qa.py`](s
 - **Cash position** — "how much money is in UNEXPLAINED," "what's my cash position" (reuses the exact function the Overview page's own cash panel uses — never a second, independent calculation).
 - **Follow-ups and related cases** — "how can it be resolved," "what can I do meanwhile," "will it affect my cash flow," "any similar orders to order_1032" — all resolve against whichever order or category the conversation was already about.
 - **The system itself** — "why isn't this just an LLM," "what model do you use," "what's the architecture," "what's your accuracy." Fixed, human-written answers, not generated ones.
+- **A narrated version, in plain English** — "narrate this batch," "give me a written summary," "tell me a story about this batch." The one place a model *writes* an answer instead of retrieving one: Ollama receives only the same already-computed, verified numbers the deterministic overview uses, never raw rows, and every number in its response is extracted and checked against those exact facts before ever being shown. One invented number and the whole response is discarded for the plain deterministic version instead — tested live, not just claimed: the real model has genuinely invented a number in testing, and it was caught and silently rejected. This is the same validation-gate discipline Pass 4 uses, applied to language generation instead of candidate-selection.
 
 **How you can ask it:**
 
