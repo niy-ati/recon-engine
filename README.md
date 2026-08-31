@@ -123,6 +123,8 @@ Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razo
 
 **What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **77 of 514 rows (15.0%) are resolved or explained only because the ledger got read** — including two rows with a perfectly clean UTR/amount/date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
 
+The same gap holds even for Razorpay's own multi-gateway product. [Optimizer's Single View Recon](https://razorpay.com/blog/single-view-recon/) consolidates settlements across payment gateways into one dashboard — but it's a consolidated view, not a matching engine: no AI matching, no exception taxonomy, no merchant ledger as a source, and it only works on payments already routed through Optimizer.
+
 ## Review Application
 
 Four pages, one stdlib `http.server`, no framework — **Overview**, **Queue**, **Records**, **Sources** — sharing one shell and one live SQLite database with the pipeline.
