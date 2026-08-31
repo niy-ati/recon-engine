@@ -305,6 +305,97 @@ def _project_knowledge(question: str) -> str | None:
     return None
 
 
+# Plain fintech/reconciliation vocabulary -- "what is a UTR", "what does
+# chargeback mean" -- not this batch's own numbers, so there's nothing here
+# a model could get wrong by inventing a figure; these are fixed, accurate
+# definitions, same canned-text principle as PROJECT_KNOWLEDGE and
+# CATEGORY_GUIDANCE. This is the real gap those two don't cover: someone
+# asking what a term MEANS in general, as opposed to why a specific
+# category or order landed where it did (CATEGORY_GUIDANCE already answers
+# that once a category is actually named/extracted). Checked last, in the
+# same dispatch tuple as _batch_summary and friends -- by that point
+# order_id/settlement_id/category are already None, so a real question like
+# "what is the total settlement value" is answered by _batch_totals first;
+# this only ever catches genuinely generic, undirected definitional
+# phrasing that nothing else recognized.
+GLOSSARY = [
+    (
+        ("what is a utr", "what is utr", "what does utr mean", "define utr", "explain utr"),
+        "UTR stands for Unique Transaction Reference -- the bank's own reference number for a "
+        "fund transfer. It's the strongest signal this system matches on: if a settlement's UTR "
+        "and a bank statement row's UTR agree, that's treated as a confirmed match before "
+        "anything else is even tried."
+    ),
+    (
+        ("what is a chargeback", "what does chargeback mean", "define chargeback", "explain chargeback"),
+        "A chargeback is a payment reversal a customer's bank or card network initiates after "
+        "the money has already settled -- different from a refund, which the merchant initiates "
+        "itself. This batch doesn't track chargebacks as their own category today."
+    ),
+    (
+        ("what is t+2", "what does t+2 mean", "what is a settlement cycle",
+         "how long does settlement take", "when do settlements happen"),
+        "T+2 is the usual settlement cycle: money collected today typically reaches the "
+        "merchant's bank account two working days later. A hold or exception on a row means it "
+        "missed that normal path and needs an explanation -- not that the transaction failed."
+    ),
+    (
+        ("what is a ledger", "what does ledger mean", "what is the internal ledger", "what is an internal ledger"),
+        "The internal ledger is the merchant's own record of what it believes it's owed -- one "
+        "of the three sources this system reconciles, alongside the settlement report and the "
+        "bank statement. A row only counts as a clean match when all three agree."
+    ),
+    (
+        ("what is a narration", "what does narration mean", "what is bank narration", "what is a bank narration"),
+        "Narration is the short free-text line a bank attaches to a transaction, meant for a "
+        "human to read -- something like \"payment received order 1171 thanks.\" It's often the "
+        "only clue tying a bank row back to an order, which is exactly why a typo in it, a digit "
+        "misread as a letter, is one of the harder cases this system has to untangle."
+    ),
+    (
+        ("what is an audit trail", "what does audit trail mean", "what is the audit trail",
+         "what is a replay log", "what does replay log mean"),
+        "The audit trail is the step-by-step record of exactly which pass matched a row and "
+        "why -- bank UTR, then order ID, then a learned pattern, then a model tie-break if "
+        "nothing else worked. Every row keeps its own trail, shown as the Replay log on that "
+        "row in the queue."
+    ),
+    (
+        ("what is a payment gateway", "what does gateway mean", "what is a gateway"),
+        "A payment gateway is the service that actually processes a transaction between a "
+        "customer's bank and the merchant -- Razorpay, in this batch's case. Settlement data "
+        "always originates there; the bank statement and internal ledger are the two other "
+        "sources this system checks it against."
+    ),
+    (
+        ("what is reconciliation", "what does reconciliation mean", "what is settlement reconciliation"),
+        "Reconciliation is confirming that what a gateway says it settled, what a bank "
+        "statement says it received, and what a merchant's own ledger says it's owed, all "
+        "agree -- and honestly explaining every case where they don't. That explaining-the-gaps "
+        "part is what this whole system does."
+    ),
+    (
+        ("what is a mandate", "what does mandate mean", "what is afa", "what does afa mean", "what is an afa mandate"),
+        "AFA stands for Additional Factor of Authentication -- an extra authorization step "
+        "Razorpay itself requires for certain recurring or high-value payments. A mandate hold "
+        "means Razorpay is holding the settlement pending that extra authorization, not that "
+        "this system's own matching failed."
+    ),
+]
+
+
+def _glossary(question: str) -> str | None:
+    """See GLOSSARY above -- plain domain vocabulary, not this batch's own
+    data. Deliberately separate from PROJECT_KNOWLEDGE (which is about this
+    SYSTEM, not the fintech domain it operates in) so each list stays about
+    one thing and is easy to audit for accuracy on its own."""
+    ql = _normalize(question)
+    for phrases, answer in GLOSSARY:
+        if any(p in ql for p in phrases):
+            return answer
+    return None
+
+
 def _is_resolution_question(question: str) -> bool:
     """Matches four related shapes, all answered from the same canned
     CATEGORY_GUIDANCE text: "how can it/order_2/a DUPLICATE be resolved",
@@ -1089,6 +1180,12 @@ _THANKS_RE = re.compile(r"\b(thank you|thanks|thank u|appreciate it|appreciated)
 _FAREWELL_RE = re.compile(r"\b(bye|goodbye|see you|that'?s all|that is all|no more questions)\b")
 _HOW_ARE_YOU_RE = re.compile(r"\bhow are you\b")
 _WHO_ARE_YOU_RE = re.compile(r"\b(who are you|what are you|what can you do|what can i ask you|what can i ask)\b")
+# Anchored to the WHOLE question, not a substring search like the others
+# above -- "ok"/"sure"/"got it" are short, ordinary words that show up
+# inside real questions all the time ("is it okay to reject this one"), so
+# this only ever fires when the entire utterance, punctuation aside, is
+# nothing but the acknowledgment itself.
+_ACK_RE = re.compile(r"^(ok|okay|k|sure|alright|all right|got it|understood|fine|cool|great|sounds good|makes sense)[\s.,!]*$")
 
 
 def _small_talk(question: str) -> str | None:
@@ -1126,11 +1223,16 @@ def _small_talk(question: str) -> str | None:
     if _FAREWELL_RE.search(ql):
         return "Goodbye! Come back anytime you have a question about this batch."
 
+    if _ACK_RE.match(ql):
+        return "Great -- go ahead whenever you're ready with a question about this batch."
+
     return None
 
 
 FALLBACK_MESSAGE = (
-    "I don't have a way to answer that from the reconciliation data. "
+    "That's a bit outside what I can help with here -- "
+    "I don't have a way to answer that from the reconciliation data, "
+    "so rather than guess, I'll say so honestly. "
     "Try asking about a specific order (\"what happened to order_1032\") "
     "or settlement (\"what happened to setl_a1b2c3\"), a category count "
     "or list (\"how many DUPLICATE exceptions\", \"list UNEXPLAINED "
@@ -1220,7 +1322,8 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # the more specific, intended handler wins that overlap.
     for handler in (_cash_value, _resolution_status_count, _category_count,
                      _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
-                     _batch_totals, _extreme_amount, _recurring_patterns, _resolution_rate, _category_breakdown):
+                     _batch_totals, _extreme_amount, _recurring_patterns, _resolution_rate,
+                     _category_breakdown, _glossary):
         result = handler(question)
         if result is not None:
             return result, _updated_referent()

@@ -223,6 +223,55 @@ class TestSmallTalk(SettlementQaTestCase):
             with self.subTest(phrasing=phrasing):
                 self.assertIsNone(qa._small_talk(phrasing))
 
+    def test_bare_acknowledgment_gets_a_short_warm_reply(self):
+        for phrasing in ("ok", "okay", "sure", "alright", "got it", "OK.", "sounds good"):
+            with self.subTest(phrasing=phrasing):
+                result = qa.answer(phrasing)
+                self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+
+    def test_acknowledgment_word_inside_a_real_question_does_not_collide(self):
+        """_ACK_RE is anchored to the whole utterance specifically because
+        "ok"/"sure" are ordinary words that show up inside real questions --
+        this must still reach the real order lookup, not the ack reply."""
+        for phrasing in (
+            "is it okay to reject order_2", "sure, what happened to order_2",
+        ):
+            with self.subTest(phrasing=phrasing):
+                self.assertIsNone(qa._small_talk(phrasing))
+
+
+class TestGlossary(SettlementQaTestCase):
+    """Plain fintech/reconciliation vocabulary -- "what is a UTR" -- is a
+    real, common question that has nothing to do with this batch's own
+    numbers, so answering it can't risk inventing a figure. Distinct from
+    CATEGORY_GUIDANCE (a specific category's meaning, once named) and
+    PROJECT_KNOWLEDGE (this system's own architecture)."""
+
+    def test_utr_definition(self):
+        result = qa.answer("what is a UTR")
+        self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+        self.assertIn("Unique Transaction Reference", result)
+
+    def test_chargeback_definition(self):
+        result = qa.answer("what does chargeback mean")
+        self.assertIn("reversal", result.lower())
+
+    def test_afa_mandate_definition(self):
+        result = qa.answer("what is AFA")
+        self.assertIn("Additional Factor of Authentication", result)
+
+    def test_audit_trail_definition(self):
+        result = qa.answer("what is an audit trail")
+        self.assertIn("Replay log", result)
+
+    def test_real_batch_question_is_not_shadowed_by_the_glossary(self):
+        """"what is the total settlement value" must still reach the real
+        _batch_totals number, not a generic definition of "settlement" --
+        _glossary is dispatched last, after every batch-data handler."""
+        result = qa.answer("what is the total settlement value")
+        self.assertNotIn("Reconciliation is confirming", result)
+        self.assertNotIn("The internal ledger is", result)
+
 
 class TestProjectKnowledge(SettlementQaTestCase):
     """Fixed, human-written answers about the system itself (architecture,
