@@ -696,8 +696,8 @@ PAGE_STYLE = """
   @media (max-width: 460px) {
     h1 { font-size:20px; line-height:26px; }
     .stat b { font-size:22px; }
-    .donut { width:96px; height:96px; }
-    .donut .donut-label { inset:18px; }
+    .donut { width:112px; height:112px; }
+    .donut .donut-label { inset:20px; }
     .category-card-text b { font-size:18px; }
   }
 
@@ -1731,7 +1731,7 @@ def render_donut(all_rows: list[dict]) -> str:
         return "<div class='panel'><div class='empty-state'>No batch yet -- run <code>run_all.py</code></div></div>"
 
     counts = Counter(r["status"] for r in all_rows)
-    stops, cursor, legend_rows = [], 0.0, []
+    segments, cursor, legend_rows = [], 0.0, []
     for status in STATUS_ORDER:
         c = counts.get(status, 0)
         if not c:
@@ -1739,12 +1739,44 @@ def render_donut(all_rows: list[dict]) -> str:
         pct = 100 * c / total
         label, tone = STATUS_LABELS[status]
         color = SWATCH_HEX[tone]
-        stops.append(f"{color} {cursor:.2f}% {cursor + pct:.2f}%")
+        segments.append({"tone": tone, "color": color, "start": cursor, "end": cursor + pct})
         cursor += pct
         legend_rows.append(
             f'<div class="row" title="{escape(label)}"><span class="swatch" style="background:{color}"></span>'
             f'{escape(label)}<span class="pct">{pct:.1f}%</span></div>'
         )
+
+    # A hairline surface gap between adjacent segments of DIFFERING tone
+    # only -- two same-tone segments (Clean match and Explained variance
+    # are both "positive") read as one continuous arc by design, so a gap
+    # between them would draw a boundary that isn't semantically there.
+    # Found live: at the ~96px donut this renders at on a phone, several
+    # thin, differently-toned slices sitting hard against each other
+    # (Exact reference, Needs review, Exception -- together well under a
+    # fifth of the ring) blurred into one indistinct smear with no visible
+    # edge between them. A donut's whole job is letting proportions be
+    # read apart; a real legibility bug, not a matter of taste. Filled
+    # with the card's own background (not a hardcoded color) so it reads
+    # as a recessed seam rather than a color of its own.
+    GAP_PCT = 0.8
+    stops = []
+    n = len(segments)
+    for i, seg in enumerate(segments):
+        start, end = seg["start"], seg["end"]
+        prev_tone = segments[i - 1]["tone"] if i > 0 else None
+        next_tone = segments[i + 1]["tone"] if i < n - 1 else None
+        gap_start = GAP_PCT / 2 if prev_tone is not None and prev_tone != seg["tone"] else 0
+        gap_end = GAP_PCT / 2 if next_tone is not None and next_tone != seg["tone"] else 0
+        # A segment thinner than the gaps its own two neighbors would carve
+        # out of it (a genuinely tiny slice, or a batch with unusually
+        # granular status counts) renders solid instead of inverting.
+        if gap_start + gap_end >= (end - start):
+            gap_start = gap_end = 0
+        start += gap_start
+        end -= gap_end
+        stops.append(f"{seg['color']} {start:.2f}% {end:.2f}%")
+        if gap_end:
+            stops.append(f"var(--panel) {end:.2f}% {(end + gap_end * 2):.2f}%")
 
     gradient = ", ".join(stops)
     # MATCHED_LOW_CONFIDENCE is an unconfirmed candidate sitting in the
