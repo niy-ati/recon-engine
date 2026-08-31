@@ -694,6 +694,51 @@ class TestExtremeAmount(SettlementQaTestCase):
         self.assertIn("order_10", result)
 
 
+class TestRecurringPatterns(SettlementQaTestCase):
+    """Found live on the real batch: every open FUZZY_MATCH_NEEDS_REVIEW
+    row shared the identical narration shape "pymt rcvd # ord## thx" --
+    not 14 independent typos, one systemic upstream issue. These tests
+    reproduce that same shape of finding against the small seeded
+    fixture, not just assert on the real batch's own numbers, which
+    would break the moment the batch is regenerated."""
+
+    def test_shared_narration_shape_across_open_rows_is_flagged(self):
+        db.persist_results([
+            make_result("order_20", "EXCEPTION", category="FUZZY_MATCH_NEEDS_REVIEW",
+                         narration="pymt rcvd 3 ord#l020 thx"),
+            make_result("order_21", "EXCEPTION", category="FUZZY_MATCH_NEEDS_REVIEW",
+                         narration="pymt rcvd 9 ord#l021 thx"),
+        ], run_id="run-2")
+        result = qa.answer("is there any recurring pattern in the exceptions")
+        self.assertIn("recurring pattern", result)
+        self.assertIn("order_20", result)
+        self.assertIn("order_21", result)
+
+    def test_unrelated_narrations_are_not_flagged_as_a_pattern(self):
+        """Regression guard: two open rows that just happen to both be
+        open must not be reported as "recurring" -- only rows that
+        genuinely share the same generalized shape should group."""
+        db.persist_results([
+            make_result("order_30", "EXCEPTION", category="UNEXPLAINED",
+                         narration="no reference found anywhere in this line"),
+        ], run_id="run-2")
+        result = qa.answer("any systemic issues here")
+        self.assertIn("one-off", result)
+
+    def test_narration_shape_generalizes_any_digit_bearing_token_not_just_a_known_order_ref(self):
+        """Unlike db._derive_template() (Pass 2.6's learned-template
+        generalizer), this doesn't need to already know which digits
+        belong to which order, and doesn't require them to be cleanly
+        present -- exactly the case an open, unresolved row usually is,
+        since a cleanly-present reference is what let Pass 2.75 resolve
+        it before it could ever reach the queue at all."""
+        self.assertEqual(qa._narration_shape("pymt rcvd 3 ord#l171 thx"), "pymt rcvd # ord## thx")
+        self.assertEqual(
+            qa._narration_shape("pymt rcvd 3 ord#l171 thx"),
+            qa._narration_shape("pymt rcvd 9 ord#l216 thx"),
+        )
+
+
 class TestLlmFallbackRouting(SettlementQaTestCase):
     """Tests settlement_qa.py's own fallback wiring, not qa_intent_gate.py's
     or qa_intent_router.py's internals (see test_qa_intent_router.py and

@@ -916,6 +916,66 @@ def _extreme_amount(question: str) -> str | None:
             f"(status={target['status']}{cat_part}).")
 
 
+_NARRATION_SHAPE_RE = re.compile(r"[a-zA-Z0-9]*\d[a-zA-Z0-9]*")
+
+
+def _narration_shape(narration: str) -> str:
+    """Every alphanumeric run containing at least one digit collapsed to
+    a single '#' -- not just the one order's own known digit suffix the
+    way db._derive_template() generalizes for the learned-pattern store
+    (Pass 2.6). That function needs to know in advance which digits are
+    "this order's own reference" and requires them to be cleanly present
+    -- exactly the case an OPEN, unresolved row usually isn't, since a
+    cleanly-present reference is what let Pass 2.75 resolve it
+    deterministically before it could ever reach the review queue at
+    all. This generalizes blindly instead, with no order in mind, so it
+    still groups two open rows together even when neither one's
+    reference is currently recognizable as anyone's."""
+    return _NARRATION_SHAPE_RE.sub("#", narration.strip().lower())
+
+
+def _recurring_patterns(question: str) -> str | None:
+    """Groups OPEN rows by narration shape to answer a genuinely
+    different question than any category count does: not "how many
+    rows are FUZZY_MATCH_NEEDS_REVIEW", but "are these N rows N
+    unrelated problems, or one systemic one." Found live, on the real
+    batch: every open FUZZY_MATCH_NEEDS_REVIEW row shares the identical
+    shape "pymt rcvd # ord## thx" -- the corrupted digit-as-letter typo
+    isn't 14 independent human errors, it's one upstream narration
+    template a bank or gateway generates consistently. That's a fix to
+    escalate once, not 14 rows to individually confirm -- a category
+    breakdown has no way to say that, since it only counts by taxonomy,
+    never by the underlying text shape."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in (
+        "recurring", "systemic", "keeps happening", "same pattern across",
+        "repeated pattern", "any patterns in the exceptions", "narration pattern",
+        "is this a one-off", "is this systemic",
+    )):
+        return None
+
+    open_rows = db.get_open_exceptions()
+    if not open_rows:
+        return "No open rows to look for a pattern across."
+
+    groups: dict[str, list[str]] = {}
+    for r in open_rows:
+        if not r["narration"] or not r["order_id"]:
+            continue
+        groups.setdefault(_narration_shape(r["narration"]), []).append(r["order_id"])
+
+    recurring = {shape: ids for shape, ids in groups.items() if len(ids) >= 2}
+    if not recurring:
+        return "No recurring narration pattern across the open rows -- each one looks like its own one-off, not a systemic issue."
+
+    lines = [f"{_plural(len(recurring), 'recurring pattern')} found across the open rows:"]
+    for shape, ids in sorted(recurring.items(), key=lambda kv: -len(kv[1])):
+        shown = ids[:5]
+        more = f", and {len(ids) - 5} more" if len(ids) > 5 else ""
+        lines.append(f'  "{shape}" -- {_plural(len(ids), "order")}: {", ".join(shown)}{more}')
+    return "\n".join(lines)
+
+
 def _resolution_guidance(question: str, context: dict | None) -> str | None:
     if not _is_resolution_question(question):
         return None
@@ -1098,7 +1158,7 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # the more specific, intended handler wins that overlap.
     for handler in (_cash_value, _resolution_status_count, _category_count,
                      _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
-                     _batch_totals, _extreme_amount, _resolution_rate, _category_breakdown):
+                     _batch_totals, _extreme_amount, _recurring_patterns, _resolution_rate, _category_breakdown):
         result = handler(question)
         if result is not None:
             return result, _updated_referent()
