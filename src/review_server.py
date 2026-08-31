@@ -565,6 +565,142 @@ PAGE_STYLE = """
 
   .voice-agent-transcript { padding:12px 16px 14px; font-size:12.5px; color:var(--ink); line-height:1.55; white-space:pre-wrap; max-height:180px; overflow-y:auto; }
 
+  /* --------------------------------------------------------- Mobile nav - */
+  /* Off-canvas drawer, not a squeezed-down sidebar -- at phone widths the
+     264px rail would eat most of the screen if it just stayed put, so
+     below the breakpoint it slides in over the content instead, behind an
+     overlay, triggered by a hamburger in a slim top bar. Desktop keeps the
+     always-visible rail exactly as before -- these rules are additive,
+     scoped entirely to the media query below. */
+  .mobile-topbar { display:none; }
+  .rail-overlay { display:none; }
+
+  @media (max-width: 860px) {
+    body { display:block; }
+    .mobile-topbar {
+      display:flex; align-items:center; gap:var(--sp-6); position:sticky; top:0; z-index:50;
+      background:var(--panel); border-bottom:1px solid var(--border-subtle);
+      padding:var(--sp-5) var(--sp-6);
+    }
+    .mobile-topbar .wordmark-logo { height:20px; width:auto; }
+    #mobile-menu-btn {
+      background:var(--primary-faint); color:var(--primary-strong); border:none; width:38px; height:38px;
+      border-radius:var(--radius-s); display:flex; align-items:center; justify-content:center;
+      cursor:pointer; padding:0; flex-shrink:0;
+    }
+    #mobile-menu-btn svg { width:20px; height:20px; }
+
+    aside.rail {
+      position:fixed; top:0; left:0; height:100vh; width:78vw; max-width:280px; z-index:120;
+      transform:translateX(-100%); transition:transform 0.22s ease-out; box-shadow:var(--shadow-high);
+    }
+    aside.rail.open { transform:translateX(0); }
+    aside.rail .brand { display:none; } /* the mobile topbar already shows the logo */
+    .rail-overlay.open {
+      display:block; position:fixed; inset:0; background:hsla(220,25%,10%,0.45); z-index:110;
+      animation:chat-msg-in 0.18s ease-out;
+    }
+
+    main { padding:var(--sp-7) var(--sp-6) 96px; }
+    .page-head {
+      margin:calc(var(--sp-7) * -1) calc(var(--sp-6) * -1) var(--sp-8);
+      padding:var(--sp-7) var(--sp-6) var(--sp-6);
+    }
+    h1 { font-size:22px; line-height:28px; }
+
+    .overview { flex-direction:column; }
+    .donut-card { min-width:0; width:100%; padding:var(--sp-6); gap:var(--sp-6); }
+    .legend { min-width:0; flex:1; }
+    .legend .row { flex-wrap:wrap; row-gap:2px; }
+    .legend .pct { padding-left:10px; }
+    .stats { width:100%; }
+    .stat { min-width:0; flex-basis:100%; }
+
+    .hbar-row { grid-template-columns:96px 1fr 60px; gap:var(--sp-4); }
+    .hbar-label { font-size:11.5px; }
+    .hbar-value { font-size:11.5px; }
+
+    input[type=text] { width:100%; }
+    form.filter-form { width:100%; }
+    form.filter-form > * { flex:1 1 auto; }
+
+    /* Queue/Records tables become stacked cards, not a horizontally-
+       scrolling table -- found live: at any width narrow enough to need
+       that scroll, the reason/audit-trail column's real explanatory text
+       (a full sentence, not a short label) had to squeeze into ~220px and
+       wrapped into a dozen-plus lines, so most rows on the review queue
+       silently rendered ~350-380px tall with the actually-important
+       column sitting off past the fold to the right of the two id chips
+       that happened to still be visible. A card per row -- every field
+       labelled and stacked full-width -- means the audit trail gets the
+       full screen width to wrap into instead of a sliver of one, and
+       nothing needs a sideways scroll to be read. The <thead> (and with
+       it, Records' click-to-sort arrows) has no columns left to sit above
+       so it's hidden here; the live search box and status filter above
+       the table remain the way to narrow the list down on a phone. */
+    .table-scroll { overflow-x:visible; }
+    table, tbody, tr { display:block; width:100%; }
+    thead { display:none; }
+    tbody tr {
+      border:1px solid var(--border-subtle); border-radius:var(--radius-l); margin-bottom:var(--sp-6);
+      padding:var(--sp-5) var(--sp-6); box-shadow:var(--shadow-low); background:var(--panel);
+    }
+    tbody tr:last-child { margin-bottom:0; }
+    tbody tr:hover { background:var(--panel); }
+    td {
+      display:flex; gap:var(--sp-5); align-items:flex-start; width:auto; min-width:0;
+      padding:var(--sp-3) 0; border-bottom:1px dashed var(--border-subtle);
+    }
+    tr td:last-child { border-bottom:none; }
+    td[colspan] { display:block; border-bottom:none; }
+    td::before {
+      content:attr(data-label); flex:0 0 92px; font-size:11px; font-weight:700; text-transform:uppercase;
+      letter-spacing:0.05em; color:var(--muted); padding-top:2px;
+    }
+    /* The value half of each label/value row needs room to actually
+       shrink -- a flex item's default min-width is its content's own
+       min-content size, which for an unbroken settlement id ("setl_...",
+       nowrap by design so it never wraps mid-hash on desktop where there's
+       room) is wider than a narrow phone has to give it. Found live at a
+       320px viewport: the chip ran 15px past the card edge with no
+       scrollbar to show it, since this is layout overflow, not scrollable
+       overflow. Letting it break like a hash/UTR reference reasonably can,
+       only at this width, keeps every card inside the screen. */
+    td.id-cell, td.amount-cell, td > span, td > .cat, td > .cat-empty { min-width:0; }
+    td.id-cell { white-space:normal; }
+    .id-chip { white-space:normal; word-break:break-all; max-width:100%; }
+    td.reason-cell, td.action-cell { display:block; min-width:0; max-width:none; width:100%; }
+    td.reason-cell::before, td.action-cell::before { display:block; margin-bottom:6px; }
+    td.action-cell form { display:block; width:100%; margin-bottom:8px; }
+    td.action-cell form:last-child { margin-bottom:0; }
+    td.action-cell button { width:100%; justify-content:center; }
+
+    /* Both floating agents shrink to icon-only round buttons and tuck under
+       the sticky top bar so nothing overlaps the hamburger/logo row. */
+    #voice-agent-btn {
+      top:calc(var(--sp-6) + 44px); right:var(--sp-6); padding:0; width:48px; height:48px; justify-content:center;
+    }
+    #voice-agent-btn .voice-agent-label { display:none; }
+    .voice-agent-panel { top:calc(var(--sp-6) + 100px); right:var(--sp-5); width:calc(100vw - 32px); max-width:340px; }
+
+    .chat-toggle { right:var(--sp-6); bottom:var(--sp-6); width:58px; height:58px; }
+    .chat-toggle svg { width:25px; height:25px; }
+    .chat-panel {
+      right:var(--sp-5); left:var(--sp-5); width:auto; max-width:none;
+      bottom:calc(var(--sp-6) + 72px); height:calc(100vh - 200px);
+    }
+    .chat-panel.maximized { width:auto !important; height:calc(100vh - 140px) !important; }
+    .chat-resize-handle { display:none; }
+  }
+
+  @media (max-width: 460px) {
+    h1 { font-size:20px; line-height:26px; }
+    .stat b { font-size:22px; }
+    .donut { width:96px; height:96px; }
+    .donut .donut-label { inset:18px; }
+    .category-card-text b { font-size:18px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition:none !important; animation:none !important; }
   }
@@ -1517,7 +1653,14 @@ def render_shell(
 <style>{PAGE_STYLE}</style>
 </head>
 <body>
-  <aside class="rail">
+  <div class="mobile-topbar">
+    <button type="button" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="rail">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    </button>
+    <img class="wordmark-logo" src="/assets/razorpay-logo.svg" alt="Razorpay">
+  </div>
+  <div class="rail-overlay" id="rail-overlay"></div>
+  <aside class="rail" id="rail">
     <div class="brand">
       <img class="wordmark-logo" src="/assets/razorpay-logo.svg" alt="Razorpay">
     </div>
@@ -1533,6 +1676,30 @@ def render_shell(
   {extra_script}
   {CHAT_WIDGET}
   {VOICE_AGENT_WIDGET}
+  <script>
+  (function () {{
+    var menuBtn = document.getElementById("mobile-menu-btn");
+    var rail = document.getElementById("rail");
+    var overlay = document.getElementById("rail-overlay");
+    if (!menuBtn || !rail || !overlay) return;
+    function closeRail() {{
+      rail.classList.remove("open");
+      overlay.classList.remove("open");
+      menuBtn.setAttribute("aria-expanded", "false");
+    }}
+    function openRail() {{
+      rail.classList.add("open");
+      overlay.classList.add("open");
+      menuBtn.setAttribute("aria-expanded", "true");
+    }}
+    menuBtn.addEventListener("click", function () {{
+      if (rail.classList.contains("open")) closeRail(); else openRail();
+    }});
+    overlay.addEventListener("click", closeRail);
+    rail.querySelectorAll("nav a").forEach(function (a) {{ a.addEventListener("click", closeRail); }});
+    document.addEventListener("keydown", function (e) {{ if (e.key === "Escape") closeRail(); }});
+  }})();
+  </script>
 </body>
 </html>"""
 
@@ -1886,15 +2053,23 @@ def render_row(r: dict, show_actions: bool = True) -> str:
                         if r["settlement_id"] else '<span class="cat-empty">&mdash;</span>')
 
     reason_text = r["reason"] or summarize_replay(replay_log) or "No stages recorded for this row."
+    # data-label mirrors each column's own <th> text -- on mobile the table
+    # collapses into stacked cards (see the responsive-table media query)
+    # and td::before reads this attribute back as the card's field label,
+    # since the <thead> itself is hidden once there are no columns left to
+    # align to. Queue's last column reads "Action" (buttons); Records'
+    # reads "Resolution" (a status pill) -- show_actions already tells
+    # render_row which one this row is.
+    action_label = "Action" if show_actions else "Resolution"
 
     return f"""
     <tr data-search="{search_blob}" data-status="{escape(r["status"])}">
-      <td class="id-cell" data-value="{escape(r["order_id"] or "")}">{order_html}</td>
-      <td class="id-cell" data-value="{escape(r["settlement_id"] or "")}">{settlement_html}</td>
-      <td class="amount-cell" data-value="{r["net_amount"] if r["net_amount"] is not None else ""}">{net}</td>
-      <td data-value="{escape(r["status"])}">{render_status_pill(r["status"])}</td>
-      <td data-value="{escape(r["category"] or "")}">{category_html}</td>
-      <td class="reason-cell">
+      <td class="id-cell" data-label="Order" data-value="{escape(r["order_id"] or "")}">{order_html}</td>
+      <td class="id-cell" data-label="Settlement" data-value="{escape(r["settlement_id"] or "")}">{settlement_html}</td>
+      <td class="amount-cell" data-label="Net (Rs.)" data-value="{r["net_amount"] if r["net_amount"] is not None else ""}">{net}</td>
+      <td data-label="Status" data-value="{escape(r["status"])}">{render_status_pill(r["status"])}</td>
+      <td data-label="Category" data-value="{escape(r["category"] or "")}">{category_html}</td>
+      <td class="reason-cell" data-label="Reason / audit trail">
         <div class="audit-box">
           {highlight_reason(escape(reason_text))}
           {narration_html}
@@ -1902,7 +2077,7 @@ def render_row(r: dict, show_actions: bool = True) -> str:
           {note_html}
         </div>
       </td>
-      <td class="action-cell">{actions_html}</td>
+      <td class="action-cell" data-label="{action_label}">{actions_html}</td>
     </tr>"""
 
 
