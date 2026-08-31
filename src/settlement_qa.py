@@ -1080,6 +1080,55 @@ def _similar_orders(question: str, context: dict | None) -> str | None:
     return "\n".join(lines)
 
 
+# Word-boundary matched -- "hi" or "hey" as a bare substring would
+# otherwise fire inside an unrelated word ("this is a high priority
+# order"), the same class of bug _extract_category's own word-boundary
+# fix already exists to prevent for "ROUNDING" inside "surrounding".
+_GREETING_RE = re.compile(r"\b(hello|hi|hey|hiya|good morning|good afternoon|good evening)\b")
+_THANKS_RE = re.compile(r"\b(thank you|thanks|thank u|appreciate it|appreciated)\b")
+_FAREWELL_RE = re.compile(r"\b(bye|goodbye|see you|that'?s all|that is all|no more questions)\b")
+_HOW_ARE_YOU_RE = re.compile(r"\bhow are you\b")
+_WHO_ARE_YOU_RE = re.compile(r"\b(who are you|what are you|what can you do|what can i ask you|what can i ask)\b")
+
+
+def _small_talk(question: str) -> str | None:
+    """Fixed, human-written responses to ordinary conversational
+    pleasantries -- a greeting, thanks, goodbye, or "what can you do" --
+    checked before any entity extraction, so the very first thing
+    someone says to the voice agent gets a warm, real answer instead of
+    the honest-but-cold "I don't have a way to answer that." Never
+    model-generated, same canned-text principle as CATEGORY_GUIDANCE and
+    PROJECT_KNOWLEDGE -- warmth doesn't require giving up the "never
+    hallucinate" guarantee."""
+    ql = _normalize(question)
+
+    if _HOW_ARE_YOU_RE.search(ql):
+        return "I'm doing well, thank you for asking! Ready whenever you'd like to ask about this batch."
+
+    if _WHO_ARE_YOU_RE.search(ql):
+        return (
+            "I'm the settlement Q&A assistant for this reconciliation batch. Ask me about "
+            "a specific order or settlement, a category, how many rows are open or "
+            "confirmed, the batch's cash position, or how to resolve something once it's "
+            "come up -- by chat, voice, or an uploaded statement."
+        )
+
+    if _GREETING_RE.search(ql):
+        return (
+            "Hello! Happy to help with anything about this reconciliation batch -- ask me "
+            "about a specific order, a category, how many rows need a decision, or the "
+            "overall cash position, whenever you're ready."
+        )
+
+    if _THANKS_RE.search(ql):
+        return "You're very welcome! Let me know if there's anything else about this batch I can help with."
+
+    if _FAREWELL_RE.search(ql):
+        return "Goodbye! Come back anytime you have a question about this batch."
+
+    return None
+
+
 FALLBACK_MESSAGE = (
     "I don't have a way to answer that from the reconciliation data. "
     "Try asking about a specific order (\"what happened to order_1032\") "
@@ -1097,6 +1146,19 @@ FALLBACK_MESSAGE = (
 
 def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = True) -> tuple[str, dict]:
     referent = dict(context) if context else {}
+
+    # Checked before any entity extraction: a bare "hello" has no
+    # order_id, settlement_id, or category to find, so it always used to
+    # fall straight through to the honest "I don't have a way to answer
+    # that" -- technically correct (there's no reconciliation question
+    # here to fail at answering) but a genuinely bad first impression on
+    # a voice agent, especially the very first thing a person says to
+    # it. Fixed, human-written responses, same canned-text principle as
+    # CATEGORY_GUIDANCE and PROJECT_KNOWLEDGE -- never model-generated,
+    # so this can't hallucinate a fact while being warm about it.
+    small_talk = _small_talk(question)
+    if small_talk is not None:
+        return small_talk, dict(context) if context else {}
 
     order_id = _extract_order_id(question)
     settlement_id = _extract_settlement_id(question)

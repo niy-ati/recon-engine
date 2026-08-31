@@ -186,6 +186,44 @@ class TestUnknownQuestion(SettlementQaTestCase):
         self.assertIn("don't have a way to answer", result)
 
 
+class TestSmallTalk(SettlementQaTestCase):
+    """A bare greeting has no order_id, settlement_id, or category to
+    find, so it used to fall straight through to the honest "I don't
+    have a way to answer that" -- technically correct but a bad first
+    impression, especially as the very first thing said to the voice
+    agent. Fixed, human-written responses, never model-generated."""
+
+    def test_hello_gets_a_warm_reply_not_the_fallback(self):
+        result = qa.answer("hello")
+        self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+        self.assertIn("Hello", result)
+
+    def test_thanks_is_acknowledged(self):
+        result = qa.answer("thank you")
+        self.assertIn("welcome", result.lower())
+
+    def test_goodbye_is_acknowledged(self):
+        result = qa.answer("goodbye")
+        self.assertIn("Goodbye", result)
+
+    def test_what_can_you_do_gets_a_real_capability_answer(self):
+        result = qa.answer("what can you do")
+        self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+        self.assertIn("order", result.lower())
+
+    def test_short_trigger_words_do_not_collide_with_real_questions(self):
+        """Regression guard: "hi" and "hey" are short enough to risk
+        matching inside an unrelated word or phrase if this weren't
+        word-boundary matched -- the same class of bug _extract_category
+        already guards against for "ROUNDING" inside "surrounding"."""
+        for phrasing in (
+            "help me find order_2", "can you help me understand this category",
+            "what happened to order_2", "how can it be resolved",
+        ):
+            with self.subTest(phrasing=phrasing):
+                self.assertIsNone(qa._small_talk(phrasing))
+
+
 class TestProjectKnowledge(SettlementQaTestCase):
     """Fixed, human-written answers about the system itself (architecture,
     model choice, metrics, research) -- never model-generated, same
