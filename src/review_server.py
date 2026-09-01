@@ -2050,9 +2050,7 @@ def render_overview() -> str:
     {cash_by_category_html}
     {render_cash_clarity(all_rows)}
     {render_cash_forecast(all_rows)}"""
-    return render_shell("overview", "Overview",
-                         "Every number below is traced to one real, cited settlement batch -- not a marketing target.",
-                         body)
+    return render_shell("overview", "Overview", "", body)
 
 
 # ------------------------------------------------------------- Review queue
@@ -2220,9 +2218,7 @@ def render_queue() -> str:
       </table>
       </div>
     </div>"""
-    return render_shell("queue", "Review queue",
-                         "Every row here still needs a human decision -- nothing is auto-applied, no matter how confident the match looks.",
-                         body)
+    return render_shell("queue", "Review queue", "", body)
 
 
 # -------------------------------------------------------------- All records
@@ -2268,9 +2264,7 @@ def render_records(initial_query: str = "") -> str:
       </table>
       </div>
     </div>"""
-    return render_shell("records", "All records",
-                         "Every row this run has ever produced, confirmed or not -- searchable, sortable, and linked to its own full audit trail.",
-                         body, extra_script=INTERACTIVITY_SCRIPT)
+    return render_shell("records", "All records", "", body, extra_script=INTERACTIVITY_SCRIPT)
 
 
 # ------------------------------------------------------------- Data sources
@@ -2349,9 +2343,7 @@ def render_sources() -> str:
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
     </div>
     {tax_panel}"""
-    return render_shell("sources", "Data sources",
-                         "The three real inputs this run reconciled against each other, plus every settlement's GST checked against the real statutory rate.",
-                         body)
+    return render_shell("sources", "Data sources", "", body)
 
 
 class Handler(BaseHTTPRequestHandler):
