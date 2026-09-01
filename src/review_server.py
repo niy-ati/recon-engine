@@ -734,16 +734,19 @@ CHAT_WIDGET = """
 
 Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up. I can also answer batch-wide questions -- an overview of this batch, the status or category breakdown, total settlement value, or the biggest/smallest amount.
 
-Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again. Curious about how this system itself works? Ask me why it's not just an LLM, what model it uses, or what the research found.</div>
+Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again. I can also narrate this batch in plain English, spot a recurring pattern across open exceptions, forecast what confirming the queue unlocks, or check every settlement's GST against the real rate. Curious about how this system itself works? Ask me why it's not just an LLM, what model it uses, or what the research found.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="give me an overview of this batch">Batch overview?</button>
     <button type="button" data-q="how many are open">How many are open?</button>
     <button type="button" data-q="what's the total settlement value">Total settlement value?</button>
     <button type="button" data-q="what's the status breakdown">Status breakdown?</button>
-    <button type="button" data-q="list DUPLICATE orders">List DUPLICATE orders</button>
     <button type="button" data-q="how much cash is at risk">Cash at risk?</button>
     <button type="button" data-q="how can it be resolved">How can it be resolved?</button>
+    <button type="button" data-q="narrate this batch">Narrate this batch</button>
+    <button type="button" data-q="is there a recurring pattern in the exceptions">Recurring pattern?</button>
+    <button type="button" data-q="forecast my cash">Forecast my cash</button>
+    <button type="button" data-q="check tax rates">Check tax rates</button>
   </div>
   <div class="chat-input-row">
     <button type="button" id="chat-attach" class="ghost-icon" aria-label="Attach a document or image" title="Attach a document or image">
