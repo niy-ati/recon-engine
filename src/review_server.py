@@ -67,6 +67,24 @@ ASSETS_DIR = ROOT / "assets"
 
 ASSET_CONTENT_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
+# Link-preview metadata (Open Graph/Twitter Card) -- static, not computed
+# per-request. A live-computed description would drift between whichever
+# moment a platform's crawler happened to cache it and whatever the batch
+# looks like later, so this states the same headline number the README and
+# pitch already commit to (90.5% on the real 514-row batch), not a number
+# that changes under a shared link. og:image needs an absolute URL to be
+# fetched cross-origin by Slack/WhatsApp/LinkedIn -- pointed at the actual
+# shared demo link (see README's Live demo link) since that's the one
+# meant for judges to open, even when this same page is served from the
+# Render deployment instead. See scripts/generate_share_assets.py for how
+# the image itself was built.
+SHARE_DESCRIPTION = (
+    "A deterministic-first reconciliation engine that resolves 90.5% of a real 514-row "
+    "settlement batch with zero AI auto-applied -- plus a settlement Q&A agent, tax-line "
+    "matcher, and forward cash forecast. Built for Razorpay's AI Buildathon 2026, Track 04."
+)
+SHARE_IMAGE_URL = "https://reconcile-engine-demo.vercel.app/assets/og-image.png"
+
 # ~8MB original file: base64 adds ~33% (~10.9MB) plus a little JSON overhead.
 MAX_UPLOAD_CONTENT_LENGTH = 12 * 1024 * 1024
 
@@ -1651,6 +1669,16 @@ def render_shell(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(title)} -- Settlement Reconciliation</title>
+<meta name="description" content="{escape(SHARE_DESCRIPTION)}">
+<link rel="icon" type="image/png" href="/assets/favicon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Settlement Reconciliation Engine">
+<meta property="og:description" content="{escape(SHARE_DESCRIPTION)}">
+<meta property="og:image" content="{SHARE_IMAGE_URL}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Settlement Reconciliation Engine">
+<meta name="twitter:description" content="{escape(SHARE_DESCRIPTION)}">
+<meta name="twitter:image" content="{SHARE_IMAGE_URL}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Mulish:wght@400;500;600&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
@@ -2022,7 +2050,9 @@ def render_overview() -> str:
     {cash_by_category_html}
     {render_cash_clarity(all_rows)}
     {render_cash_forecast(all_rows)}"""
-    return render_shell("overview", "Overview", "", body)
+    return render_shell("overview", "Overview",
+                         "Every number below is traced to one real, cited settlement batch -- not a marketing target.",
+                         body)
 
 
 # ------------------------------------------------------------- Review queue
@@ -2190,7 +2220,9 @@ def render_queue() -> str:
       </table>
       </div>
     </div>"""
-    return render_shell("queue", "Review queue", "", body)
+    return render_shell("queue", "Review queue",
+                         "Every row here still needs a human decision -- nothing is auto-applied, no matter how confident the match looks.",
+                         body)
 
 
 # -------------------------------------------------------------- All records
@@ -2236,7 +2268,9 @@ def render_records(initial_query: str = "") -> str:
       </table>
       </div>
     </div>"""
-    return render_shell("records", "All records", "", body, extra_script=INTERACTIVITY_SCRIPT)
+    return render_shell("records", "All records",
+                         "Every row this run has ever produced, confirmed or not -- searchable, sortable, and linked to its own full audit trail.",
+                         body, extra_script=INTERACTIVITY_SCRIPT)
 
 
 # ------------------------------------------------------------- Data sources
@@ -2315,7 +2349,9 @@ def render_sources() -> str:
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
     </div>
     {tax_panel}"""
-    return render_shell("sources", "Data sources", "", body)
+    return render_shell("sources", "Data sources",
+                         "The three real inputs this run reconciled against each other, plus every settlement's GST checked against the real statutory rate.",
+                         body)
 
 
 class Handler(BaseHTTPRequestHandler):
