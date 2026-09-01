@@ -765,6 +765,7 @@ Got a statement handy? Attach a PDF or photo and I'll check it against this run 
     <button type="button" data-q="is there a recurring pattern in the exceptions">Recurring pattern?</button>
     <button type="button" data-q="forecast my cash">Forecast my cash</button>
     <button type="button" data-q="check tax rates">Check tax rates</button>
+    <button type="button" data-q="is the monthly tax invoice reconciled">Monthly tax invoice?</button>
   </div>
   <div class="chat-input-row">
     <button type="button" id="chat-attach" class="ghost-icon" aria-label="Attach a document or image" title="Attach a document or image">
@@ -2336,13 +2337,63 @@ def render_sources() -> str:
           </div>
         </div>"""
 
+    # A second, distinct tier from the per-row panel above -- mirrors
+    # RazorpayX's own real two-report tax structure (Manage Teams >
+    # Billing: a transaction-level Invoice Reconciliation Report, and a
+    # consolidated Monthly Tax Invoice Report a merchant reconciles
+    # against before filing ITC). See tax_audit.py's module docstring for
+    # why a month can pass the per-row check row by row and still drift
+    # in aggregate.
+    monthly_findings = tax_audit.audit_monthly_reconciliation()
+    if monthly_findings:
+        monthly_rows_html = "".join(
+            f'<div class="category-card tone-negative" style="align-items:flex-start">'
+            f'<div class="icon-badge">{ICON_ALERT}</div>'
+            f'<div class="category-card-text">'
+            f'<span style="font-weight:700">{escape(m["month"])} ({m["settlement_count"]} settlement{"" if m["settlement_count"] == 1 else "s"})</span>'
+            f'<span>Rs.{m["actual_gst_total"]:,.2f} charged vs Rs.{m["expected_gst_total"]:,.2f} expected -- '
+            f'{m["direction"]} by Rs.{m["diff"]:.2f}, of which Rs.{m["already_flagged_per_row"]:.2f} is already the '
+            f'individual row(s) above and Rs.{m["unexplained"]:.2f} is new: sub-tolerance rounding no per-row '
+            f'check would ever catch on its own.</span>'
+            f'</div></div>'
+            for m in monthly_findings
+        )
+        monthly_panel = f"""
+        <div class="panel">
+          <div class="panel-head"><h2 style="margin:0">Monthly tax invoice reconciliation</h2></div>
+          <div class="panel-body">
+            <p style="margin:0 0 var(--sp-6);color:var(--muted)">
+              RazorpayX itself ships this exact second tier for real -- a consolidated Monthly Tax
+              Invoice Report a GST-registered merchant reconciles against before filing ITC, separate
+              from the per-transaction report above. {len(monthly_findings)} {"month" if len(monthly_findings) == 1 else "months"}
+              drift beyond a real materiality threshold once every settlement is summed together.
+            </p>
+            <div class="category-grid">{monthly_rows_html}</div>
+          </div>
+        </div>"""
+    else:
+        monthly_panel = f"""
+        <div class="panel">
+          <div class="panel-head"><h2 style="margin:0">Monthly tax invoice reconciliation</h2></div>
+          <div class="panel-body">
+            <div class="category-card tone-positive">
+              <div class="icon-badge">{ICON_CHECK}</div>
+              <div class="category-card-text">
+                <span style="font-weight:700">All clear</span>
+                <span>Every month's aggregate GST-on-MDR reconciles within Rs.{tax_audit.MONTHLY_TOLERANCE_RS:.2f} of the real statutory total.</span>
+              </div>
+            </div>
+          </div>
+        </div>"""
+
     body = f"""
     <div class="source-grid">
       {card(ICON_ROWS, "Settlements", settlement_count)}
       {card(ICON_BANK, "Bank rows", bank_count)}
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
     </div>
-    {tax_panel}"""
+    {tax_panel}
+    {monthly_panel}"""
     return render_shell("sources", "Data sources", "", body)
 
 

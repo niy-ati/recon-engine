@@ -1144,6 +1144,42 @@ def _tax_line_audit(question: str) -> str | None:
     return "\n".join(lines)
 
 
+def _monthly_tax_reconciliation(question: str) -> str | None:
+    """A second, distinct tier from _tax_line_audit above -- mirrors
+    RazorpayX's own real transaction-level vs consolidated-monthly tax
+    reporting split (see tax_audit.py's module docstring). Checked with
+    its own "monthly"/"invoice" phrasing, not folded into
+    _tax_line_audit's triggers: "check tax rates" is genuinely a different
+    question from "is the monthly invoice reconciled," and answering the
+    wrong one for either phrasing would silently hide whichever tier the
+    person didn't ask about."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in (
+        "monthly tax", "monthly gst", "monthly invoice", "tax invoice reconcil",
+        "invoice reconciliation", "itc reconcil", "reconcile the tax invoice",
+    )):
+        return None
+
+    findings = tax_audit.audit_monthly_reconciliation()
+    if not findings:
+        return (
+            f"No finding -- every month's aggregate GST-on-MDR reconciles within "
+            f"Rs.{tax_audit.MONTHLY_TOLERANCE_RS:.2f} of the real statutory total, the way "
+            f"RazorpayX's own Monthly Tax Invoice Report should before an ITC claim."
+        )
+
+    lines = []
+    for m in findings:
+        lines.append(
+            f"{m['month']}: Rs.{m['actual_gst_total']:,.2f} charged vs Rs.{m['expected_gst_total']:,.2f} "
+            f"expected across {m['settlement_count']} settlements -- {m['direction']} by Rs.{m['diff']:.2f}. "
+            f"Rs.{m['already_flagged_per_row']:.2f} of that is the individual row(s) the tax-line matcher "
+            f"already flags; Rs.{m['unexplained']:.2f} is new -- sub-tolerance rounding spread across the "
+            f"rest of the month's rows that no per-row check would catch on its own."
+        )
+    return "\n".join(lines)
+
+
 def _resolution_guidance(question: str, context: dict | None) -> str | None:
     if not _is_resolution_question(question):
         return None
@@ -1405,7 +1441,7 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     for handler in (_cash_forecast, _cash_value, _resolution_status_count, _category_count,
                      _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
                      _batch_totals, _extreme_amount, _recurring_patterns, _tax_line_audit,
-                     _resolution_rate, _category_breakdown, _glossary):
+                     _monthly_tax_reconciliation, _resolution_rate, _category_breakdown, _glossary):
         result = handler(question)
         if result is not None:
             return result, _updated_referent()

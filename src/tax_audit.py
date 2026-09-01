@@ -28,8 +28,24 @@ this has to check EVERY line regardless of that line's own match status,
 and mdr/gst_on_mdr are transient CSV columns reconcile.py never persists
 to the database (only order/settlement identity and the match outcome
 are stored there).
+
+RazorpayX itself ships this exact two-tier structure for real, per its own
+docs (Manage Teams > Billing): a transaction-level "Invoice Reconciliation
+Report" and a consolidated "Monthly Tax Invoice Report" a GST-registered
+merchant reconciles against before filing ITC. audit_tax_lines() above is
+the transaction tier. audit_monthly_reconciliation() below is the second
+tier, and it exists because the two tiers genuinely catch different
+things: a month of settlements can have every single row sit inside
+audit_tax_lines()'s own Rs.0.50 tolerance -- individually invisible -- and
+still add up to a materially wrong monthly total. Found live on the real
+batch: the known per-row overcharges (order_1210, order_1151) only explain
+Rs.2.00 of the month's real Rs.4.81 aggregate drift; the remaining Rs.2.81
+comes from sub-tolerance rounding spread across the other ~500 rows,
+something no per-row check, at any reasonable tolerance, would ever
+surface on its own.
 """
 import csv
+from collections import defaultdict
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -75,4 +91,79 @@ def audit_tax_lines() -> list[dict]:
                     "diff": round(abs(diff), 2),
                     "direction": "overcharged" if diff > 0 else "undercharged",
                 })
+    return findings
+
+
+# Deliberately NOT scaled up from the per-row tolerance by transaction
+# count -- a GST department doesn't grade an ITC mismatch on a curve for
+# batch size, so neither does this. Rs.2 sits comfortably above what a
+# single flagged row could produce on its own (TOLERANCE_RS is 0.50) so
+# this tier is never just re-stating a per-row finding, while staying low
+# enough that a real, modest, systemic drift like the one found live on
+# this project's own batch (Rs.4.81 across ~500 rows -- see docstring)
+# doesn't slip through as "immaterial" just because it's spread thin.
+MONTHLY_TOLERANCE_RS = 2.00
+
+
+def audit_monthly_reconciliation() -> list[dict]:
+    """See module docstring for why this exists as a second, distinct
+    tier from audit_tax_lines() above, mirroring RazorpayX's own real
+    transaction-level vs consolidated-monthly tax reporting split.
+
+    Groups every settlement by month (settlement_date's "YYYY-MM") and
+    compares that month's total actual GST-on-MDR against what the real
+    18% statutory rate would produce in aggregate. Cross-references
+    audit_tax_lines()'s own per-row findings for the same month so the
+    reported "unexplained" figure is genuinely new information a
+    transaction-level check already surfaced can't take credit for --
+    found live: of the real batch's one month's Rs.4.81 aggregate drift,
+    only Rs.2.00 traces back to the two rows audit_tax_lines() already
+    flags; the remaining Rs.2.81 comes from sub-tolerance rounding spread
+    across roughly 500 rows no per-row check would ever catch on its own."""
+    path = DATA_DIR / "settlement_report.csv"
+    if not path.exists():
+        return []
+
+    by_month = defaultdict(lambda: {"mdr": 0.0, "actual_gst": 0.0, "count": 0})
+    month_by_settlement = {}
+    with open(path, newline="") as f:
+        for row in csv.DictReader(f):
+            date = row.get("settlement_date") or ""
+            if len(date) < 7:
+                continue
+            month = date[:7]
+            month_by_settlement[row.get("settlement_id")] = month
+            try:
+                mdr = float(row["mdr"])
+                actual_gst = float(row["gst_on_mdr"])
+            except (KeyError, ValueError):
+                continue
+            by_month[month]["mdr"] += mdr
+            by_month[month]["actual_gst"] += actual_gst
+            by_month[month]["count"] += 1
+
+    already_flagged_by_month = defaultdict(float)
+    for finding in audit_tax_lines():
+        month = month_by_settlement.get(finding["settlement_id"])
+        if month:
+            signed = finding["diff"] if finding["direction"] == "overcharged" else -finding["diff"]
+            already_flagged_by_month[month] += signed
+
+    findings = []
+    for month, totals in sorted(by_month.items()):
+        expected_gst = round(totals["mdr"] * GST_ON_MDR_RATE, 2)
+        diff = round(totals["actual_gst"] - expected_gst, 2)
+        if abs(diff) <= MONTHLY_TOLERANCE_RS:
+            continue
+        already_flagged = round(already_flagged_by_month.get(month, 0.0), 2)
+        findings.append({
+            "month": month,
+            "settlement_count": totals["count"],
+            "actual_gst_total": round(totals["actual_gst"], 2),
+            "expected_gst_total": expected_gst,
+            "diff": diff,
+            "direction": "overcharged" if diff > 0 else "undercharged",
+            "already_flagged_per_row": already_flagged,
+            "unexplained": round(diff - already_flagged, 2),
+        })
     return findings

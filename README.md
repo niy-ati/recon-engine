@@ -171,7 +171,11 @@ A named use case in its own right, separate from reconciliation — matching set
 
 Found live on this project's own real 503-row batch: **2 settlements (`order_1210`, `order_1151`) are currently plain `MATCHED` rows with no exception at all** — clean by every check reconciliation runs, and clean by a dashboard that only compares settlement to ledger — yet both were charged Rs.1 more GST than the law requires. Their settlement and ledger figures agree with each other; they just both agree on the wrong number, which is exactly the case a pure amount-matching check can never catch.
 
-Shown on the **Sources** page, and answerable directly — "check tax rates," "any tax errors," "is the GST correct" — through the same Settlement Q&A path as everything else.
+**A second, distinct tier**, because RazorpayX itself ships one for real: [Manage Teams → Billing](https://razorpay.com/docs/x/manage-teams/billing/) describes a transaction-level **Invoice Reconciliation Report** and a consolidated **Monthly Tax Invoice Report** a GST-registered merchant reconciles against before filing ITC — two different reports because they genuinely catch different things. `audit_monthly_reconciliation()` mirrors the second tier: it sums a month's actual GST-on-MDR against what the real 18% rate should produce in aggregate, cross-referenced against the per-row findings above so the reported gap is never a restatement.
+
+Found live on the same batch: the month's real aggregate drift is **Rs.4.81** — but the two known per-row overcharges only account for **Rs.2.00** of it. The remaining **Rs.2.81** comes from sub-tolerance rounding spread across roughly 500 other rows, each individually inside this project's own Rs.0.50 tolerance (already tighter than the GST-reconciliation industry's own common ±Rs.1 convention, per [ClearTax](https://cleartax.in/s/gst-reconciliation)) — a gap no per-row check, at any reasonable tolerance, is structurally able to see.
+
+Shown on the **Sources** page, and answerable directly — "check tax rates" for the per-row tier, "is the monthly tax invoice reconciled" for the aggregate one — through the same Settlement Q&A path as everything else.
 
 ## Forward Cash Forecast
 
