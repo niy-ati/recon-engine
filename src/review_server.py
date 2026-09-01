@@ -286,6 +286,28 @@ PAGE_STYLE = """
   .category-card.tone-information .icon-badge { background:hsla(200,100%,41%,0.15); color:var(--information); }
   .category-card.tone-information .category-card-text b { color:var(--information); }
 
+  /* A prose finding -- a sentence or two of real explanation, not a short
+     label+number pair -- reads as cramped forced into category-grid's
+     narrow ~240px columns (found live: a judge's own screenshot showed
+     six-plus wrapped lines stacked into a tall, cluttered square). Full
+     width, stacked one per row, so the sentence gets the space it
+     actually needs instead of being squeezed sideways for no reason. */
+  .finding-list { display:flex; flex-direction:column; gap:var(--sp-6); }
+  .finding-row {
+    display:flex; align-items:flex-start; gap:var(--sp-7); width:100%;
+    padding:var(--sp-8); border-radius:var(--radius-l); border:1.5px solid transparent;
+  }
+  .finding-row .icon-badge { flex-shrink:0; }
+  .finding-row .finding-text { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .finding-row .finding-text b { font-family:var(--font-heading); font-size:16px; font-weight:700; letter-spacing:var(--ls-tighter); }
+  .finding-row .finding-text span { font-size:14px; line-height:1.65; color:var(--ink); }
+  .finding-row.tone-negative { background:var(--negative-bg); border-color:hsla(4,85%,44%,0.18); }
+  .finding-row.tone-negative .icon-badge { background:hsla(4,85%,44%,0.15); color:var(--negative); }
+  .finding-row.tone-negative .finding-text b { color:var(--negative); }
+  .finding-row.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
+  .finding-row.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
+  .finding-row.tone-positive .finding-text b { color:var(--positive); }
+
   /* Compact 3-bucket "how it resolved" bar -- deterministic vs AI vs unresolved */
   .stack-bar { display:flex; height:14px; border-radius:var(--radius-pill); overflow:hidden; width:100%; box-shadow:inset 0 0 0 1px var(--border); }
   .stack-bar .seg { height:100%; transition:width 0.5s ease-out; cursor:default; }
@@ -2301,25 +2323,27 @@ def render_sources() -> str:
     findings = tax_audit.audit_tax_lines()
     if findings:
         rows_html = "".join(
-            f'<div class="category-card tone-negative" style="align-items:flex-start">'
+            f'<div class="finding-row tone-negative">'
             f'<div class="icon-badge">{ICON_ALERT}</div>'
-            f'<div class="category-card-text">'
-            f'<span style="font-weight:700">{escape(f["order_id"] or f["settlement_id"] or "unknown")}</span>'
+            f'<div class="finding-text">'
+            f'<b>{escape(f["order_id"] or f["settlement_id"] or "unknown")}</b>'
             f'<span>MDR Rs.{f["mdr"]:.2f} -- should be Rs.{f["expected_gst"]:.2f} GST, '
-            f'actually charged Rs.{f["actual_gst"]:.2f} ({f["direction"]} by Rs.{f["diff"]:.2f})</span>'
+            f'actually charged Rs.{f["actual_gst"]:.2f} ({f["direction"]} by Rs.{f["diff"]:.2f}).</span>'
             f'</div></div>'
             for f in findings
         )
+        subject = "settlement" if len(findings) == 1 else "settlements"
+        possessive = "its" if len(findings) == 1 else "their"
         tax_panel = f"""
         <div class="panel">
           <div class="panel-head"><h2 style="margin:0">Tax line audit</h2></div>
           <div class="panel-body">
-            <p style="margin:0 0 var(--sp-6);color:var(--muted)">
-              {len(findings)} {"settlement" if len(findings) == 1 else "settlements"} charged the wrong GST on its MDR fee --
-              none show up as exceptions above, since their settlement and ledger amounts
-              agree with each other; they just both agree on the wrong figure.
+            <p style="margin:0 0 var(--sp-7);color:var(--muted)">
+              {len(findings)} {subject} charged the wrong GST on {possessive} MDR fee.
+              Neither shows up as an exception above, since each one's settlement and ledger
+              amounts already agree with each other -- they just both agree on the wrong figure.
             </p>
-            <div class="category-grid">{rows_html}</div>
+            <div class="finding-list">{rows_html}</div>
           </div>
         </div>"""
     else:
@@ -2327,11 +2351,13 @@ def render_sources() -> str:
         <div class="panel">
           <div class="panel-head"><h2 style="margin:0">Tax line audit</h2></div>
           <div class="panel-body">
-            <div class="category-card tone-positive">
-              <div class="icon-badge">{ICON_CHECK}</div>
-              <div class="category-card-text">
-                <span style="font-weight:700">All clear</span>
-                <span>Every settlement's GST-on-MDR matches the real {tax_audit.GST_ON_MDR_RATE:.0%} statutory rate.</span>
+            <div class="finding-list">
+              <div class="finding-row tone-positive">
+                <div class="icon-badge">{ICON_CHECK}</div>
+                <div class="finding-text">
+                  <b>All clear</b>
+                  <span>Every settlement's GST-on-MDR matches the real {tax_audit.GST_ON_MDR_RATE:.0%} statutory rate.</span>
+                </div>
               </div>
             </div>
           </div>
@@ -2347,28 +2373,30 @@ def render_sources() -> str:
     monthly_findings = tax_audit.audit_monthly_reconciliation()
     if monthly_findings:
         monthly_rows_html = "".join(
-            f'<div class="category-card tone-negative" style="align-items:flex-start">'
+            f'<div class="finding-row tone-negative">'
             f'<div class="icon-badge">{ICON_ALERT}</div>'
-            f'<div class="category-card-text">'
-            f'<span style="font-weight:700">{escape(m["month"])} ({m["settlement_count"]} settlement{"" if m["settlement_count"] == 1 else "s"})</span>'
-            f'<span>Rs.{m["actual_gst_total"]:,.2f} charged vs Rs.{m["expected_gst_total"]:,.2f} expected -- '
-            f'{m["direction"]} by Rs.{m["diff"]:.2f}, of which Rs.{m["already_flagged_per_row"]:.2f} is already the '
-            f'individual row(s) above and Rs.{m["unexplained"]:.2f} is new: sub-tolerance rounding no per-row '
-            f'check would ever catch on its own.</span>'
+            f'<div class="finding-text">'
+            f'<b>{escape(m["month"])} -- {m["settlement_count"]} settlement{"" if m["settlement_count"] == 1 else "s"}</b>'
+            f'<span>Rs.{m["actual_gst_total"]:,.2f} charged vs Rs.{m["expected_gst_total"]:,.2f} expected, '
+            f'{m["direction"]} by Rs.{m["diff"]:.2f}. Rs.{m["already_flagged_per_row"]:.2f} of that is the '
+            f'individual row(s) already flagged above; the remaining Rs.{m["unexplained"]:.2f} is new -- '
+            f'sub-tolerance rounding spread across the rest of the month\'s rows, invisible to any per-row check.</span>'
             f'</div></div>'
             for m in monthly_findings
         )
+        month_word = "month" if len(monthly_findings) == 1 else "months"
         monthly_panel = f"""
         <div class="panel">
           <div class="panel-head"><h2 style="margin:0">Monthly tax invoice reconciliation</h2></div>
           <div class="panel-body">
-            <p style="margin:0 0 var(--sp-6);color:var(--muted)">
-              RazorpayX itself ships this exact second tier for real -- a consolidated Monthly Tax
-              Invoice Report a GST-registered merchant reconciles against before filing ITC, separate
-              from the per-transaction report above. {len(monthly_findings)} {"month" if len(monthly_findings) == 1 else "months"}
-              drift beyond a real materiality threshold once every settlement is summed together.
+            <p style="margin:0 0 var(--sp-7);color:var(--muted)">
+              RazorpayX ships this exact two-tier structure for real: a per-transaction Invoice
+              Reconciliation Report, and a consolidated Monthly Tax Invoice Report merchants reconcile
+              against before filing ITC. This checks that second tier -- whether a month's total
+              GST-on-MDR still adds up once every settlement in it is summed together, even when each
+              row already passes the check above. {len(monthly_findings)} {month_word} {"doesn't" if len(monthly_findings) == 1 else "don't"}.
             </p>
-            <div class="category-grid">{monthly_rows_html}</div>
+            <div class="finding-list">{monthly_rows_html}</div>
           </div>
         </div>"""
     else:
@@ -2376,11 +2404,13 @@ def render_sources() -> str:
         <div class="panel">
           <div class="panel-head"><h2 style="margin:0">Monthly tax invoice reconciliation</h2></div>
           <div class="panel-body">
-            <div class="category-card tone-positive">
-              <div class="icon-badge">{ICON_CHECK}</div>
-              <div class="category-card-text">
-                <span style="font-weight:700">All clear</span>
-                <span>Every month's aggregate GST-on-MDR reconciles within Rs.{tax_audit.MONTHLY_TOLERANCE_RS:.2f} of the real statutory total.</span>
+            <div class="finding-list">
+              <div class="finding-row tone-positive">
+                <div class="icon-badge">{ICON_CHECK}</div>
+                <div class="finding-text">
+                  <b>All clear</b>
+                  <span>Every month's aggregate GST-on-MDR reconciles within Rs.{tax_audit.MONTHLY_TOLERANCE_RS:.2f} of the real statutory total.</span>
+                </div>
               </div>
             </div>
           </div>
