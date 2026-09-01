@@ -599,6 +599,39 @@ class TestCashValue(SettlementQaTestCase):
         self.assertNotIn(f"Rs.{expected['at_risk'] + duplicate_total:,.2f}", result)
 
 
+class TestCashForecast(SettlementQaTestCase):
+    """Track 4 names a "forward cash forecaster" as its own use case --
+    this is deliberately a projection over already-verified data (what
+    unlocks if the queue gets confirmed), not a time-series prediction."""
+
+    def test_projects_resolved_pct_forward_by_the_pending_amount(self):
+        """order_5 (net=100.0, MATCHED_LOW_CONFIDENCE) is the fixture's
+        only pending-review row -- cross-checked against
+        compute_cash_clarity() directly, not a hand-picked number."""
+        rows = db.get_all_exceptions()
+        c = db.compute_cash_clarity(rows)
+        result = qa.answer("forecast my cash")
+        self.assertIn(f"{c['resolved_pct']}%", result)
+        projected = round(100 * (c["resolved"] + c["pending_review"]) / c["at_risk"], 1)
+        self.assertIn(f"{projected}%", result)
+        self.assertIn(f"Rs.{c['pending_review']:,.2f}", result)
+
+    def test_does_not_collide_with_plain_cash_position_question(self):
+        """"what's my cash position" must still answer today's snapshot
+        (_cash_value), not the forward projection -- different question,
+        checked with its own distinct trigger phrasing."""
+        result = qa.answer("what's my cash position")
+        self.assertNotIn("If every row currently awaiting", result)
+
+    def test_no_pending_review_cash_says_so_honestly(self):
+        with patch.object(qa.db, "compute_cash_clarity", return_value={
+            "at_risk": 100.0, "resolved": 100.0, "pending_review": 0.0, "still_open": 0.0,
+            "resolved_pct": 100.0, "pending_review_pct": 0.0, "still_open_pct": 0.0,
+        }):
+            result = qa.answer("project my cash position")
+        self.assertIn("no pending cash to project", result)
+
+
 class TestBatchSummary(SettlementQaTestCase):
     def test_overview_includes_resolved_percent_and_open_count(self):
         rows = db.get_all_exceptions()

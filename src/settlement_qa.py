@@ -649,6 +649,41 @@ def _cash_value(question: str) -> str | None:
     )
 
 
+def _cash_forecast(question: str) -> str | None:
+    """Track 4's named "forward cash forecaster" use case. See
+    render_cash_forecast()'s docstring in review_server.py -- same
+    function, same number, same reasoning, just answered here instead of
+    read off the Overview page. Deliberately checked with its own
+    "forecast/project/what if" signal, not folded into _cash_value's
+    "cash position" phrasing: that answers what the position IS today;
+    this answers what it becomes once what's already been verified gets
+    acted on -- a different question, not a rewording of the same one."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in (
+        "cash forecast", "forecast my cash", "forecast the cash", "project my cash",
+        "cash projection", "forward cash", "what if i confirm", "if i confirm everything",
+        "if everything is confirmed",
+    )):
+        return None
+
+    rows = db.get_all_exceptions()
+    c = db.compute_cash_clarity(rows)
+    if c["at_risk"] == 0:
+        return "No batch persisted yet -- run the pipeline first."
+    if c["pending_review"] == 0:
+        return "Nothing is currently awaiting a human confirm, so there's no pending cash to project forward."
+
+    projected_resolved = c["resolved"] + c["pending_review"]
+    projected_pct = round(100 * projected_resolved / c["at_risk"], 1)
+    return (
+        f"If every row currently awaiting a human's confirm is confirmed today, resolved "
+        f"cash moves from {c['resolved_pct']}% to {projected_pct}% -- an extra "
+        f"Rs.{c['pending_review']:,.2f} unlocked with zero new matching work, since those "
+        f"matches are already computed. The remaining Rs.{c['still_open']:,.2f} has no "
+        f"proposed match yet and can't honestly be forecast forward without new information."
+    )
+
+
 def _open_count(question: str) -> str | None:
     """"how many" plus any open-shaped topic word, not a fixed set of
     exact multi-word phrases -- a real gap, found live: "how many orders
@@ -1362,7 +1397,12 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # summary" contains the bare word "summary", which _batch_summary's
     # own trigger list also matches -- checking the AI path first means
     # the more specific, intended handler wins that overlap.
-    for handler in (_cash_value, _resolution_status_count, _category_count,
+    # _cash_forecast before _cash_value: "project my cash position" contains
+    # _cash_value's own broad "cash position" signal, so the narrower,
+    # more specific forecast phrasing has to win that overlap by going
+    # first -- same fix as _ai_narrative_summary before _batch_summary
+    # above, for "summary" being a substring of both triggers.
+    for handler in (_cash_forecast, _cash_value, _resolution_status_count, _category_count,
                      _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
                      _batch_totals, _extreme_amount, _recurring_patterns, _tax_line_audit,
                      _resolution_rate, _category_breakdown, _glossary):

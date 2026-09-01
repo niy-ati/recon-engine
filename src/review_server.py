@@ -1884,6 +1884,48 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
     </div>"""
 
 
+def render_cash_forecast(all_rows: list[dict]) -> str:
+    """Track 4 names a "forward cash forecaster" as its own use case.
+    Razorpay already ships a real Cashflow Forecaster (see README's
+    comparison section) -- this is deliberately NOT a second one. A
+    time-series prediction needs a history of past resolutions this
+    project has no honest way to claim (there's no tracked
+    time-to-resolve per row -- see tax_audit.py's sibling docstring for
+    the same "don't fabricate what isn't there" discipline applied here).
+
+    What this answers instead is a genuinely different, fully honest
+    question a time-series forecaster can't: not "when will this resolve"
+    but "how much of what's stuck unlocks the moment someone acts on what
+    this engine has ALREADY verified." db.compute_cash_clarity()'s
+    pending_review figure is exactly that -- cash sitting on a proposed
+    match nobody has clicked Confirm on yet, not cash waiting on new
+    information. Projecting it forward is arithmetic on real, already-
+    computed numbers, not a guess about the future."""
+    c = db.compute_cash_clarity(all_rows)
+    if c["at_risk"] == 0 or c["pending_review"] == 0:
+        return ""
+    projected_resolved = c["resolved"] + c["pending_review"]
+    projected_pct = round(100 * projected_resolved / c["at_risk"], 1)
+    return f"""
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Forward cash forecast</h2></div>
+      <div class="panel-body">
+        <p style="margin:0;color:var(--ink)">
+          If every row currently awaiting a human's confirm is confirmed today,
+          resolved cash moves from <b>{c['resolved_pct']:.1f}%</b> to
+          <b>{projected_pct:.1f}%</b> -- an extra <b>Rs.{c['pending_review']:,.2f}</b>
+          unlocked with zero new matching work, since those matches are already computed.
+        </p>
+        <p style="margin:var(--sp-5) 0 0;color:var(--faint);font-size:13px">
+          The remaining Rs.{c['still_open']:,.2f} has no proposed match yet -- this can't
+          honestly be forecast forward without new information, so it isn't. Not a
+          prediction about the future; a real number computed from decisions already
+          sitting in the queue, waiting on a person, not on time.
+        </p>
+      </div>
+    </div>"""
+
+
 def render_cash_by_category(by_category_value: dict, by_category_count: dict) -> str:
     """Horizontal bar chart, one bar per category, sized by rupee value --
     not just row count. The category cards above already answer "which
@@ -1975,7 +2017,8 @@ def render_overview() -> str:
       <div class="panel-body"><div class="category-grid">{category_cards}</div></div>
     </div>
     {cash_by_category_html}
-    {render_cash_clarity(all_rows)}"""
+    {render_cash_clarity(all_rows)}
+    {render_cash_forecast(all_rows)}"""
     return render_shell("overview", "Overview", "", body)
 
 

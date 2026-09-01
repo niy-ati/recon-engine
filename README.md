@@ -20,6 +20,7 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 - **Real Razorpay connection** — authenticated and fired against the live Settlement Recon API, not just built and left unexercised.
 - **Zero paid API keys anywhere.** The only model used (Ollama) runs locally.
 - **Tax line matcher** — checks every settlement's GST against the real statutory rate, independent of matching. Found live: 2 rows the reconciliation itself calls clean are still charging the wrong GST.
+- **Forward cash forecast** — not a second Cashflow Forecaster; projects exactly how much cash unlocks the moment the queue's already-computed matches get confirmed.
 
 ## Table of Contents
 
@@ -35,6 +36,7 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 - [Review Application](#review-application)
 - [Settlement Q&A](#settlement-qa)
 - [Tax Line Matcher](#tax-line-matcher)
+- [Forward Cash Forecast](#forward-cash-forecast)
 - [Scope](#scope)
 - [Setup](#setup)
 - [Testing](#testing)
@@ -171,6 +173,16 @@ Found live on this project's own real 503-row batch: **2 settlements (`order_121
 
 Shown on the **Sources** page, and answerable directly — "check tax rates," "any tax errors," "is the GST correct" — through the same Settlement Q&A path as everything else.
 
+## Forward Cash Forecast
+
+Track 4's fourth named use case. Razorpay already ships a real, production Cashflow Forecaster — a time-series prediction over transaction history. This is deliberately **not** a second one: a genuine forward prediction needs a history of past resolution times this project has no honest way to claim, so it doesn't claim one.
+
+What it answers instead is a different, fully honest question: not *when* will this resolve, but *how much unlocks the moment someone acts on what's already been verified*. `db.compute_cash_clarity()`'s `pending_review` figure is exactly that — cash sitting on a match this engine has already computed and proposed, waiting only on a human's confirm, not on new information. Projecting it forward is arithmetic over real, already-computed numbers, not a guess about the future.
+
+On the real batch: confirming everything currently in the queue moves resolved cash from **28.7% to 39.1%** — an extra **Rs.30,254.68** unlocked with zero new matching work. The remaining still-open cash has no proposed match yet, and is disclosed as exactly that rather than forecast forward without new information.
+
+Shown on the **Overview** page, right under Cash-position clarity, and answerable directly — "forecast my cash," "what if I confirm everything" — through Settlement Q&A.
+
 ## Scope
 
 ### In Scope
@@ -179,8 +191,8 @@ Reconciliation of settlement, bank, and ledger data for a single direct-to-consu
 
 ### Out of Scope
 
-- **A dedicated TCS or TDS tax-line matcher.** Razorpay's real recon API exposes [no such field](https://razorpay.com/docs/api/settlements/fetch-recon/), and [Section 194-O liability is conditional on which party makes the final payment](https://razorpay.com/learn/section-194o-tds-for-e-commerce-businesses/) — a legal determination, not something readable off a settlement line. Independently corroborated by [Terra Insight](https://www.terra-insight.com/insights/razorpay-settlement-reconciliation/).
-- **A second cash-forecasting feature.** Razorpay already ships a production Cashflow Forecaster. This system instead quantifies, in real rupee figures, how much cash-position ambiguity it removes before that data reaches one.
+- **A dedicated TCS or TDS (Section 194-O) matcher.** Razorpay's real recon API exposes [no such field](https://razorpay.com/docs/api/settlements/fetch-recon/), and [194-O liability is conditional on which party makes the final payment](https://razorpay.com/learn/section-194o-tds-for-e-commerce-businesses/) — a legal determination, not something readable off a settlement line. Independently corroborated by [Terra Insight](https://www.terra-insight.com/insights/razorpay-settlement-reconciliation/). What IS in scope and built — see [Tax Line Matcher](#tax-line-matcher) — is GST-on-MDR, a different tax with none of that ambiguity: a fixed 18% of a field every settlement already carries, no external legal fact needed.
+- **A second, predictive Cashflow Forecaster.** Razorpay's own ships time-series prediction over transaction history; this system has no such history to honestly draw on. What it does instead — see [Forward Cash Forecast](#forward-cash-forecast) — is a same-data projection: exactly how much of what's already stuck unlocks the moment a human confirms what's already been verified. A different kind of number, not a smaller version of the same one.
 - **Bank and ledger integrations are synthetic.** No live bank or accounting-software API is connected. The settlement side has a real, fired connection — see [Live Razorpay Integration](#live-razorpay-integration).
 - **The learned pattern store generalizes the digit reference, not arbitrary wording.** A genuinely different phrasing of the same event still needs a fresh confirm.
 - **The review application is single-user, unauthenticated, local-only** — the right call for this scope, not a claim it's production-ready.
