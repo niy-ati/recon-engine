@@ -19,6 +19,7 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 - **Hands-free Voice Agent** — listens, answers out loud, and can be interrupted mid-answer, entirely in-browser.
 - **Real Razorpay connection** — authenticated and fired against the live Settlement Recon API, not just built and left unexercised.
 - **Zero paid API keys anywhere.** The only model used (Ollama) runs locally.
+- **Tax line matcher** — checks every settlement's GST against the real statutory rate, independent of matching. Found live: 2 rows the reconciliation itself calls clean are still charging the wrong GST.
 
 ## Table of Contents
 
@@ -33,6 +34,7 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 - [Compared to Razorpay's Own Reconciliation Agent](#compared-to-razorpays-own-reconciliation-agent)
 - [Review Application](#review-application)
 - [Settlement Q&A](#settlement-qa)
+- [Tax Line Matcher](#tax-line-matcher)
 - [Scope](#scope)
 - [Setup](#setup)
 - [Testing](#testing)
@@ -132,7 +134,7 @@ Four pages, one stdlib `http.server`, no framework — **Overview**, **Queue**, 
 - **Overview** — a donut chart of the real status breakdown; a three-bucket bar showing how rarely the AI pass is actually needed; a category grid linking straight to filtered rows; a cash-value-by-category chart (a category with few rows can still hold the most money); and the cash-position clarity panel from [Metrics](#metrics).
 - **Queue** — every row still needing a decision, full `replay_log` per row, Confirm / Reject / Needs-clarification actions writing straight to SQLite.
 - **Records** — every persisted row, filterable and sortable entirely client-side.
-- **Sources** — the three raw input files with row counts, to trace a result back to its export.
+- **Sources** — the three raw input files with row counts, to trace a result back to its export; plus the **tax line audit** below them (see [Tax Line Matcher](#tax-line-matcher)).
 
 ## Settlement Q&A
 
@@ -151,6 +153,7 @@ Plain-language questions about the batch, answered by [`src/settlement_qa.py`](s
 - **Ordinary conversation** — a greeting, thanks, goodbye, "how are you," "what can you do," or a bare "ok"/"sure" all get a real, warm, human-written reply instead of the honest-but-cold fallback below — checked before anything else, so the first thing said to the voice agent is never a refusal.
 - **A narrated version, in plain English** — "narrate this batch," "give me a written summary," "tell me a story about this batch." The one place a model *writes* an answer instead of retrieving one: Ollama receives only the same already-computed, verified numbers the deterministic overview uses, never raw rows, and every number in its response is extracted and checked against those exact facts before ever being shown. One invented number and the whole response is discarded for the plain deterministic version instead — tested live, not just claimed: the real model has genuinely invented a number in testing, and it was caught and silently rejected. This is the same validation-gate discipline Pass 4 uses, applied to language generation instead of candidate-selection.
 - **Whether an open row is a one-off or systemic** — "is there a recurring pattern in the exceptions," "any systemic issues here." Groups every currently-open row by a generalized narration shape (every digit-bearing token collapsed to a placeholder) — a category count says *how many* rows are `FUZZY_MATCH_NEEDS_REVIEW`; this answers a different question a count can't: whether those rows are independent problems or one upstream cause. Found live on the real batch: all 14 open `FUZZY_MATCH_NEEDS_REVIEW` rows share the exact same shape — one narration template consistently misreading a digit as a letter, not 14 unrelated typos.
+- **Whether tax was charged correctly** — "check tax rates," "any tax errors," "is the GST correct." See [Tax Line Matcher](#tax-line-matcher) below.
 
 **How you can ask it:**
 
@@ -159,6 +162,14 @@ Plain-language questions about the batch, answered by [`src/settlement_qa.py`](s
 - Every question above works identically by voice, however a person actually phrases it — apostrophe or not, "whats" or "what's."
 
 **Everything here runs local — no cloud API, no key, no cost**, for the chat, the voice, or the document upload. A gated model fallback exists underneath for phrasing the keyword matching doesn't recognize — same confidence-gate discipline as the reconciliation engine's own Pass 4, held untrusted for the same reason: tested against the real local model, its confidence score came back 1.0 regardless of whether it was right, so it carries no usable signal yet.
+
+## Tax Line Matcher
+
+A named use case in its own right, separate from reconciliation — matching settlement, bank, and ledger amounts against each other says nothing about whether the tax on those amounts is *correct*. [`src/tax_audit.py`](src/tax_audit.py) checks every settlement's GST-on-MDR against the real, current statutory rate: **18%** of the MDR fee, not of the transaction's gross value ([source](https://razorpay.com/blog/enterprise-payment-gateway-pricing-india/)).
+
+Found live on this project's own real 503-row batch: **2 settlements (`order_1210`, `order_1151`) are currently plain `MATCHED` rows with no exception at all** — clean by every check reconciliation runs, and clean by a dashboard that only compares settlement to ledger — yet both were charged Rs.1 more GST than the law requires. Their settlement and ledger figures agree with each other; they just both agree on the wrong number, which is exactly the case a pure amount-matching check can never catch.
+
+Shown on the **Sources** page, and answerable directly — "check tax rates," "any tax errors," "is the GST correct" — through the same Settlement Q&A path as everything else.
 
 ## Scope
 

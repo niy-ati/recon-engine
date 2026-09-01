@@ -826,6 +826,38 @@ class TestRecurringPatterns(SettlementQaTestCase):
         )
 
 
+class TestTaxLineAudit(SettlementQaTestCase):
+    """Track 4 names a "tax-line matcher" as its own use case. Mocks
+    tax_audit.audit_tax_lines() with controlled fixture data -- the real
+    finding (order_1210/order_1151, Rs.1 overcharged each) is verified
+    directly against tax_audit.py's own tests, not re-asserted here
+    against numbers that would break if the real batch is regenerated."""
+
+    def test_reports_real_findings_with_numbers(self):
+        fake_findings = [{
+            "order_id": "order_9", "settlement_id": "setl_order_9", "mdr": 100.0,
+            "expected_gst": 18.0, "actual_gst": 19.0, "diff": 1.0, "direction": "overcharged",
+        }]
+        with patch.object(qa.tax_audit, "audit_tax_lines", return_value=fake_findings):
+            result = qa.answer("check tax rates")
+        self.assertIn("order_9", result)
+        self.assertIn("18.00", result)
+        self.assertIn("19.00", result)
+        self.assertIn("overcharged", result)
+
+    def test_no_findings_says_so_honestly(self):
+        with patch.object(qa.tax_audit, "audit_tax_lines", return_value=[]):
+            result = qa.answer("is the gst correct")
+        self.assertIn("No tax-line errors found", result)
+
+    def test_trigger_phrases_all_route_to_the_audit(self):
+        with patch.object(qa.tax_audit, "audit_tax_lines", return_value=[]) as mocked:
+            for phrasing in ("tax line matcher", "any tax errors", "audit tax lines", "check gst rates"):
+                with self.subTest(phrasing=phrasing):
+                    qa.answer(phrasing)
+            self.assertEqual(mocked.call_count, 4)
+
+
 class TestLlmFallbackRouting(SettlementQaTestCase):
     """Tests settlement_qa.py's own fallback wiring, not qa_intent_gate.py's
     or qa_intent_router.py's internals (see test_qa_intent_router.py and

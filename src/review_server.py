@@ -54,6 +54,7 @@ from urllib.parse import parse_qs, urlparse
 import db
 import document_qa
 import settlement_qa
+import tax_audit
 from config import load_dotenv
 
 load_dotenv()
@@ -2215,12 +2216,59 @@ def render_sources() -> str:
           <div class="label">{label}</div>
         </div>"""
 
+    # Track 4 names a tax-line matcher as its own use case, distinct from
+    # settlement<->bank<->ledger reconciliation above -- see tax_audit.py's
+    # module docstring. Belongs on this page, not the exception queue:
+    # every row checked here can be (and on the real batch, is) a plain
+    # MATCHED row with no exception at all -- this isn't about matching,
+    # it's about whether each settlement's own numbers are correct against
+    # the real GST rate, which is a data-source integrity question.
+    findings = tax_audit.audit_tax_lines()
+    if findings:
+        rows_html = "".join(
+            f'<div class="category-card tone-negative" style="align-items:flex-start">'
+            f'<div class="icon-badge">{ICON_ALERT}</div>'
+            f'<div class="category-card-text">'
+            f'<span style="font-weight:700">{escape(f["order_id"] or f["settlement_id"] or "unknown")}</span>'
+            f'<span>MDR Rs.{f["mdr"]:.2f} -- should be Rs.{f["expected_gst"]:.2f} GST, '
+            f'actually charged Rs.{f["actual_gst"]:.2f} ({f["direction"]} by Rs.{f["diff"]:.2f})</span>'
+            f'</div></div>'
+            for f in findings
+        )
+        tax_panel = f"""
+        <div class="panel">
+          <div class="panel-head"><h2 style="margin:0">Tax line audit</h2></div>
+          <div class="panel-body">
+            <p style="margin:0 0 var(--sp-6);color:var(--muted)">
+              {len(findings)} {"settlement" if len(findings) == 1 else "settlements"} charged the wrong GST on its MDR fee --
+              none show up as exceptions above, since their settlement and ledger amounts
+              agree with each other; they just both agree on the wrong figure.
+            </p>
+            <div class="category-grid">{rows_html}</div>
+          </div>
+        </div>"""
+    else:
+        tax_panel = f"""
+        <div class="panel">
+          <div class="panel-head"><h2 style="margin:0">Tax line audit</h2></div>
+          <div class="panel-body">
+            <div class="category-card tone-positive">
+              <div class="icon-badge">{ICON_CHECK}</div>
+              <div class="category-card-text">
+                <span style="font-weight:700">All clear</span>
+                <span>Every settlement's GST-on-MDR matches the real {tax_audit.GST_ON_MDR_RATE:.0%} statutory rate.</span>
+              </div>
+            </div>
+          </div>
+        </div>"""
+
     body = f"""
     <div class="source-grid">
       {card(ICON_ROWS, "Settlements", settlement_count)}
       {card(ICON_BANK, "Bank rows", bank_count)}
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
-    </div>"""
+    </div>
+    {tax_panel}"""
     return render_shell("sources", "Data sources", "", body)
 
 

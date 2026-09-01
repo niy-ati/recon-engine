@@ -104,6 +104,7 @@ from collections import Counter
 
 import db
 import qa_intent_gate
+import tax_audit
 from llm_matcher import OLLAMA_MODEL, OLLAMA_URL
 
 ORDER_ID_PATTERN = re.compile(
@@ -1067,6 +1068,47 @@ def _recurring_patterns(question: str) -> str | None:
     return "\n".join(lines)
 
 
+def _tax_line_audit(question: str) -> str | None:
+    """Track 4 names a "tax-line matcher" as its own use case, separate
+    from settlement<->bank<->ledger reconciliation -- see tax_audit.py's
+    module docstring for why that's a genuinely different check (agreeing
+    with our own ledger says nothing about agreeing with the actual GST
+    rate). Checked as its own handler, not folded into a category
+    question, because CATEGORY_GUIDANCE's TAX_DEDUCTION text is about
+    reconciliation-internal amount variance, not statutory correctness --
+    a different question with a different, real answer."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in (
+        "tax line matcher", "tax rate check", "check tax rates", "check gst rates",
+        "gst rate check", "audit tax lines", "tax audit", "any tax errors",
+        "is the gst correct", "wrong gst", "incorrect gst", "gst mistakes",
+    )):
+        return None
+
+    findings = tax_audit.audit_tax_lines()
+    if not findings:
+        return (
+            f"No tax-line errors found -- every settlement's GST-on-MDR matches the "
+            f"real {tax_audit.GST_ON_MDR_RATE:.0%} statutory rate on its MDR fee."
+        )
+
+    lines = [f"{_plural(len(findings), 'tax-line error')} found -- GST charged doesn't match "
+             f"the real {tax_audit.GST_ON_MDR_RATE:.0%} statutory rate on the MDR fee:"]
+    for f in findings[:5]:
+        lines.append(
+            f"  {f['order_id'] or f['settlement_id']}: MDR Rs.{f['mdr']:.2f}, should be "
+            f"Rs.{f['expected_gst']:.2f} GST, actually charged Rs.{f['actual_gst']:.2f} "
+            f"({f['direction']} by Rs.{f['diff']:.2f})"
+        )
+    if len(findings) > 5:
+        lines.append(f"  ...and {len(findings) - 5} more.")
+    lines.append(
+        "None of these show up as exceptions today -- their settlement and ledger "
+        "amounts agree with each other, they just both agree on the wrong GST figure."
+    )
+    return "\n".join(lines)
+
+
 def _resolution_guidance(question: str, context: dict | None) -> str | None:
     if not _is_resolution_question(question):
         return None
@@ -1322,8 +1364,8 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # the more specific, intended handler wins that overlap.
     for handler in (_cash_value, _resolution_status_count, _category_count,
                      _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
-                     _batch_totals, _extreme_amount, _recurring_patterns, _resolution_rate,
-                     _category_breakdown, _glossary):
+                     _batch_totals, _extreme_amount, _recurring_patterns, _tax_line_audit,
+                     _resolution_rate, _category_breakdown, _glossary):
         result = handler(question)
         if result is not None:
             return result, _updated_referent()
