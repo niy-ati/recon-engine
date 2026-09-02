@@ -251,9 +251,14 @@ PAGE_STYLE = """
   .stat:hover { box-shadow:var(--shadow-high); transform:translateY(-4px); border-color:var(--primary-subtle); }
   .stat b { display:block; font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:27px; line-height:1.1; color:var(--ink); font-weight:700; letter-spacing:var(--ls-tighter); }
   .stat .stat-label { font-size:13px; color:var(--muted); font-weight:600; }
+  .stat.tint-primary { background:var(--primary-faint); border-color:hsla(204,100%,50%,0.18); }
   .stat.tint-primary .icon-badge { background:var(--primary-subtle); color:var(--primary-strong); }
-  .stat.tint-notice .icon-badge { background:var(--notice-bg); color:var(--notice); }
-  .stat.tint-positive .icon-badge { background:var(--positive-bg); color:var(--positive); }
+  .stat.tint-notice { background:var(--notice-bg); border-color:hsla(25,100%,44%,0.18); }
+  .stat.tint-notice .icon-badge { background:hsla(25,100%,44%,0.15); color:var(--notice); }
+  .stat.tint-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
+  .stat.tint-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
+  .stat.tint-information { background:var(--information-bg); border-color:hsla(200,100%,41%,0.18); }
+  .stat.tint-information .icon-badge { background:hsla(200,100%,41%,0.15); color:var(--information); }
   .icon-badge {
     width:40px; height:40px; border-radius:var(--radius-m); display:flex; align-items:center; justify-content:center;
     background:var(--primary-subtle); color:var(--primary-strong); flex-shrink:0;
@@ -307,6 +312,72 @@ PAGE_STYLE = """
   .finding-row.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.18); }
   .finding-row.tone-positive .icon-badge { background:hsla(150,100%,28%,0.15); color:var(--positive); }
   .finding-row.tone-positive .finding-text b { color:var(--positive); }
+
+  /* Architecture flow -- native HTML/CSS, not an embedded image. Found
+     live, twice: an SVG diagram sized to its own wide canvas gets
+     downscaled to fit a narrower column, and every font size shrinks
+     with it -- soft, undersized text no amount of redrawing the SVG
+     fixes, because the browser is scaling a picture of text, not
+     rendering text. Real page text never has that problem at any width.
+     A 3x3 grid -- 4 real stage cards plus the connector cells between
+     them -- reading as an S-curve: right along the top, down, then left
+     along the bottom, the same shape a flowchart on paper would use. */
+  .flow-grid {
+    display:grid; grid-template-columns:1fr 64px 1fr; grid-template-rows:auto 80px auto;
+    grid-template-areas:"c1 arrowRight c2" ". . arrowDown" "c4 arrowLeft c3";
+    gap:var(--sp-4); margin:var(--sp-7) 0; align-items:stretch;
+  }
+  .flow-card {
+    border-radius:var(--radius-l); padding:var(--sp-8); border:1.5px solid var(--border-subtle);
+    box-shadow:var(--shadow-low); position:relative; display:flex; flex-direction:column; gap:var(--sp-6);
+    background:var(--panel);
+  }
+  .flow-card .flow-num {
+    position:absolute; top:-15px; left:22px; width:30px; height:30px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px;
+    color:#fff; background:var(--primary); box-shadow:var(--shadow-mid); font-family:var(--font-heading);
+  }
+  .flow-card h3 { margin:0; font-family:var(--font-heading); font-size:17px; display:flex; align-items:center; gap:10px; letter-spacing:var(--ls-tighter); }
+  .flow-card h3 svg { width:20px; height:20px; flex-shrink:0; }
+  .flow-card ul { margin:0; padding-left:0; list-style:none; display:flex; flex-direction:column; gap:9px; }
+  .flow-card li { font-size:13.5px; line-height:1.5; color:var(--ink); display:flex; align-items:baseline; gap:9px; }
+  .flow-card li b { color:var(--primary-strong); font-family:var(--mono); font-size:12px; flex-shrink:0; white-space:nowrap; }
+  .flow-card p.flow-note { margin:0; font-size:12.5px; line-height:1.55; }
+  .flow-card.tone-information { background:var(--information-bg); border-color:hsla(200,100%,41%,0.2); }
+  .flow-card.tone-information .flow-num { background:var(--information); }
+  .flow-card.tone-information li b { color:var(--information); }
+  .flow-card.tone-primary { background:var(--primary-faint); border-color:var(--primary-subtle); }
+  .flow-card.tone-hero {
+    background:linear-gradient(135deg, hsl(28,100%,58%), var(--notice)); border:none; color:#fff;
+    box-shadow:0 10px 26px -8px hsla(25,100%,44%,0.45);
+  }
+  .flow-card.tone-hero .flow-num { background:#fff; color:var(--notice); }
+  .flow-card.tone-hero h3, .flow-card.tone-hero li, .flow-card.tone-hero p.flow-note { color:#fff; }
+  .flow-card.tone-hero li b { color:rgba(255,255,255,0.85); }
+  .flow-card.tone-positive { background:var(--positive-bg); border-color:hsla(150,100%,28%,0.2); }
+  .flow-card.tone-positive .flow-num { background:var(--positive); }
+  .flow-card.tone-positive li b { color:var(--positive); }
+  /* A real connecting wire -- a dot where it leaves one card, a line, an
+     arrowhead where it lands on the next -- not a floating icon in the
+     gap between them. One svg (dot-line-arrowhead, pointing right) drawn
+     once and mirrored/rotated per direction via transform, since a
+     rotated or mirrored vector shape stays perfectly crisp -- unlike the
+     scaled-down TEXT that made the old embedded-image diagram soft, a
+     plain line-and-triangle has no text in it to blur in the first
+     place. */
+  .flow-connector { display:flex; align-items:center; justify-content:center; color:var(--primary); }
+  .flow-connector.arrow-right, .flow-connector.arrow-left { padding:0 4px; }
+  .flow-connector.arrow-right svg, .flow-connector.arrow-left svg { width:100%; height:30px; }
+  .flow-connector.arrow-down svg { width:76px; height:30px; transform:rotate(90deg); }
+  .flow-connector.arrow-right { grid-area:arrowRight; }
+  .flow-connector.arrow-down { grid-area:arrowDown; }
+  .flow-connector.arrow-left { grid-area:arrowLeft; }
+  .flow-connector.arrow-left svg { transform:scaleX(-1); }
+  .flow-loop-note {
+    grid-column:1 / -1; display:flex; align-items:center; gap:10px; justify-content:center;
+    font-size:12.5px; font-weight:600; color:var(--primary-strong); padding-top:var(--sp-3);
+  }
+  .flow-loop-note svg { width:16px; height:16px; flex-shrink:0; }
 
   /* Compact 3-bucket "how it resolved" bar -- deterministic vs AI vs unresolved */
   .stack-bar { display:flex; height:14px; border-radius:var(--radius-pill); overflow:hidden; width:100%; box-shadow:inset 0 0 0 1px var(--border); }
@@ -631,6 +702,22 @@ PAGE_STYLE = """
     }
     #mobile-menu-btn svg { width:20px; height:20px; }
 
+    /* The S-curve only means something at desktop width -- on a phone
+       the 4 stage cards just read top to bottom in order, each
+       connector rotated to point straight down instead of whichever way
+       it pointed in the desktop grid. */
+    .flow-grid {
+      grid-template-columns:1fr; grid-template-rows:none;
+      grid-template-areas:"c1" "arrowRight" "c2" "arrowDown" "c3" "arrowLeft" "c4";
+    }
+    /* Same specificity as each direction's own desktop rule (two classes
+       plus the svg tag), so this genuinely overrides it on a phone
+       instead of losing the cascade to the more specific selector --
+       every connector becomes the same size, pointing straight down. */
+    .flow-connector.arrow-right svg, .flow-connector.arrow-down svg, .flow-connector.arrow-left svg {
+      width:76px; height:30px; transform:rotate(90deg);
+    }
+
     aside.rail {
       position:fixed; top:0; left:0; height:100vh; width:78vw; max-width:280px; z-index:120;
       transform:translateX(-100%); transition:transform 0.22s ease-out; box-shadow:var(--shadow-high);
@@ -747,6 +834,63 @@ PAGE_STYLE = """
   }
 """
 
+# A strict progressive enhancement over the browser's own speechSynthesis,
+# not a replacement -- Kokoro (82M params, MIT licensed) runs entirely
+# client-side via WASM, so it costs nothing and nothing leaves the
+# browser, same guarantee the rest of this project already makes. But
+# this library is built for bundler environments (Vite/webpack); this
+# project has no build step by design, so loading it via a CDN ESM import
+# in a plain page is genuinely untested territory, not a solved problem.
+# Every failure mode -- network, WASM, unexpected API shape, a browser
+# that blocks the import -- is caught and treated as "not ready," and
+# CHAT_WIDGET/VOICE_AGENT_WIDGET's own speak() functions fall back to the
+# exact speechSynthesis path that already worked before this existed.
+# Nothing about the working demo can regress from this; it's pure upside
+# when it loads, silently absent when it doesn't.
+KOKORO_LOADER = """
+<script type="module">
+(function () {
+  window.__kokoroReady = false;
+  var LOAD_TIMEOUT_MS = 9000;
+
+  async function loadKokoro() {
+    try {
+      var mod = await import("https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm");
+      var KokoroTTS = mod.KokoroTTS;
+      var tts = await Promise.race([
+        KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "q8" }),
+        new Promise(function (_, reject) {
+          setTimeout(function () { reject(new Error("Kokoro load timed out")); }, LOAD_TIMEOUT_MS);
+        }),
+      ]);
+      window.__kokoroInstance = tts;
+      window.__kokoroReady = true;
+      console.log("Kokoro TTS ready -- warmer voice output active.");
+    } catch (err) {
+      console.warn("Kokoro TTS unavailable, using the browser's built-in voice instead:", err);
+    }
+  }
+  loadKokoro();
+
+  // Resolves to a playable audio Blob on success, or null on any
+  // failure at all -- the caller's own fallback to speechSynthesis is
+  // what actually matters here, not this function succeeding.
+  window.__kokoroGenerate = async function (text) {
+    if (!window.__kokoroReady || !window.__kokoroInstance) return null;
+    try {
+      var audio = await window.__kokoroInstance.generate(text, { voice: "af_heart" });
+      if (audio && typeof audio.toBlob === "function") return await audio.toBlob();
+      if (audio && typeof audio.toWav === "function") return await audio.toWav();
+      return null;
+    } catch (err) {
+      console.warn("Kokoro generate() failed, falling back to the browser's voice:", err);
+      return null;
+    }
+  };
+})();
+</script>
+"""
+
 CHAT_WIDGET = """
 <button class="chat-toggle" id="chat-toggle" aria-label="Ask me" title="Ask me">
   <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H10l-4.5 3.5V17H5.5C4.67 17 4 16.33 4 15.5v-10z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
@@ -837,7 +981,7 @@ function speechify(text) {
   // after the panel visually disappeared.
   function close() {
     panel.classList.remove("open");
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    stopSpeaking();
     if (typeof voiceLoopActive !== "undefined") voiceLoopActive = false;
     if (typeof recognizer !== "undefined" && recognizer) {
       try { recognizer.stop(); } catch (e) {}
@@ -916,7 +1060,7 @@ function speechify(text) {
       speakToggle.classList.toggle("muted", !speechEnabled);
       speakToggle.setAttribute("aria-label", speechEnabled ? "Read answers aloud" : "Answers muted");
       speakToggle.setAttribute("title", speechEnabled ? "Read answers aloud" : "Answers muted");
-      if (!speechEnabled) window.speechSynthesis.cancel();
+      if (!speechEnabled) stopSpeaking();
     });
   }
 
@@ -931,13 +1075,38 @@ function speechify(text) {
                                // for a self-interrupt bug and "fixed"
                                // twice on that theory before the actual
                                // cause was found.
-  function speak(text, onEnd) {
-    if (!speechEnabled || !window.speechSynthesis) {
-      if (onEnd) onEnd();
-      return;
-    }
-    window.speechSynthesis.cancel();
-    var utterance = new SpeechSynthesisUtterance(speechify(text));
+  var activeKokoroAudio = null; // same idea, for whichever path actually
+                                 // produced the current speech -- see
+                                 // KOKORO_LOADER's own docstring.
+  function stopSpeaking() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (activeKokoroAudio) { activeKokoroAudio.pause(); activeKokoroAudio = null; }
+  }
+  // Resolves true only once Kokoro audio has actually started playing --
+  // a generate() failure, a null blob, or the browser's own autoplay
+  // policy rejecting play() all resolve false, same as Kokoro never
+  // having loaded at all, so speak() below falls through to
+  // speechSynthesis for THIS utterance rather than skipping it silently.
+  function tryKokoro(text, onEnd) {
+    if (!window.__kokoroGenerate) return Promise.resolve(false);
+    return window.__kokoroGenerate(text).then(function (blob) {
+      if (!blob) return false;
+      return new Promise(function (resolve) {
+        var audio = new Audio(URL.createObjectURL(blob));
+        activeKokoroAudio = audio;
+        audio.addEventListener("ended", function () { activeKokoroAudio = null; if (onEnd) onEnd(); });
+        audio.addEventListener("error", function () { activeKokoroAudio = null; resolve(false); });
+        audio.play().then(function () { resolve(true); }).catch(function () { activeKokoroAudio = null; resolve(false); });
+      });
+    }).catch(function () { return false; });
+  }
+  async function speak(text, onEnd) {
+    if (!speechEnabled) { if (onEnd) onEnd(); return; }
+    stopSpeaking();
+    var clean = speechify(text);
+    if (await tryKokoro(clean, onEnd)) return;
+    if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
+    var utterance = new SpeechSynthesisUtterance(clean);
     activeUtterance = utterance;
     if (onEnd) utterance.addEventListener("end", onEnd);
     utterance.addEventListener("error", function () { if (onEnd) onEnd(); });
@@ -1106,7 +1275,7 @@ function speechify(text) {
       if (voiceLoopActive) {
         voiceLoopActive = false;
         recognizer.stop();
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        stopSpeaking();
         micBtn.setAttribute("aria-label", "Start voice conversation");
         micBtn.setAttribute("title", "Start voice conversation");
         return;
@@ -1312,11 +1481,33 @@ VOICE_AGENT_WIDGET = """
                                // threshold tuning, then the content-based
                                // barge-in detection above) before the
                                // actual cause was found.
-  function speak(text, onEnd) {
+  var activeKokoroAudio = null; // same idea as activeUtterance, for
+                                 // whichever path actually produced the
+                                 // current speech -- see KOKORO_LOADER's
+                                 // own docstring.
+  // See CHAT_WIDGET's own tryKokoro for why this only resolves true once
+  // audio has actually started playing, never on a mere generate() success.
+  function tryKokoro(text, onEnd, myTurn) {
+    if (!window.__kokoroGenerate) return Promise.resolve(false);
+    return window.__kokoroGenerate(text).then(function (blob) {
+      if (!blob || myTurn !== turnId) return false; // superseded while generating
+      return new Promise(function (resolve) {
+        var audio = new Audio(URL.createObjectURL(blob));
+        activeKokoroAudio = audio;
+        audio.addEventListener("ended", function () { activeKokoroAudio = null; if (onEnd) onEnd(myTurn); });
+        audio.addEventListener("error", function () { activeKokoroAudio = null; resolve(false); });
+        audio.play().then(function () { resolve(true); }).catch(function () { activeKokoroAudio = null; resolve(false); });
+      });
+    }).catch(function () { return false; });
+  }
+  async function speak(text, onEnd) {
     var myTurn = ++turnId;
+    var clean = speechify(text);
+    if (await tryKokoro(clean, onEnd, myTurn)) return;
+    if (myTurn !== turnId) return; // interrupted while Kokoro was still generating
     if (!window.speechSynthesis) { if (onEnd) onEnd(myTurn); return; }
     window.speechSynthesis.cancel();
-    var utterance = new SpeechSynthesisUtterance(speechify(text));
+    var utterance = new SpeechSynthesisUtterance(clean);
     activeUtterance = utterance;
     utterance.addEventListener("end", function () { if (onEnd) onEnd(myTurn); });
     utterance.addEventListener("error", function () { if (onEnd) onEnd(myTurn); });
@@ -1333,6 +1524,7 @@ VOICE_AGENT_WIDGET = """
     turnId++; // any in-flight speak() onEnd for this turn is now stale and becomes a no-op
     stopBargeInListening();
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (activeKokoroAudio) { activeKokoroAudio.pause(); activeKokoroAudio = null; }
     // A brief delay before the next recognizer starts: stop() ends a
     // SpeechRecognition session asynchronously, and starting a new
     // instance before the old one has actually released can throw
@@ -1497,6 +1689,7 @@ VOICE_AGENT_WIDGET = """
     stopBargeInListening();
     if (recognizer) { try { recognizer.stop(); } catch (e) {} }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (activeKokoroAudio) { activeKokoroAudio.pause(); activeKokoroAudio = null; }
   }
 
   btn.addEventListener("click", function () {
@@ -1569,6 +1762,7 @@ NAV_ICONS = {
     "queue": '<svg viewBox="0 0 16 16" fill="none"><path d="M3 5h10M3 8h10M3 11h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
     "records": '<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2.5" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 6h12" stroke="currentColor" stroke-width="1.4"/></svg>',
     "sources": '<svg viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4" rx="5.5" ry="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 4v8c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2V4" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 8c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2" stroke="currentColor" stroke-width="1.4"/></svg>',
+    "about": '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 7.2v4M8 5.1v.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
 }
 ICON_CHECK = '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 ICON_CROSS = '<svg viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
@@ -1654,6 +1848,19 @@ ICON_LEDGER = '<svg viewBox="0 0 20 20" fill="none"><rect x="3.5" y="2.5" width=
 ICON_GATEWAY = '<svg viewBox="0 0 20 20" fill="none"><circle cx="7" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="13" r="4" stroke="currentColor" stroke-width="1.5"/></svg>'
 ICON_KEY = '<svg viewBox="0 0 20 20" fill="none"><circle cx="6.5" cy="13.5" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M9 11l7-7M13 4l2 2M16 5v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 ICON_DB = '<svg viewBox="0 0 20 20" fill="none"><ellipse cx="10" cy="5" rx="6.5" ry="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 5v10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5" stroke="currentColor" stroke-width="1.5"/></svg>'
+ICON_ARROW = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+# A real connecting wire for the About page's flowchart -- a dot where it
+# leaves one card, a line, a filled arrowhead where it lands on the
+# next -- not a floating icon in the gap between them. Drawn once
+# pointing right; every other direction is this same shape mirrored or
+# rotated via CSS transform (see .flow-connector), never a second svg.
+ICON_CONNECTOR = ('<svg viewBox="0 0 64 24" fill="none" preserveAspectRatio="none">'
+                   '<circle cx="6" cy="12" r="4" fill="currentColor"/>'
+                   '<line x1="11" y1="12" x2="48" y2="12" stroke="currentColor" stroke-width="2.5"/>'
+                   '<path d="M45 5 L60 12 L45 19 Z" fill="currentColor"/>'
+                   '</svg>')
+ICON_BOLT = '<svg viewBox="0 0 20 20" fill="none"><path d="M11 2L4 12h5l-1 6 7-10h-5l1-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="currentColor"/></svg>'
+ICON_LOOP = '<svg viewBox="0 0 20 20" fill="none"><path d="M4 10a6 6 0 0 1 11-3.4M16 10a6 6 0 0 1-11 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M14.5 4v3h-3M5.5 16v-3h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
 CATEGORY_ICONS = {
     "PARTIAL_PAYMENT": ICON_ROWS, "ROUNDING": ICON_ROWS, "TAX_DEDUCTION": ICON_ROWS,
@@ -1678,6 +1885,7 @@ def render_shell(
         ("queue", "/queue", "Review queue"),
         ("records", "/records", "All records"),
         ("sources", "/sources", "Data sources"),
+        ("about", "/about", "About"),
     ]
     nav_html = "".join(
         f'<a href="{href}" class="{"active" if key == active else ""}">{NAV_ICONS[key]}{label}</a>'
@@ -1729,6 +1937,7 @@ def render_shell(
     {body_html}
   </main>
   {extra_script}
+  {KOKORO_LOADER}
   {CHAT_WIDGET}
   {VOICE_AGENT_WIDGET}
   <script>
@@ -2427,6 +2636,166 @@ def render_sources() -> str:
     return render_shell("sources", "Data sources", "", body)
 
 
+# ------------------------------------------------------------------- About
+
+def render_about() -> str:
+    """A one-page engineering summary, added on real reviewer feedback: a
+    reviewer scanning a live site rarely opens the README, so the actual
+    architecture, the real numbers, and the honest AI-vs-automation split
+    need to live here too, not only in a doc most visits never reach.
+    Every number below is computed the same way the Overview page's own
+    numbers are -- never a second, differently-derived copy of the same
+    fact."""
+    all_rows = db.get_all_exceptions()
+    total = len(all_rows)
+    NOT_YET_RESOLVED = {"EXCEPTION", "MATCHED_LOW_CONFIDENCE"}
+    resolved_pct = (
+        round(100 * sum(1 for r in all_rows if r["status"] not in NOT_YET_RESOLVED) / total, 1)
+        if total else 0.0
+    )
+
+    def stat(icon, value, label, tint, href):
+        external = ' target="_blank" rel="noopener"' if href.startswith("http") else ""
+        return f"""
+        <a class="stat tint-{tint}" href="{href}"{external}>
+          <div class="icon-badge">{icon}</div>
+          <b>{value}</b>
+          <span class="stat-label">{label}</span>
+        </a>"""
+
+    def finding(icon, title, text, tone="tone-information"):
+        return (
+            f'<div class="finding-row {tone}"><div class="icon-badge">{icon}</div>'
+            f'<div class="finding-text"><b>{escape(title)}</b><span>{text}</span></div></div>'
+        )
+
+    def flow_arrow(direction):
+        return f'<div class="flow-connector arrow-{direction}">{ICON_CONNECTOR}</div>'
+
+    flow_grid = f"""
+    <div class="flow-grid">
+      <div class="flow-card tone-information" style="grid-area:c1">
+        <span class="flow-num">1</span>
+        <h3>{ICON_DB} 3 real sources</h3>
+        <ul>
+          <li><b>&bull;</b> Settlement Recon API</li>
+          <li><b>&bull;</b> Bank statement CSV</li>
+          <li><b>&bull;</b> Internal ledger CSV</li>
+        </ul>
+      </div>
+      {flow_arrow("right")}
+      <div class="flow-card tone-primary" style="grid-area:c2">
+        <span class="flow-num">2</span>
+        <h3>{ICON_CHECK} Six deterministic passes</h3>
+        <ul>
+          <li><b>1</b> UTR + amount + date</li>
+          <li><b>2</b> order_id lookup</li>
+          <li><b>2.5</b> Learned pattern</li>
+          <li><b>2.6</b> Learned template</li>
+          <li><b>2.75</b> Exact digit reference</li>
+          <li><b>3</b> Fuzzy shortlist (builds a shortlist only, decides nothing)</li>
+        </ul>
+      </div>
+      {flow_arrow("down")}
+      <div class="flow-card tone-hero" style="grid-area:c3">
+        <span class="flow-num">3</span>
+        <h3>{ICON_BOLT} Pass 4 -- the one AI step</h3>
+        <ul>
+          <li><b>&bull;</b> Picks one candidate off Pass 3's shortlist</li>
+          <li><b>&bull;</b> Auto-applies only at 90%+ confidence from a trusted tier -- empty by design, 0% today</li>
+          <li><b>&bull;</b> Otherwise: human review queue, 100% today</li>
+        </ul>
+      </div>
+      {flow_arrow("left")}
+      <div class="flow-card tone-positive" style="grid-area:c4">
+        <span class="flow-num">4</span>
+        <h3>{ICON_DB} Persisted, then live</h3>
+        <ul>
+          <li><b>&bull;</b> SQLite: a full, replayable audit trail for every decision</li>
+          <li><b>&bull;</b> This review app: confirm or reject any open row</li>
+        </ul>
+      </div>
+      <div class="flow-loop-note">{ICON_LOOP} A confirmed row memorizes a new pattern &mdash; back into Pass 2.5, zero model calls next time</div>
+    </div>"""
+
+    body = f"""
+    <div class="panel">
+      <div class="panel-body">
+        <p style="margin:0;color:var(--ink);font-size:15px;line-height:1.7">
+          A reconciliation system for Razorpay merchants. It matches settlement, bank, and ledger
+          records, resolves what it can prove on its own, and only calls a narrowly scoped,
+          confidence-gated AI model when the deterministic rules can't resolve a row. Everything
+          else goes to a human, and every decision keeps a full audit trail explaining why.
+        </p>
+      </div>
+    </div>
+
+    <div class="overview" style="margin-bottom:var(--sp-8)">
+      <div class="stats">
+        {stat(ICON_ROWS, f"{resolved_pct}%", "resolved, zero human input, see the live batch", "primary", "/")}
+        {stat(ICON_ALERT, "7", "matching passes, only one needs a model, see how", "notice", "#architecture")}
+        {stat(ICON_LEDGER, "9", "named exception categories, browse them", "information", "/")}
+        {stat(ICON_CHECK, "0", "paid API keys, anywhere, read the source", "positive", "https://github.com/niy-ati/recon-engine")}
+      </div>
+    </div>
+
+    <div class="panel" id="architecture">
+      <div class="panel-head"><h2 style="margin:0">Architecture</h2></div>
+      <div class="panel-body">
+        {flow_grid}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Where AI is used, and where it isn't</h2></div>
+      <div class="panel-body">
+        <div class="finding-list">
+          {finding(ICON_ALERT, "Pass 4: the one gated model", "Ollama (qwen2.5:0.5b, running locally, no paid API) picks between candidates Pass 3 already shortlisted. It never auto-applies. Testing showed it reports high confidence even when it's wrong, so a human still confirms every proposal, no matter the confidence score.", "tone-information")}
+          {finding(ICON_CHECK, "AI-narrated batch summary", "The one place a model writes text instead of retrieving it. Every number in its output is pulled out and checked against the real, pre-computed facts. If even one number doesn't match, the whole response is thrown out and the deterministic version is shown instead.", "tone-information")}
+          {finding(ICON_ROWS, "Pattern learning: the feedback loop", "A human's confirmation gets saved as a rule, or turned into a template if the narration has a recurring digit reference. The next matching case, or one shaped just like it, resolves with zero model calls. It isn't machine learning. It's a deterministic lookup that gets faster every time a human confirms something.", "tone-positive")}
+          {finding(ICON_BANK, "Tax matcher and cash forecast are deterministic, not AI", "Both use the same statutory-rate and already-computed-data logic as the matching passes, just applied differently: one checks a GST rate, the other projects the cash unlocked by confirming the queue. No model touches either one.", "tone-positive")}
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Why this, not something bigger</h2></div>
+      <div class="panel-body">
+        <p style="margin:0 0 var(--sp-6);color:var(--ink);line-height:1.7">
+          Track 4 states its own rationale plainly: <em>"the 2026 builder consensus: verification capacity, not
+          generation speed, is the bottleneck."</em> Razorpay's own <a href="https://razorpay.com/agentic-business-banking/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Bookkeeping Agent</a> posts entries
+          based on predefined rules, so it can't resolve an exception that no rule covers. This system
+          fills exactly that gap. A Razorpay engineering thread about an internal agent called Slash
+          raised the same point: someone needs to decide what's allowed to run before it runs, not
+          after. The validation gate here answers that directly.
+        </p>
+        <p style="margin:0 0 var(--sp-6);color:var(--muted);line-height:1.7;font-size:13.5px">
+          The comparison isn't limited to Razorpay either. Juspay's own reconciliation product claims a
+          99% recon rate with no disclosed matching mechanism or confidence gating. Puzzle, a funded
+          AI finance-controller product, claims 98% automated categorization with the same gap. Both
+          are real, shipped products, but neither shows the work behind the number. This project's
+          90.5% is measured on one real, cited batch.
+        </p>
+        <p style="margin:0;color:var(--muted);line-height:1.7;font-size:13.5px">
+          Razorpay's own RazorpayX Agentic Banking roadmap lists a Tax Payments Agent for TDS
+          calculations as <strong>upcoming, not yet shipped</strong>, confirmed directly on their own
+          product page. This project's tax-line matcher already checks real GST-on-MDR correctness
+          today, both per transaction and across a full month, in the exact area Razorpay's own
+          roadmap says it's still building toward.
+        </p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-body" style="display:flex;gap:var(--sp-8);flex-wrap:wrap;align-items:center">
+        <a href="https://github.com/niy-ati/recon-engine" target="_blank" rel="noopener" style="font-weight:700;color:var(--primary-strong)">GitHub &rarr;</a>
+        <a href="https://drive.google.com/file/d/13B5ggm78jJgOdDysV2zwL2ySzXLktvae/view?usp=drive_link" target="_blank" rel="noopener" style="font-weight:700;color:var(--primary-strong)">Pitch deck &rarr;</a>
+        <a href="https://drive.google.com/file/d/1KvCRXbUkI00KIxhghxHmBrvwtI077izu/view?usp=drive_link" target="_blank" rel="noopener" style="font-weight:700;color:var(--primary-strong)">Research sources &rarr;</a>
+      </div>
+    </div>"""
+    return render_shell("about", "About this project", "", body)
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
@@ -2444,6 +2813,8 @@ class Handler(BaseHTTPRequestHandler):
             self._respond_html(render_records(initial_query=initial_query))
         elif path == "/sources":
             self._respond_html(render_sources())
+        elif path == "/about":
+            self._respond_html(render_about())
         elif path.startswith("/assets/"):
             self._respond_asset(path[len("/assets/"):])
         else:
