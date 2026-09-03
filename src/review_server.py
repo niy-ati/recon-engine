@@ -2765,11 +2765,11 @@ def render_about() -> str:
 
     <div class="overview" style="margin-bottom:var(--sp-8)">
       <div class="stats">
-        {stat(ICON_ROWS, f"{resolved_pct}%", "resolved here, zero human input, see the live batch", "primary", "/")}
-        {stat(ICON_ALERT, "~51%", "industry baseline for manual spreadsheet reconciliation, cleared by 35+ points", "notice", "/")}
-        {stat(ICON_LEDGER, "9", "named exception categories, browse them below", "information", "#categories")}
-        {stat(ICON_KEY, "8", "real, tested checks an AI proposal must clear before it's ever treated as done", "information", "#architecture")}
-        {stat(ICON_CHECK, "0", "paid API keys, anywhere, read the source", "positive", "https://github.com/niy-ati/recon-engine")}
+        {stat(ICON_ROWS, f"{resolved_pct}%", "resolved, zero human input", "primary", "/")}
+        {stat(ICON_ALERT, "~51%", "industry baseline for manual reconciliation, cleared by 35+ points", "notice", "/")}
+        {stat(ICON_LEDGER, "9", "named exception categories", "information", "#categories")}
+        {stat(ICON_KEY, "8", "checks an AI proposal must clear before auto-applying", "information", "#architecture")}
+        {stat(ICON_CHECK, "0", "paid API keys, anywhere", "positive", "https://github.com/niy-ati/recon-engine")}
         {stat(ICON_BANK, "-40%", "payment failures after automatic reconciliation, a real Razorpay customer", "notice", "https://www.linkedin.com/posts/aeijaz-sodawala-a2202a64_hoteltech-hospitalitytechnology-payments-share-7500577134541713408-vsug/")}
       </div>
     </div>
@@ -2796,6 +2796,7 @@ def render_about() -> str:
           {finding(ICON_BANK, f"GST-on-MDR checked against the real 18% rate, live", f'Reconciliation only checks that the settlement report and the ledger agree with each other, not with the law. <code>tax_audit.py</code> checks the real statutory rate directly: <mark>{len(tax_findings)}</mark> settlement{"s" if len(tax_findings) != 1 else ""} in this batch currently sit as a plain, clean match and are still charging the wrong GST.', "tone-positive" if tax_findings else "tone-information")}
           {finding(ICON_ALERT, "The AFA mandate threshold is a real RBI rule, not an assumption", 'A subscription renewal above the RBI\'s <a href="https://www.business-standard.com/amp/article/finance/new-e-mandate-guidelines-rbi-enhances-limit-for-e-mandates-on-credit-debit-cards-to-rs-15-000-122060800417_1.html" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">₹15,000 e-mandate threshold</a> needs a compliant step-up re-authentication, not a blind retry. `AFA_MANDATE_HOLD` reads this off the ledger narration directly.', "tone-information")}
           {finding(ICON_LEDGER, "The third source resolves 15% of the batch on its own", 'Razorpay\'s own published Reconciliation Agent checks two sources: a bank statement against Razorpay\'s settlement records. <mark>77 of 514 rows (15.0%)</mark> in this batch are resolved or explained only because this system also reads the merchant\'s own ledger, including two rows with a perfectly clean UTR/amount/date match that a two-source tool would already call done.', "tone-positive")}
+          {finding(ICON_BANK, "Sits underneath Razorpay's own Bookkeeping Agent, not against it", 'The <a href="https://razorpay.com/agentic-business-banking/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Bookkeeping Agent</a> posts entries from predefined rules and can\'t resolve an exception no rule covers. This system is that layer underneath it: everything the rules can\'t settle lands here with a stated reason and a reviewable trail, not a silent drop.', "tone-information")}
         </div>
       </div>
     </div>
@@ -2810,22 +2811,6 @@ def render_about() -> str:
           {finding(ICON_ROWS, "Pattern learning: the feedback loop", "A human's confirmation gets saved as a rule, or turned into a template if the narration has a recurring digit reference. The next matching case, or one shaped just like it, resolves with zero model calls. It isn't machine learning. It's a deterministic lookup that gets faster every time a human confirms something.", "tone-positive")}
           {finding(ICON_BANK, "Tax matcher and cash forecast are deterministic, not AI", "Both use the same statutory-rate and already-computed-data logic as the matching passes, just applied differently: one checks a GST rate, the other projects the cash unlocked by confirming the queue. No model touches either one.", "tone-positive")}
         </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h2 style="margin:0">Why this, not something bigger</h2></div>
-      <div class="panel-body">
-        <p style="margin:0 0 var(--sp-6);color:var(--ink);line-height:1.7">
-          Track 4's own rationale: <mark>"verification capacity, not generation speed, is the bottleneck."</mark>
-          Razorpay's own <a href="https://razorpay.com/agentic-business-banking/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Bookkeeping Agent</a> posts entries from predefined rules, so it can't resolve an exception no rule covers.
-          This system is built as that missing layer.
-        </p>
-        <p style="margin:0;color:var(--muted);line-height:1.7;font-size:13.5px">
-          Juspay claims <mark>99%</mark> recon, Puzzle claims <mark>98%</mark> categorization, neither discloses a matching mechanism or a confidence gate.
-          This project's <mark>90.5%</mark> is measured on one real, cited batch, and the work behind it is the rest of this page.
-          Razorpay's own RazorpayX roadmap lists a TDS Tax Payments Agent as <strong>upcoming, not shipped</strong>; this system's tax-line matcher already checks real GST-on-MDR correctness today.
-        </p>
       </div>
     </div>
 
