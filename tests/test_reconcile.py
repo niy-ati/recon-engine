@@ -9,12 +9,15 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 
 from reconcile import reconcile, summarize  # noqa: E402
 import db  # noqa: E402
+import reconcile as reconcile_module  # noqa: E402 -- for patching resolve_with_gate below
+from llm_matcher import ArbiterResult  # noqa: E402
 
 
 SETTLEMENT_HEADER = ["settlement_id", "payment_id", "order_id", "gross", "mdr",
@@ -485,6 +488,69 @@ class TestStructuredLogging(unittest.TestCase):
             results = reconcile(data_dir=tmp, correlation_id="my-run-42")
             r = find(results, "order_1")
             self.assertEqual(r["stage"][0]["correlation_id"], "my-run-42")
+
+
+class TestPass4AmountSanity(unittest.TestCase):
+    """A confident, trusted-tier arbiter result still says nothing about
+    whether the amounts involved actually agree -- narration similarity
+    and net amount are independent signals. resolve_with_gate is patched
+    directly here (not exercised through the real Ollama/stand-in
+    arbiter) so the scenario is deterministic: a fixed, already-"trusted"
+    ArbiterResult is what this check has to override, not a real model's
+    unpredictable output."""
+
+    def _fixture(self, tmp, ledger_amount):
+        write_fixture(
+            tmp,
+            settlement_rows=[["setl_1090", "pay_1090", "order_1090", 999, 19.98, 3.60, 975.42, "UTR1090", "2026-08-15", False]],
+            bank_rows=[["UTR1090", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1090"]],
+            # Blank order_ref and no exact digit reference to order_1090's
+            # own suffix -- forces this row through Pass 3/4 (fuzzy) for
+            # the ledger side, verified separately: difflib's own
+            # get_close_matches(cutoff=0.3) matches this narration against
+            # "order order_1090" despite sharing no digits at all.
+            ledger_rows=[["INV-X", "", "Someone", ledger_amount, "payment received thanks a lot for your order", 3.60]],
+        )
+
+    def test_amount_mismatch_overrides_auto_applied(self):
+        fake_result = ArbiterResult("order_1090", 0.95, "test: high confidence", True, tier="trusted-tier")
+        with tempfile.TemporaryDirectory() as tmp:
+            self._fixture(tmp, ledger_amount=5000)  # settlement net is 975.42 -- wildly different
+            with patch.object(reconcile_module, "resolve_with_gate", return_value=fake_result):
+                results = reconcile(data_dir=tmp)
+            r = find(results, "order_1090")
+            self.assertNotEqual(r["status"], "MATCHED_AI_ASSISTED")  # would only be set if auto_applied stayed True
+            self.assertIn("differ by", r["reason"])
+            # The real bug this test itself caught during development: the
+            # reason text must actually say why it's held (the amounts
+            # disagree) -- not silently fall through to the "tier not
+            # trusted" text, which would tell a human reviewer, wrongly,
+            # that the match looks fine and this is purely a policy hold.
+            self.assertNotIn("not because the match itself looks wrong", r["reason"])
+
+    def test_amount_agreement_leaves_auto_applied_alone(self):
+        """Same fixed arbiter result, but this time the ledger amount
+        genuinely agrees with the settlement's own net -- the new check
+        must not touch a case it has no reason to."""
+        fake_result = ArbiterResult("order_1090", 0.95, "test: high confidence", True, tier="trusted-tier")
+        with tempfile.TemporaryDirectory() as tmp:
+            self._fixture(tmp, ledger_amount=975.42)
+            with patch.object(reconcile_module, "resolve_with_gate", return_value=fake_result):
+                results = reconcile(data_dir=tmp)
+            r = find(results, "order_1090")
+            self.assertEqual(r["status"], "MATCHED_AI_ASSISTED")
+            self.assertNotIn("amount check", r["reason"])
+
+    def test_small_drift_within_tolerance_is_not_a_finding(self):
+        """A rupee or so of drift is normal noise, not a real mismatch --
+        must stay under PASS4_AMOUNT_SANITY_TOLERANCE_RS."""
+        fake_result = ArbiterResult("order_1090", 0.95, "test: high confidence", True, tier="trusted-tier")
+        with tempfile.TemporaryDirectory() as tmp:
+            self._fixture(tmp, ledger_amount=976.00)  # 0.58 off the real 975.42
+            with patch.object(reconcile_module, "resolve_with_gate", return_value=fake_result):
+                results = reconcile(data_dir=tmp)
+            r = find(results, "order_1090")
+            self.assertEqual(r["status"], "MATCHED_AI_ASSISTED")
 
 
 if __name__ == "__main__":

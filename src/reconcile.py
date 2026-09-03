@@ -34,6 +34,15 @@ import ingest
 
 DATE_TOLERANCE_DAYS = 2
 AMOUNT_TOLERANCE = 0.01  # rupees
+# A real, separate gate from AMOUNT_TOLERANCE above: that one is for the
+# exact passes (1/2/2.5/2.6/2.75), where an amount is expected to line up
+# almost exactly. Pass 4's shortlist is narrowed by narration TEXT
+# similarity alone -- nothing before this point has ever checked whether
+# the amounts involved actually agree, even for a fully gated, trusted-tier
+# match. A looser rupee tolerance here, not AMOUNT_TOLERANCE's paisa-level
+# one, since this is a sanity check against a wrong candidate, not a
+# rounding-drift check against the right one.
+PASS4_AMOUNT_SANITY_TOLERANCE_RS = 2.0
 DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
@@ -410,6 +419,27 @@ def reconcile(
         if arb.candidate_id is None:
             continue
 
+        # A confident, trusted-tier arbiter result still says nothing
+        # about whether the AMOUNTS involved actually agree -- narration
+        # similarity and net amount are independent signals, and nothing
+        # up to this point has ever checked the second one. A
+        # same-customer, same-template narration pointing at the wrong
+        # one of two orders with different amounts is exactly the case
+        # this catches that a text-only shortlist can't. Checked here,
+        # not in validation_gate.py, since it needs this file's own
+        # settlement data, not the arbiter's own opinion of itself.
+        amount_mismatch_note = None
+        candidate_amounts = [r["net"] for r in results_by_order_id.get(arb.candidate_id, []) if r.get("net") is not None]
+        if candidate_amounts:
+            amount_diff = abs(candidate_amounts[0] - float(l["amount"]))
+            if amount_diff > PASS4_AMOUNT_SANITY_TOLERANCE_RS:
+                arb.auto_applied = False
+                amount_mismatch_note = (
+                    f"settlement amount Rs.{candidate_amounts[0]:.2f} vs ledger amount Rs.{float(l['amount']):.2f} "
+                    f"differ by Rs.{amount_diff:.2f}, beyond a sane tolerance"
+                )
+                arb.reason += f" [amount check: {amount_mismatch_note}]"
+
         matched_ledger_rows.add(li)
         for r in results_by_order_id.get(arb.candidate_id, []):
             if r.get("_needs_pass3") and r["category"] is None:
@@ -430,7 +460,20 @@ def reconcile(
                     r["status"] = "MATCHED_LOW_CONFIDENCE"
                     r["category"] = r["category"] or "FUZZY_MATCH_NEEDS_REVIEW"
                     held_on_principle = arb.confidence >= CONFIDENCE_AUTO_ACCEPT
-                    if held_on_principle:
+                    if amount_mismatch_note:
+                        # Distinct from held_on_principle below on purpose:
+                        # that branch's own text explicitly says "not
+                        # because the match itself looks wrong" -- true
+                        # when the only reason is tier trust, false here,
+                        # where the amounts genuinely disagree. Reusing
+                        # that text for this case would be dishonest about
+                        # why the row is actually being held.
+                        r["reason"] = (
+                            f"AI matched '{l['narration']}' to {arb.candidate_id} at {arb.confidence:.0%} "
+                            f"confidence, but {amount_mismatch_note} -- narration similarity alone doesn't "
+                            f"confirm this is the right order."
+                        )
+                    elif held_on_principle:
                         r["reason"] = (
                             f"AI matched '{l['narration']}' to {arb.candidate_id} at {arb.confidence:.0%} "
                             f"confidence, but the model tier that produced it isn't on the trusted "
