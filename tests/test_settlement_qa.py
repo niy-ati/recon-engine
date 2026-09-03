@@ -93,6 +93,34 @@ class TestOrderLookup(SettlementQaTestCase):
                 self.assertIn("DUPLICATE", result)
                 self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
 
+    def test_clean_match_with_no_reason_shows_the_real_replay_explanation(self):
+        """Regression test for a real bug: reconcile.py only ever writes a
+        `reason` for variance/exception rows -- a clean MATCHED row (78.4%
+        of a real batch) has reason=None, so "what happened to order_X"
+        used to show a bare status and amount with no explanation of HOW
+        it matched at all, even though the real answer was sitting right
+        there in replay_log the whole time. db.summarize_replay() already
+        builds that explanation for the Records page's audit box; chat
+        must show the same real answer, not stay silent."""
+        db.persist_results([
+            {"order_id": "order_50", "settlement_id": "setl_50", "net": 500.0,
+             "match_key": "settlement:setl_50", "status": "MATCHED", "category": None,
+             "reason": None, "narration": "",
+             "stage": [{"pass": "1", "action": "matched", "detail": "settlement<->bank matched on UTR+amount+date",
+                        "confidence": None, "timestamp": "x", "correlation_id": "run-2"}]},
+        ], run_id="run-2")
+        result = qa.answer("what happened to order_50")
+        self.assertIn("Settlement<->bank matched on UTR+amount+date", result)
+
+    def test_clean_match_with_no_stages_at_all_says_so_honestly(self):
+        db.persist_results([
+            {"order_id": "order_51", "settlement_id": "setl_51", "net": 500.0,
+             "match_key": "settlement:setl_51", "status": "MATCHED", "category": None,
+             "reason": None, "narration": "", "stage": []},
+        ], run_id="run-2")
+        result = qa.answer("what happened to order_51")
+        self.assertIn("No stages recorded for this row.", result)
+
 
 class TestCategoryCount(SettlementQaTestCase):
     def test_duplicate_count_matches_real_data(self):

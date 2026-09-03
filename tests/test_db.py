@@ -354,6 +354,39 @@ class TestMigration(DbTestCase):
         self.assertEqual(new_row["settlement_date"], "2026-08-06")
 
 
+class TestSummarizeReplay(unittest.TestCase):
+    """Moved here from test_review_server.py when summarize_replay() itself
+    moved from review_server.py to db.py, same reason and same precedent
+    as TestComputeCashClarity below: settlement_qa.py's chat answers need
+    the exact same function, and both modules already import db
+    unconditionally, so this avoids a circular import between them."""
+
+    def test_builds_capitalized_semicolon_joined_line_from_details(self):
+        replay_log = [
+            {"pass": "1", "action": "matched", "detail": "settlement<->bank matched on UTR+amount+date",
+             "confidence": None, "timestamp": "x", "correlation_id": "run-1"},
+            {"pass": "2", "action": "matched", "detail": "settlement<->ledger matched on order_id",
+             "confidence": None, "timestamp": "x", "correlation_id": "run-1"},
+        ]
+        summary = db.summarize_replay(replay_log)
+        self.assertEqual(
+            summary,
+            "Settlement<->bank matched on UTR+amount+date; Settlement<->ledger matched on order_id",
+        )
+
+    def test_empty_replay_log_returns_empty_string(self):
+        self.assertEqual(db.summarize_replay([]), "")
+
+    def test_entries_with_no_detail_return_empty_string(self):
+        replay_log = [{"pass": "1", "action": "matched", "detail": "", "confidence": None,
+                        "timestamp": "x", "correlation_id": "run-1"}]
+        self.assertEqual(db.summarize_replay(replay_log), "")
+
+    def test_legacy_plain_string_entries_are_ignored(self):
+        replay_log = ["PASS1: settlement<->bank matched on UTR+amount+date"]
+        self.assertEqual(db.summarize_replay(replay_log), "")
+
+
 class TestComputeCashClarity(unittest.TestCase):
     """Moved here from test_review_server.py when compute_cash_clarity()
     itself moved from review_server.py to db.py, so

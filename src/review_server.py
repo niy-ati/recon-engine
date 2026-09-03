@@ -2297,16 +2297,8 @@ def render_log_entry(entry: dict | str) -> str:
     return escape(str(entry))  # legacy plain-string entries from before structured logging
 
 
-def summarize_replay(replay_log: list) -> str:
-    """A clean match has no `reason` set -- reconcile.py only writes one for
-    variance/exception cases -- but the replay_log already has the real
-    stage-by-stage explanation computed for every row. This builds one
-    readable line from those same structured entries instead of leaving a
-    clean match with nothing to show but a dash."""
-    details = [entry.get("detail", "") for entry in replay_log if isinstance(entry, dict) and entry.get("detail")]
-    if not details:
-        return ""
-    return "; ".join(d[0].upper() + d[1:] for d in details if d)
+# summarize_replay() moved to db.py so settlement_qa.py's chat answers can
+# call the exact same function -- see its docstring there.
 
 
 _REASON_NUMBER_RE = re.compile(r"(Rs\.\d[\d,]*(?:\.\d+)?|\b\d{1,3}(?:\.\d+)?%)")
@@ -2405,7 +2397,7 @@ def render_row(r: dict, show_actions: bool = True) -> str:
     settlement_html = (f'<span class="id-chip id-chip-settlement">{escape(r["settlement_id"])}</span>'
                         if r["settlement_id"] else '<span class="cat-empty">&mdash;</span>')
 
-    reason_text = r["reason"] or summarize_replay(replay_log) or "No stages recorded for this row."
+    reason_text = r["reason"] or db.summarize_replay(replay_log) or "No stages recorded for this row."
     # data-label mirrors each column's own <th> text -- on mobile the table
     # collapses into stacked cards (see the responsive-table media query)
     # and td::before reads this attribute back as the card's field label,

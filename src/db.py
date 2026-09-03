@@ -320,6 +320,25 @@ def get_narration_rule(narration: str) -> dict | None:
     return dict(row) if row else None
 
 
+def summarize_replay(replay_log: list) -> str:
+    """A clean match has no `reason` set -- reconcile.py only writes one for
+    variance/exception cases -- but the replay_log already has the real
+    stage-by-stage explanation computed for every row. This builds one
+    readable line from those same structured entries instead of leaving a
+    clean match with nothing to show but a dash.
+
+    Moved here from review_server.py (same reason compute_cash_clarity()
+    was: see TestComputeCashClarity's docstring in test_db.py) so
+    settlement_qa.py's chat answers can show the exact same real
+    explanation the Records page's audit box does for a clean match,
+    without a circular import -- both modules already import db
+    unconditionally, neither imports the other."""
+    details = [entry.get("detail", "") for entry in replay_log if isinstance(entry, dict) and entry.get("detail")]
+    if not details:
+        return ""
+    return "; ".join(d[0].upper() + d[1:] for d in details if d)
+
+
 def compute_cash_clarity(all_rows: list[dict]) -> dict:
     """Real Rs. amounts computed from this run's own persisted net_amount/
     category/status columns -- not a forecast, not a parallel calculation.
