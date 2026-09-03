@@ -18,9 +18,11 @@ import qa_intent_gate  # noqa: E402
 import settlement_qa as qa  # noqa: E402
 
 
-def make_result(order_id, status, category=None, narration="", net=100.0):
+def make_result(order_id, status, category=None, narration="", net=100.0,
+                 gross=None, mdr=None, utr=None, settlement_date=None):
     return {
         "order_id": order_id, "settlement_id": f"setl_{order_id}", "net": net,
+        "gross": gross, "mdr": mdr, "utr": utr, "settlement_date": settlement_date,
         "match_key": f"settlement:setl_{order_id}",
         "status": status, "category": category, "reason": f"test reason for {order_id}",
         "narration": narration, "stage": ["test stage"],
@@ -478,6 +480,121 @@ class TestSettlementLookup(SettlementQaTestCase):
         built around."""
         result = qa.answer("what happened to order_2")
         self.assertIn("DUPLICATE", result)
+
+
+class TestSettlementOnDate(SettlementQaTestCase):
+    """See settlement_qa.py's module docstring: "settlement on the 5th" /
+    "what settled on august 5th" -- the same date-scoped lookup shape
+    Razorpay's own Agentic Dashboard demo answers with a real UTR and
+    payment breakdown, not just a net figure."""
+
+    def test_lookup_by_iso_date(self):
+        db.persist_results([
+            make_result("order_10", "MATCHED", net=975.42, gross=999.0, mdr=19.98,
+                        utr="UTR555", settlement_date="2026-08-05"),
+        ], run_id="run-2")
+        result = qa.answer("settlement on 2026-08-05")
+        self.assertIn("order_10", result)
+        self.assertIn("UTR555", result)
+        self.assertIn("975.42", result)
+        self.assertIn("999.00", result)
+
+    def test_lookup_by_month_and_day(self):
+        db.persist_results([
+            make_result("order_11", "MATCHED", net=500.0, utr="UTR777", settlement_date="2026-08-09"),
+        ], run_id="run-2")
+        result = qa.answer("what settled on august 9th")
+        self.assertIn("order_11", result)
+        self.assertIn("UTR777", result)
+
+    def test_bare_day_resolves_when_unambiguous(self):
+        """Every settlement_date in this fixture is August -- a bare "the
+        12th" resolves against real data with no month named, since only
+        one month actually exists in the batch to be ambiguous with."""
+        db.persist_results([
+            make_result("order_12", "MATCHED", net=250.0, utr="UTR888", settlement_date="2026-08-12"),
+        ], run_id="run-2")
+        result = qa.answer("settlement on the 12th")
+        self.assertIn("order_12", result)
+
+    def test_bare_day_ambiguous_across_months_is_honest_not_guessed(self):
+        """Same discipline as reconcile.py's own DUPLICATE/cross-UTR
+        detection: genuine ambiguity is disclosed, never silently resolved
+        to one candidate."""
+        db.persist_results([
+            make_result("order_13", "MATCHED", net=100.0, utr="UTR001", settlement_date="2026-07-12"),
+            make_result("order_14", "MATCHED", net=200.0, utr="UTR002", settlement_date="2026-08-12"),
+        ], run_id="run-2")
+        result = qa.answer("settlement on the 12th")
+        self.assertIn("more than one month", result.lower())
+        self.assertNotIn("order_13", result)
+        self.assertNotIn("order_14", result)
+
+    def test_no_settlement_on_that_date_is_honest_not_fabricated(self):
+        db.persist_results([
+            make_result("order_15", "MATCHED", net=100.0, utr="UTR003", settlement_date="2026-08-01"),
+        ], run_id="run-2")
+        result = qa.answer("settlement on the 31st")
+        self.assertIn("No settlement recorded", result)
+
+    def test_no_date_phrase_falls_through_to_other_handlers(self):
+        """"settlement" alone, with no date phrase, isn't this handler's
+        question at all -- must not swallow a real question something
+        else already answers."""
+        result = qa.answer("what's the total settlement value")
+        self.assertNotIn("No settlement recorded", result)
+        self.assertNotEqual(result, qa.FALLBACK_MESSAGE)
+
+    def test_pre_existing_rows_with_no_settlement_date_are_ignored(self):
+        """The base fixture's 5 rows (see setUp) have no settlement_date at
+        all -- an old row from before this field existed. With nothing in
+        the batch carrying a real date, this handler correctly declines to
+        answer at all (returns None, not a fabricated "no match" reply
+        pretending it searched real dates) and the question falls through
+        to the honest overall fallback."""
+        result = qa.answer("settlement on the 5th")
+        self.assertEqual(result, qa.FALLBACK_MESSAGE)
+
+
+class TestNextSettlement(SettlementQaTestCase):
+    """See settlement_qa.py's module docstring, and render_cash_forecast()'s
+    in review_server.py, for why this is real facts from the batch's own
+    data -- most recent settlement, anything ON_HOLD, the stated T+2 cycle
+    -- never a fabricated future date."""
+
+    def test_reports_the_real_most_recent_settlement(self):
+        db.persist_results([
+            make_result("order_20", "MATCHED", net=300.0, settlement_date="2026-08-10"),
+            make_result("order_21", "MATCHED", net=400.0, settlement_date="2026-08-20"),
+        ], run_id="run-2")
+        result = qa.answer("when's my next settlement?")
+        self.assertIn("2026-08-20", result)
+        self.assertIn("400.00", result)
+        self.assertNotIn("2026-08-10", result)
+
+    def test_mentions_real_on_hold_amount(self):
+        db.persist_results([
+            make_result("order_22", "EXCEPTION", category="ON_HOLD_BY_RAZORPAY",
+                        net=150.0, settlement_date="2026-08-11"),
+        ], run_id="run-2")
+        result = qa.answer("when will my settlement arrive")
+        self.assertIn("150.00", result)
+        self.assertIn("ON_HOLD_BY_RAZORPAY", result)
+
+    def test_never_invents_a_future_date(self):
+        """The honesty guarantee this whole feature exists to keep: no
+        calendar date should appear in the answer beyond the real,
+        already-known settlement_date values in the batch."""
+        db.persist_results([
+            make_result("order_23", "MATCHED", net=100.0, settlement_date="2026-08-15"),
+        ], run_id="run-2")
+        result = qa.answer("when do I get paid next")
+        self.assertIn("snapshot", result.lower())
+        self.assertIn("2026-08-15", result)
+
+    def test_no_dated_rows_is_honest_not_fabricated(self):
+        result = qa.answer("when's my next settlement?")
+        self.assertEqual(result, "No batch persisted yet -- run the pipeline first.")
 
 
 class TestCategoryList(SettlementQaTestCase):

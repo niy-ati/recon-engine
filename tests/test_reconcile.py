@@ -64,6 +64,46 @@ class TestCleanMatch(unittest.TestCase):
             self.assertEqual(r["status"], "MATCHED")
             self.assertIsNone(r["category"])
 
+    def test_gross_mdr_utr_settlement_date_carried_through(self):
+        """Regression test: these real settlement fields must reach the
+        persisted result -- settlement_qa.py's date lookup and "next
+        settlement" answers, and the Records page's own row display, all
+        depend on them being here, not silently dropped the way they used
+        to be (only net/gst_on_mdr made it through before)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["gross"], 999.0)
+            self.assertEqual(r["mdr"], 19.98)
+            self.assertEqual(r["utr"], "UTR001")
+            self.assertEqual(r["settlement_date"], "2026-08-15")
+
+    def test_orphan_bank_row_carries_its_own_utr_and_date(self):
+        """A bank credit with no settlement report line at all has no real
+        gross/MDR to report (nothing backs that breakdown), but its own UTR
+        and value_date ARE real and must still come through -- honest
+        partial data, not silently dropped alongside the fields that
+        genuinely don't exist for this row."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[],
+                bank_rows=[["UTR999", 500.00, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_ghost"]],
+                ledger_rows=[],
+            )
+            results = reconcile(data_dir=tmp)
+            orphan = [r for r in results if r.get("category") == "UNEXPLAINED" and r.get("settlement_id") is None][0]
+            self.assertEqual(orphan["utr"], "UTR999")
+            self.assertEqual(orphan["settlement_date"], "2026-08-15")
+            self.assertIsNone(orphan.get("gross"))
+            self.assertIsNone(orphan.get("mdr"))
+
 
 class TestRoundingDrift(unittest.TestCase):
     def test_small_amount_drift_within_tolerance_is_rounding(self):

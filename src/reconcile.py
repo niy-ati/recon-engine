@@ -124,8 +124,18 @@ def reconcile(
         # match_key identifies this logical row across separate runs of the
         # same batch (db.py upserts on it instead of blanket-deleting, so a
         # re-run never wipes a human's earlier confirm/reject decision).
+        # gross/mdr/utr/settlement_date carried through even though nothing
+        # in the matching logic below needs them -- settlement_qa.py's
+        # date-lookup and "next settlement" answers, and the Records page's
+        # own row display, need the real payment breakdown and UTR a
+        # merchant would expect to see, not just the net figure matching
+        # already used. Razorpay's own Agentic Dashboard demo shows exactly
+        # this shape (UTR + amount breakdown) for a settlement looked up by
+        # date -- this is what makes that answer real instead of net-only.
         record = {"order_id": s["order_id"], "settlement_id": s["settlement_id"],
                   "net": float(s["net"]), "gst_on_mdr": float(s["gst_on_mdr"]),
+                  "gross": float(s["gross"]), "mdr": float(s["mdr"]),
+                  "utr": s["utr"], "settlement_date": s["settlement_date"],
                   "match_key": f"settlement:{s['settlement_id']}",
                   "status": None, "category": None, "reason": None, "stage": []}
 
@@ -521,6 +531,9 @@ def reconcile(
     orphan_bank = [b for i, b in enumerate(bank) if i not in matched_bank_rows]
     for b in orphan_bank:
         results.append({"order_id": None, "settlement_id": None, "net": float(b["credited_amount"]),
+                         "utr": b["utr"], "settlement_date": b["value_date"],  # real bank fields --
+                         # no settlement report line backs this row, so gross/mdr genuinely
+                         # don't exist here and are left unset rather than guessed.
                          "match_key": f"bank_orphan:{b['utr']}",
                          "status": "EXCEPTION", "category": "UNEXPLAINED",
                          "reason": f"Bank credit of Rs.{b['credited_amount']} on {b['value_date']} has no matching settlement_id anywhere in the settlement report.",

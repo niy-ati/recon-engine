@@ -76,6 +76,25 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
     fixed, human-written answers about THIS SYSTEM itself (not the
     reconciliation data), sourced from notes/PITCH_NOTES.md. Same canned-text
     principle as CATEGORY_GUIDANCE -- never model-generated.
+  - "settlement on the 5th" / "what settled on august 5th" / "settlement
+    on 2026-08-15" -- looks up real settlement_date values persisted in
+    this batch (see reconcile.py's own record for where utr/gross/mdr/
+    settlement_date now come from) and returns each matching row's UTR
+    and full gross/MDR/GST/net breakdown, the same shape Razorpay's own
+    Agentic Dashboard demo answers a date-scoped settlement question
+    with. A bare day-of-month ("on the 5th") resolves against whichever
+    month(s) this batch's own settlement_date values actually fall in --
+    unambiguous today since this batch is single-month, but if a future
+    batch spans more than one month and the day is ambiguous across
+    them, this says so honestly rather than guessing one.
+  - "when's my next settlement" / "when do I get paid" / "when will my
+    settlement arrive" -- NOT a time-series prediction (see
+    render_cash_forecast()'s docstring in review_server.py for why this
+    codebase already declined to build one of those elsewhere): reports
+    the most recent real settlement_date and total in this batch, any
+    amount currently ON_HOLD_BY_RAZORPAY and therefore not yet landed,
+    and Razorpay's own stated T+2 cycle -- never a fabricated future
+    date this batch has no data to support.
 
 Fallback for everything else (qa_intent_gate.py / qa_intent_router.py): if
 none of the above keyword shapes match, a gated local model (the same
@@ -116,6 +135,25 @@ ORDER_ID_PATTERN = re.compile(
    # immediately after "order" with only a single optional space or
    # underscore -- anything else silently failed to extract at all.
 SETTLEMENT_ID_PATTERN = re.compile(r"\b(setl_[a-z0-9]+)\b", re.IGNORECASE)
+
+# Date phrasing for _settlement_on_date -- matched against the batch's own
+# real settlement_date values, never used to construct a date that isn't
+# actually in the data (see _resolve_mentioned_date).
+_MONTH_NAMES = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+    "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9, "oct": 10,
+    "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+}
+_MONTH_ALTERNATION = "|".join(sorted(_MONTH_NAMES, key=len, reverse=True))
+_ISO_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+_MONTH_DAY_RE = re.compile(
+    rf"\b({_MONTH_ALTERNATION})[a-z]*\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b", re.IGNORECASE
+)
+_DAY_MONTH_RE = re.compile(
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({_MONTH_ALTERNATION})[a-z]*\b", re.IGNORECASE
+)
+_BARE_DAY_RE = re.compile(r"\bon\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b", re.IGNORECASE)
 
 _APOSTROPHES = re.compile(r"['’‘]")
 
@@ -1011,6 +1049,159 @@ def _batch_totals(question: str) -> str | None:
             f"{_plural(distinct_settlements, 'settlement')}) totaling Rs.{total_value:,.2f}.")
 
 
+def _ordinal_suffix(day: int) -> str:
+    if 11 <= day % 100 <= 13:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+
+
+def _resolve_mentioned_date(question: str, known_dates: list[str]) -> tuple[str | None, str | None]:
+    """Resolves a date phrase in `question` against `known_dates` -- the
+    real settlement_date values actually persisted for this batch -- never
+    a guess at a date this batch has no data for. Returns (resolved_date,
+    error): resolved_date is one of known_dates, or None; error is set only
+    when a date phrase WAS found but couldn't be pinned to exactly one real
+    date (out of range, or a bare day that's genuinely ambiguous across
+    more than one month in this batch), so the caller gives an honest
+    reason instead of silently falling through to "don't know."
+
+    (None, None) means no date phrase was found at all -- the caller's
+    signal that this question isn't shaped like a date lookup, distinct
+    from a date phrase that WAS found but didn't resolve."""
+    m = _ISO_DATE_RE.search(question)
+    if m:
+        candidate = m.group(1)
+        if candidate in known_dates:
+            return candidate, None
+        return None, f"No settlement recorded on {candidate} in this batch."
+
+    m = _MONTH_DAY_RE.search(question) or _DAY_MONTH_RE.search(question)
+    if m:
+        g1, g2 = m.groups()
+        month_word, day_str = (g1, g2) if g1.lower() in _MONTH_NAMES else (g2, g1)
+        month = _MONTH_NAMES[month_word.lower()]
+        day = int(day_str)
+        matches = [d for d in known_dates if int(d[5:7]) == month and int(d[8:10]) == day]
+        if len(matches) == 1:
+            return matches[0], None
+        if not matches:
+            return None, f"No settlement recorded on the {day}{_ordinal_suffix(day)} of that month in this batch."
+        return None, (f"More than one settlement date matches the {day}{_ordinal_suffix(day)} of that "
+                       f"month in this batch -- say which year you mean.")
+
+    m = _BARE_DAY_RE.search(question)
+    if m:
+        day = int(m.group(1))
+        matches = [d for d in known_dates if int(d[8:10]) == day]
+        if len(matches) == 1:
+            return matches[0], None
+        if not matches:
+            return None, f"No settlement recorded on the {day}{_ordinal_suffix(day)} in this batch."
+        months = sorted({d[:7] for d in matches})
+        return None, (f"The {day}{_ordinal_suffix(day)} appears in more than one month in this batch "
+                       f"({', '.join(months)}) -- say which month you mean.")
+
+    return None, None
+
+
+def _settlement_on_date(question: str) -> str | None:
+    """"settlement on the 5th" / "what settled on august 5th" -- a
+    date-scoped settlement lookup returning the real UTR and full
+    gross/MDR/GST/net breakdown per row, the same shape Razorpay's own
+    Agentic Dashboard demo answers a date question with. Gated on an
+    explicit settlement-shaped keyword (not just any date mention in the
+    question) so an unrelated sentence with a date in it -- "why is order_5
+    due on the 5th of next month" -- doesn't get misrouted here."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in ("settlement", "settle", "payout")):
+        return None
+
+    rows = db.get_all_exceptions()
+    known_dates = sorted({r["settlement_date"] for r in rows if r.get("settlement_date")})
+    if not known_dates:
+        return None  # nothing persisted with a real settlement_date -- not this handler's job
+
+    resolved, error = _resolve_mentioned_date(question, known_dates)
+    if resolved is None and error is None:
+        return None  # no date phrase at all -- question isn't shaped like a date lookup
+    if error:
+        return error
+
+    matches = [r for r in rows if r.get("settlement_date") == resolved]
+    # Capped at 10 shown, same "N more" tail _category_count already uses --
+    # this batch alone can have 15-25 settlements land on a single day, more
+    # than a chat card should ever dump on someone in one answer.
+    lines = [f"{_plural(len(matches), 'settlement')} on {resolved}:"]
+    for r in matches[:10]:
+        ident = r["settlement_id"] or r["order_id"] or f"row {r['id']}"
+        detail = []
+        if r.get("gross_amount") is not None:
+            detail.append(f"gross Rs.{r['gross_amount']:,.2f}")
+        if r.get("mdr_amount") is not None:
+            detail.append(f"MDR Rs.{r['mdr_amount']:,.2f}")
+        if r["net_amount"] is not None:
+            detail.append(f"net Rs.{r['net_amount']:,.2f}")
+        if r.get("utr"):
+            detail.append(f"UTR {r['utr']}")
+        detail.append(f"status={r['status']}")
+        if r["category"]:
+            detail.append(f"category={r['category']}")
+        order_part = f" (order {r['order_id']})" if r["order_id"] and r["settlement_id"] else ""
+        lines.append(f"  {ident}{order_part}: {', '.join(detail)}")
+    if len(matches) > 10:
+        lines.append(f"  ...and {len(matches) - 10} more.")
+    return "\n".join(lines)
+
+
+def _next_settlement(question: str) -> str | None:
+    """"when's my next settlement" / "when do I get paid" -- deliberately
+    NOT a time-series prediction. See render_cash_forecast()'s docstring in
+    review_server.py for why this codebase already declined to build one
+    of those elsewhere: there's no tracked time-to-resolve, and this batch
+    is a snapshot of settlements Razorpay has already reported, not a live
+    feed with a real future date to predict. What IS real and answerable:
+    the most recent settlement this batch actually has, whatever's
+    currently ON_HOLD_BY_RAZORPAY and therefore hasn't landed, and
+    Razorpay's own stated T+2 cycle -- three true facts, not a guess."""
+    ql = _normalize(question)
+    if not any(kw in ql for kw in (
+        "next settlement", "next payout", "when do i get paid", "when will i get paid",
+        "when will i be paid", "when is my next payout", "when will my settlement",
+        "when will my payout", "upcoming settlement", "when do i get my money",
+        "when will i receive my settlement", "when will i receive my payout",
+    )):
+        return None
+
+    rows = db.get_all_exceptions()
+    dated_rows = [r for r in rows if r.get("settlement_date")]
+    if not dated_rows:
+        return "No batch persisted yet -- run the pipeline first."
+
+    latest_date = max(r["settlement_date"] for r in dated_rows)
+    latest_rows = [r for r in dated_rows if r["settlement_date"] == latest_date]
+    latest_total = sum(r["net_amount"] for r in latest_rows if r["net_amount"] is not None)
+
+    on_hold = [r for r in rows if r["category"] == "ON_HOLD_BY_RAZORPAY"]
+    on_hold_total = sum(r["net_amount"] for r in on_hold if r["net_amount"] is not None)
+
+    lines = [
+        "This batch is a snapshot of settlements Razorpay has already reported, not a "
+        "live feed, so there's no future date to predict beyond what's already here.",
+        f"Most recent settlement in this batch: {latest_date}, "
+        f"{_plural(len(latest_rows), 'row')} totaling Rs.{latest_total:,.2f}.",
+    ]
+    if on_hold:
+        lines.append(
+            f"Rs.{on_hold_total:,.2f} across {_plural(len(on_hold), 'settlement')} is currently held "
+            f"by Razorpay (ON_HOLD_BY_RAZORPAY) -- releases once the hold clears, no fixed date for that."
+        )
+    lines.append(
+        "Outside a hold, Razorpay's standard cycle is T+2: a transaction collected today "
+        "typically reaches your bank account two working days later."
+    )
+    return "\n".join(lines)
+
+
 def _extreme_amount(question: str) -> str | None:
     """The single highest- or lowest-value row in the batch, optionally
     scoped to a named category -- a real gap: net_amount was already
@@ -1318,9 +1509,10 @@ def _small_talk(question: str) -> str | None:
     if _WHO_ARE_YOU_RE.search(ql):
         return (
             "I'm the settlement Q&A assistant for this reconciliation batch. Ask me about "
-            "a specific order or settlement, a category, how many rows are open or "
-            "confirmed, the batch's cash position, or how to resolve something once it's "
-            "come up -- by chat, voice, or an uploaded statement."
+            "a specific order or settlement, a settlement by date, when your next settlement "
+            "lands, a category, how many rows are open or confirmed, the batch's cash "
+            "position, or how to resolve something once it's come up -- by chat, voice, or "
+            "an uploaded statement."
         )
 
     if _GREETING_RE.search(ql):
@@ -1354,7 +1546,9 @@ FALLBACK_MESSAGE = (
     "similar orders (\"any similar orders to order_1032\"), the batch as "
     "a whole (\"how many settlements are in this batch\", \"total "
     "settlement value\", \"status breakdown\"), the biggest or smallest "
-    "amount (\"what's the largest exception\"), or \"how can it be "
+    "amount (\"what's the largest exception\"), a settlement by date "
+    "(\"settlement on the 5th\"), when your next settlement lands "
+    "(\"when's my next settlement\"), or \"how can it be "
     "resolved\" once an order or category has come up."
 )
 
@@ -1440,7 +1634,8 @@ def _answer(question: str, context: dict | None, _allow_llm_fallback: bool = Tru
     # above, for "summary" being a substring of both triggers.
     for handler in (_cash_forecast, _cash_value, _resolution_status_count, _category_count,
                      _open_count, _ai_narrative_summary, _batch_summary, _status_breakdown,
-                     _batch_totals, _extreme_amount, _recurring_patterns, _tax_line_audit,
+                     _batch_totals, _next_settlement, _settlement_on_date, _extreme_amount,
+                     _recurring_patterns, _tax_line_audit,
                      _monthly_tax_reconciliation, _resolution_rate, _category_breakdown, _glossary):
         result = handler(question)
         if result is not None:

@@ -13,9 +13,11 @@ sys.path.insert(0, str(SRC))
 import db  # noqa: E402
 
 
-def make_result(order_id, status, category=None, narration="", net=100.0, match_key=None):
+def make_result(order_id, status, category=None, narration="", net=100.0, match_key=None,
+                 gross=None, mdr=None, utr=None, settlement_date=None):
     return {
         "order_id": order_id, "settlement_id": f"setl_{order_id}", "net": net,
+        "gross": gross, "mdr": mdr, "utr": utr, "settlement_date": settlement_date,
         "match_key": match_key or f"settlement:setl_{order_id}",
         "status": status, "category": category, "reason": "test reason",
         "narration": narration, "stage": ["test stage"],
@@ -102,6 +104,32 @@ class TestPersistResults(DbTestCase):
         del bad_result["match_key"]
         with self.assertRaises(ValueError):
             db.persist_results([bad_result], run_id="run-1")
+
+    def test_gross_mdr_utr_settlement_date_round_trip(self):
+        """Real fields reconcile.py now carries through (see its module
+        docstring) so settlement_qa.py's date lookup and "next settlement"
+        answers have real data, not just the net figure matching already
+        used -- persisted and read back exactly, not silently dropped."""
+        db.persist_results(
+            [make_result("order_1", "MATCHED", gross=999.0, mdr=19.98, utr="UTR001",
+                          settlement_date="2026-08-05")],
+            run_id="run-1",
+        )
+        row = db.get_all_exceptions()[0]
+        self.assertEqual(row["gross_amount"], 999.0)
+        self.assertEqual(row["mdr_amount"], 19.98)
+        self.assertEqual(row["utr"], "UTR001")
+        self.assertEqual(row["settlement_date"], "2026-08-05")
+
+    def test_gross_mdr_utr_settlement_date_default_to_none(self):
+        """A ledger-only orphan (reconcile.py's final pass) never carries
+        these keys at all -- must persist as NULL, not raise a KeyError."""
+        db.persist_results([make_result("order_1", "EXCEPTION", category="UNEXPLAINED")], run_id="run-1")
+        row = db.get_all_exceptions()[0]
+        self.assertIsNone(row["gross_amount"])
+        self.assertIsNone(row["mdr_amount"])
+        self.assertIsNone(row["utr"])
+        self.assertIsNone(row["settlement_date"])
 
 
 class TestResolveException(DbTestCase):
@@ -286,6 +314,44 @@ class TestMigration(DbTestCase):
 
         db.persist_results([make_result("order_new", "EXCEPTION", category="UNEXPLAINED")], run_id="run-new")
         self.assertEqual(len(db.get_all_exceptions()), 2)
+
+    def test_legacy_table_without_new_settlement_fields_gets_migrated(self):
+        """Simulates a data/reconcile.db created before gross_amount/
+        mdr_amount/utr/settlement_date existed -- confirms get_connection()
+        backfills the columns (as NULL on the pre-existing row) instead of
+        crashing, and a fresh persist_results() can write real values into
+        them afterward."""
+        import sqlite3
+        conn = sqlite3.connect(db.DB_PATH)
+        conn.execute("""
+            CREATE TABLE exceptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                match_key TEXT, run_id TEXT NOT NULL, order_id TEXT, settlement_id TEXT,
+                net_amount REAL, status TEXT NOT NULL, category TEXT,
+                reason TEXT, narration TEXT, needs_action TEXT NOT NULL,
+                replay_log TEXT NOT NULL,
+                resolution_status TEXT NOT NULL DEFAULT 'OPEN',
+                resolution_note TEXT, resolved_at TEXT
+            )
+        """)
+        conn.execute(
+            "INSERT INTO exceptions (match_key, run_id, settlement_id, status, needs_action, replay_log) "
+            "VALUES ('setl_legacy', 'old-run', 'setl_legacy', 'EXCEPTION', 'yes', '[]')"
+        )
+        conn.commit()
+        conn.close()
+
+        rows = db.get_all_exceptions()
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["utr"])
+
+        db.persist_results(
+            [make_result("order_new", "MATCHED", utr="UTR002", settlement_date="2026-08-06")],
+            run_id="run-new",
+        )
+        new_row = next(r for r in db.get_all_exceptions() if r["order_id"] == "order_new")
+        self.assertEqual(new_row["utr"], "UTR002")
+        self.assertEqual(new_row["settlement_date"], "2026-08-06")
 
 
 class TestComputeCashClarity(unittest.TestCase):

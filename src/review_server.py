@@ -916,12 +916,14 @@ CHAT_WIDGET = """
   <div class="chat-messages" id="chat-messages">
     <div class="chat-msg bot">Hi there! Happy to help.
 
-Ask me about any order or settlement, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up. I can also answer batch-wide questions -- an overview of this batch, the status or category breakdown, total settlement value, or the biggest/smallest amount.
+Ask me about any order or settlement, a settlement by date, when your next settlement lands, how many rows are open, confirmed, or rejected, the overall resolution rate, cash at risk, or how to resolve something once it's come up. I can also answer batch-wide questions -- an overview of this batch, the status or category breakdown, total settlement value, or the biggest/smallest amount.
 
 Got a statement handy? Attach a PDF or photo and I'll check it against this run for you. Prefer talking? Tap the mic for a hands-free conversation -- I'll listen, answer out loud, then listen again. I can also narrate this batch in plain English, spot a recurring pattern across open exceptions, forecast what confirming the queue unlocks, or check every settlement's GST against the real rate. Curious about how this system itself works? Ask me why it's not just an LLM, what model it uses, or what the research found.</div>
   </div>
   <div class="chat-suggestions">
     <button type="button" data-q="give me an overview of this batch">Batch overview?</button>
+    <button type="button" data-q="when's my next settlement?">When's my next settlement?</button>
+    <button type="button" data-q="settlement on the 5th">Settlement on the 5th?</button>
     <button type="button" data-q="how many are open">How many are open?</button>
     <button type="button" data-q="what's the total settlement value">Total settlement value?</button>
     <button type="button" data-q="what's the status breakdown">Status breakdown?</button>
@@ -2336,6 +2338,18 @@ def render_row(r: dict, show_actions: bool = True) -> str:
                  if r["resolution_note"] else "")
     narration_html = (f'<div class="narration">narration: "{escape(r["narration"])}"</div>'
                        if r["narration"] else "")
+    # UTR + settlement date shown right in the audit box -- the same
+    # unified-view detail Razorpay's own Agentic Dashboard demo shows per
+    # settlement row, not buried behind a separate lookup. Only rendered
+    # when actually persisted (see reconcile.py/db.py): an old row from
+    # before these fields existed, or a ledger-only orphan with no real
+    # settlement/bank counterpart, honestly has neither.
+    utr_bits = []
+    if r.get("utr"):
+        utr_bits.append(f"UTR {escape(r['utr'])}")
+    if r.get("settlement_date"):
+        utr_bits.append(escape(r["settlement_date"]))
+    utr_html = f'<div class="narration">{" &middot; ".join(utr_bits)}</div>' if utr_bits else ""
     net = "" if r["net_amount"] is None else f'{r["net_amount"]:,.2f}'
     search_blob = escape(" ".join(str(v) for v in [
         r["order_id"], r["settlement_id"], r["category"], r["narration"], r["reason"],
@@ -2412,6 +2426,7 @@ def render_row(r: dict, show_actions: bool = True) -> str:
         <div class="audit-box">
           {highlight_reason(escape(reason_text))}
           {narration_html}
+          {utr_html}
           <details><summary>Replay log</summary>{replay_html}</details>
           {note_html}
         </div>

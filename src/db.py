@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS exceptions (
     order_id TEXT,
     settlement_id TEXT,
     net_amount REAL,
+    gross_amount REAL,
+    mdr_amount REAL,
+    utr TEXT,
+    settlement_date TEXT,
     status TEXT NOT NULL,
     category TEXT,
     reason TEXT,
@@ -86,6 +90,18 @@ def _migrate(conn: sqlite3.Connection) -> None:
         )
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_exceptions_match_key ON exceptions(match_key)")
 
+    # gross_amount/mdr_amount/utr/settlement_date: added so settlement_qa.py
+    # can answer "settlement on the 5th" / "when's my next settlement" with
+    # real UTR and payment-breakdown data, not just the net figure matching
+    # already used -- see reconcile.py's module docstring for why these are
+    # newly carried through. A DB created before this column existed just
+    # gets it backfilled as NULL on next persist_results(), same as every
+    # other pre-existing row this migration doesn't try to fabricate data for.
+    for column in ("gross_amount", "mdr_amount", "utr", "settlement_date"):
+        if column not in columns:
+            column_type = "REAL" if column.endswith("_amount") else "TEXT"
+            conn.execute(f"ALTER TABLE exceptions ADD COLUMN {column} {column_type}")
+
 
 def get_connection() -> sqlite3.Connection:
     """Opens (creating if needed) data/reconcile.db, applies SCHEMA, and
@@ -114,14 +130,19 @@ def persist_results(results: list[dict], run_id: str) -> None:
                 needs_action = "yes" if r["status"] in ("EXCEPTION", "MATCHED_LOW_CONFIDENCE") else "no"
                 conn.execute(
                     """INSERT INTO exceptions
-                       (match_key, run_id, order_id, settlement_id, net_amount, status, category,
+                       (match_key, run_id, order_id, settlement_id, net_amount, gross_amount,
+                        mdr_amount, utr, settlement_date, status, category,
                         reason, narration, needs_action, replay_log)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                        ON CONFLICT(match_key) DO UPDATE SET
                            run_id = excluded.run_id,
                            order_id = excluded.order_id,
                            settlement_id = excluded.settlement_id,
                            net_amount = excluded.net_amount,
+                           gross_amount = excluded.gross_amount,
+                           mdr_amount = excluded.mdr_amount,
+                           utr = excluded.utr,
+                           settlement_date = excluded.settlement_date,
                            status = excluded.status,
                            category = excluded.category,
                            reason = excluded.reason,
@@ -130,6 +151,7 @@ def persist_results(results: list[dict], run_id: str) -> None:
                            replay_log = excluded.replay_log
                        WHERE exceptions.resolution_status = 'OPEN'""",
                     (match_key, run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
+                     r.get("gross"), r.get("mdr"), r.get("utr"), r.get("settlement_date"),
                      r["status"], r.get("category"), r.get("reason"), r.get("narration", ""),
                      needs_action, json.dumps(r.get("stage", []))),
                 )
