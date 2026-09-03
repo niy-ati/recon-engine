@@ -453,7 +453,12 @@ PAGE_STYLE = """
     background:var(--bg); border:1px solid var(--border-subtle); border-radius:var(--radius-m);
     padding:var(--sp-5); font-size:13.5px; line-height:1.55; overflow-wrap:break-word;
   }
-  .audit-box mark {
+  /* Unscoped -- not just the Records/Queue audit box: the About page's own
+     findings and prose use the same <mark> tag for a key number or phrase,
+     and browsers otherwise fall back to a jarring default yellow highlight
+     that clashes with this site's own palette. One on-brand treatment,
+     everywhere the tag appears. */
+  mark {
     background:var(--primary-subtle); color:var(--primary-strong); padding:1px 5px; border-radius:4px;
     font-weight:700; font-variant-numeric:tabular-nums;
   }
@@ -2743,6 +2748,7 @@ def render_about() -> str:
         {stat(ICON_ALERT, "7", "matching passes, only one needs a model, see how", "notice", "#architecture")}
         {stat(ICON_LEDGER, "9", "named exception categories, browse them", "information", "/")}
         {stat(ICON_CHECK, "0", "paid API keys, anywhere, read the source", "positive", "https://github.com/niy-ati/recon-engine")}
+        {stat(ICON_BANK, "-40%", "payment failures after automatic reconciliation, a real Razorpay customer", "notice", "https://www.linkedin.com/posts/aeijaz-sodawala-a2202a64_hoteltech-hospitalitytechnology-payments-share-7500577134541713408-vsug/")}
       </div>
     </div>
 
@@ -2770,27 +2776,27 @@ def render_about() -> str:
       <div class="panel-head"><h2 style="margin:0">Why this, not something bigger</h2></div>
       <div class="panel-body">
         <p style="margin:0 0 var(--sp-6);color:var(--ink);line-height:1.7">
-          Track 4 states its own rationale plainly: <em>"the 2026 builder consensus: verification capacity, not
-          generation speed, is the bottleneck."</em> Razorpay's own <a href="https://razorpay.com/agentic-business-banking/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Bookkeeping Agent</a> posts entries
-          based on predefined rules, so it can't resolve an exception that no rule covers. This system
-          fills exactly that gap. A Razorpay engineering thread about an internal agent called Slash
-          raised the same point: someone needs to decide what's allowed to run before it runs, not
-          after. The validation gate here answers that directly.
-        </p>
-        <p style="margin:0 0 var(--sp-6);color:var(--muted);line-height:1.7;font-size:13.5px">
-          The comparison isn't limited to Razorpay either. Juspay's own reconciliation product claims a
-          99% recon rate with no disclosed matching mechanism or confidence gating. Puzzle, a funded
-          AI finance-controller product, claims 98% automated categorization with the same gap. Both
-          are real, shipped products, but neither shows the work behind the number. This project's
-          90.5% is measured on one real, cited batch.
+          Track 4's own rationale: <mark>"verification capacity, not generation speed, is the bottleneck."</mark>
+          Razorpay's own <a href="https://razorpay.com/agentic-business-banking/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Bookkeeping Agent</a> posts entries from predefined rules, so it can't resolve an exception no rule covers.
+          This system is built as that missing layer.
         </p>
         <p style="margin:0;color:var(--muted);line-height:1.7;font-size:13.5px">
-          Razorpay's own RazorpayX Agentic Banking roadmap lists a Tax Payments Agent for TDS
-          calculations as <strong>upcoming, not yet shipped</strong>, confirmed directly on their own
-          product page. This project's tax-line matcher already checks real GST-on-MDR correctness
-          today, both per transaction and across a full month, in the exact area Razorpay's own
-          roadmap says it's still building toward.
+          Juspay claims <mark>99%</mark> recon, Puzzle claims <mark>98%</mark> categorization, neither discloses a matching mechanism or a confidence gate.
+          This project's <mark>90.5%</mark> is measured on one real, cited batch, and the work behind it is the rest of this page.
+          Razorpay's own RazorpayX roadmap lists a TDS Tax Payments Agent as <strong>upcoming, not shipped</strong>; this system's tax-line matcher already checks real GST-on-MDR correctness today.
         </p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">What Razorpay's own playbook says</h2></div>
+      <div class="panel-body">
+        <div class="finding-list">
+          {finding(ICON_BOLT, "A 4-billion-transaction model still doesn't decide alone", 'Razorpay\'s own foundation model, <a href="https://www.linkedin.com/posts/razorpay_razorpay-artificialintelligence-fintech-activity-7498631537492508672-kwEe" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Vulcan</a>, ships through a shadow-mode phase and, by their own account, issues <mark>"recommendations, not autonomous decisions"</mark> in production. This system\'s own trust list stays empty for the identical reason, at a scale it has to earn from zero.', "tone-information")}
+          {finding(ICON_KEY, "Four teams, four problems, one rule", 'This build, <a href="https://github.com/Drix10/payscope" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">PayScope</a>, <a href="https://www.linkedin.com/posts/sanjeev-kumar-1803t_fintech-ai-generativeai-ugcPost-7499528485238132736-xmNA/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">RazorRecover AI</a>, and <a href="https://www.linkedin.com/posts/jslxh_ai-agenticai-aiagents-ugcPost-7500041420758470656-OcsU/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">VETO</a> converged independently on the same shape: a model proposes, a deterministic layer or a human decides.', "tone-positive")}
+          {finding(ICON_ROWS, "The best dashboard may be no dashboard", 'Razorpay CEO <a href="https://www.linkedin.com/posts/harshilmathur_the-best-dashboard-might-be-no-dashboard-ugcPost-7500452436390596608-JI_k/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Harshil Mathur</a>, on their Agentic Dashboard\'s first 20 weeks: <mark>7.8x</mark> growth in weekly queries. Settlement Q&A on this site answers the same way, by chat or voice, grounded in the real batch.', "tone-information")}
+          {finding(ICON_GATEWAY, "A real multi-gateway failure, not a hypothetical", 'When <a href="https://www.linkedin.com/posts/pritish-vartak_100000-orders-in-a-single-day-our-biggest-activity-7499412466506829824-YCaU" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Pilgrim\'s payment processor went down</a> mid-sale, Razorpay caught the diverted traffic as backup, splitting one merchant\'s settlement data across two gateways. This system\'s matching logic already resolves that exact shape with zero code changes.', "tone-positive")}
+        </div>
       </div>
     </div>
 
