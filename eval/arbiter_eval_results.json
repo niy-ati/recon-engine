@@ -1,0 +1,55 @@
+{
+  "run_at": "2026-09-03T17:13:51+00:00",
+  "model": "qwen2.5:0.5b",
+  "cases": [
+    {
+      "id": "ocr_typo_digit_as_letter",
+      "narration": "pymt rcvd 3 ord#l171 thx",
+      "shortlist": [
+        "order_1171",
+        "order_1032"
+      ],
+      "expected": "order_1171",
+      "picked": "order_1171",
+      "confidence": 1.0,
+      "tier": "ollama:qwen2.5:0.5b",
+      "reason": "[ollama:qwen2.5:0.5b] The narration 'pymt rcvd 3 ord#l171 thx' most likely refers to order_1171.",
+      "correct": true
+    },
+    {
+      "id": "positional_bias_no_signal",
+      "narration": "payment received, thank you",
+      "shortlist": [
+        "order_2001",
+        "order_2002"
+      ],
+      "expected": "__ambiguous__",
+      "picked": "order_2001",
+      "confidence": 0.95,
+      "tier": "ollama:qwen2.5:0.5b",
+      "reason": "[ollama:qwen2.5:0.5b] The narration 'payment received, thank you' most likely refers to order_2001, as it indicates a payment has been received.",
+      "correct": null
+    },
+    {
+      "id": "context_judgment_two_orders_one_narration",
+      "narration": "order 8001 payment cancelled and refunded in full, order 8002 payment received and confirmed",
+      "shortlist": [
+        "order_8001",
+        "order_8002"
+      ],
+      "expected": "order_8002",
+      "picked": "order_8001",
+      "confidence": 0.0,
+      "tier": "ollama:qwen2.5:0.5b",
+      "reason": "[ollama:qwen2.5:0.5b] The narration refers to order 8001, which is the first order ID in the list. It does not match the order IDs provided in the candidate list.",
+      "correct": false
+    }
+  ],
+  "scored_case_count": 2,
+  "accuracy_pct": 50.0,
+  "mean_confidence_when_correct": 1.0,
+  "mean_confidence_when_wrong": 0.0,
+  "ambiguous_case_count": 1,
+  "overconfident_on_no_signal_count": 1,
+  "stand_in_fallback_count": 0
+}
