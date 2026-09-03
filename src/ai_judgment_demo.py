@@ -86,13 +86,13 @@ def check_judgment_result(results: list[dict]) -> bool:
               f"auto-applied -- AUTO_APPLY_TRUSTED_TIERS is unchanged by this result. Read the "
               f"quoted reasoning above before trusting a correct pick alone: during development "
               f"this same case, phrased differently, twice picked the wrong order (see "
-              f"PITCH_NOTES.md) -- a right answer here is not, on its own, evidence the model can "
+              f"notes/PITCH_NOTES.md) -- a right answer here is not, on its own, evidence the model can "
               f"be trusted with this kind of question.")
     else:
         print(f"\n>> Picked {DISTRACTOR_ORDER} instead of {CORRECT_ORDER} this run -- the order the "
               f"narration explicitly says was cancelled and refunded, not the one it says was "
               f"paid. This is the honest, expected outcome of this test more often than not (see "
-              f"PITCH_NOTES.md for two other real, differently-phrased attempts at this exact "
+              f"notes/PITCH_NOTES.md for two other real, differently-phrased attempts at this exact "
               f"scenario during development, both also wrong). Reinforces, not undermines, why "
               f"AUTO_APPLY_TRUSTED_TIERS stays empty.")
     return picked_correctly

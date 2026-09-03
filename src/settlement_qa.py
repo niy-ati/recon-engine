@@ -53,7 +53,7 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
   - "how much cash is at risk" / "what's my cash position" -- delegates
     to db.compute_cash_clarity(), the same function the Overview page's
     cash-position panel already uses, not reimplemented here. This
-    project's own metrics bug (see PITCH_NOTES, "Metrics") was caused by
+    project's own metrics bug (see notes/PITCH_NOTES.md, "Metrics") was caused by
     three independent
     reimplementations of "what counts as resolved" silently disagreeing;
     a fourth copy here would risk the exact same drift.
@@ -74,7 +74,7 @@ LLM -- there is no ambiguity here that needs judgment, only retrieval):
   - "why isn't this just an LLM" / "what model do you use" / "what's the
     architecture" / "what's your accuracy" / "tell me about Slash" --
     fixed, human-written answers about THIS SYSTEM itself (not the
-    reconciliation data), sourced from PITCH_NOTES.md. Same canned-text
+    reconciliation data), sourced from notes/PITCH_NOTES.md. Same canned-text
     principle as CATEGORY_GUIDANCE -- never model-generated.
 
 Fallback for everything else (qa_intent_gate.py / qa_intent_router.py): if
@@ -228,7 +228,7 @@ CATEGORY_GUIDANCE = {
 # opening the door to free-form generation, which would risk exactly the
 # kind of confidently-wrong answer this project's own research (see the
 # Slash-thread finding below) argues against. Every number and claim here
-# matches what's documented in PITCH_NOTES.md, not invented for voice
+# matches what's documented in notes/PITCH_NOTES.md, not invented for voice
 # output.
 PROJECT_KNOWLEDGE = [
     (
