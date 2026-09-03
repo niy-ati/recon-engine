@@ -179,6 +179,10 @@ def reconcile(
                 record["category"] = "ROUNDING" if diff < 1.0 else "TAX_DEDUCTION"
                 record["reason"] = f"Bank credit found for this UTR but net amount differs by Rs.{diff:.2f} -- likely GST-on-MDR rounding drift, not a genuine mismatch."
                 record["status"] = "MATCHED_WITH_VARIANCE"
+                record["stage"].append(log(
+                    "1", "amount_drift",
+                    f"settlement UTR {s['utr']} matched a bank row within Rs.{diff:.2f}, inside the Rs.2.00 rounding tolerance",
+                ))
             else:
                 # Two-tier UTR mismatch: Razorpay's real settlement UTR is
                 # two-tier (batch-level vs. per-line, see README), so the
@@ -227,10 +231,18 @@ def reconcile(
                     record["category"] = "DUPLICATE"
                     record["reason"] = "This settlement_id appears twice for the same order/UTR; only one bank credit exists. Likely a duplicate export row, not a missing payout."
                     record["status"] = "EXCEPTION"
+                    record["stage"].append(log(
+                        "1", "duplicate_settlement_id",
+                        f"settlement_id {s['settlement_id']} shares base ID {base_settlement_id(s['settlement_id'])} with another settlement row for UTR {s['utr']}; only one bank credit exists for that base ID",
+                    ))
                 else:
                     record["category"] = "UNEXPLAINED"
                     record["reason"] = "No bank credit found for this UTR within tolerance. Could be pending settlement, or a reporting error -- needs manual bank statement check."
                     record["status"] = "EXCEPTION"
+                    record["stage"].append(log(
+                        "1", "no_bank_match",
+                        f"no bank row under UTR {s['utr']} within Rs.{AMOUNT_TOLERANCE} / {DATE_TOLERANCE_DAYS}d tolerance, and no unique cross-UTR or duplicate-ID candidate found",
+                    ))
 
         if record["status"] is None:
             record["status"] = "MATCHED"

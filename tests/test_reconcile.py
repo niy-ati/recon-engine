@@ -101,6 +101,21 @@ class TestRoundingDrift(unittest.TestCase):
             self.assertEqual(r["category"], "ROUNDING")
             self.assertIn("0.10", r["reason"])
 
+    def test_rounding_row_carries_a_stage_entry(self):
+        """Regression test for a real bug: this branch set category/reason
+        but never appended to record["stage"], so the Records page's replay
+        log showed "(no stages recorded)" for a row that had a real reason."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[["UTR001", 974.92, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertTrue(r["stage"], "ROUNDING row must have a non-empty replay log")
+
 
 class TestDuplicateSettlement(unittest.TestCase):
     def test_duplicate_settlement_id_flagged_symmetrically(self):
@@ -119,6 +134,26 @@ class TestDuplicateSettlement(unittest.TestCase):
             self.assertEqual(statuses, ["EXCEPTION", "MATCHED"])
             dup = [r for r in results if r.get("category") == "DUPLICATE"]
             self.assertEqual(len(dup), 1)
+
+    def test_duplicate_row_carries_a_stage_entry(self):
+        """Regression test for a real bug: DUPLICATE rows had a real `reason`
+        but an empty `stage` list, so the Records page's replay log rendered
+        "(no stages recorded)" even though the detection logic had a concrete
+        basis (the matching base settlement_id) worth showing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[
+                    ["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False],
+                    ["setl_1_dup", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False],
+                ],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            dup = [r for r in results if r.get("category") == "DUPLICATE"][0]
+            self.assertTrue(dup["stage"], "DUPLICATE row must have a non-empty replay log")
+            self.assertIn("setl_1", dup["stage"][0]["detail"])
 
     def test_duplicate_does_not_leak_into_fuzzy_shortlist(self):
         """Regression test: an already-resolved DUPLICATE settlement must not
@@ -178,6 +213,21 @@ class TestUnexplained(unittest.TestCase):
             orphan = [r for r in results if r.get("category") == "UNEXPLAINED" and r.get("settlement_id") is None]
             self.assertEqual(len(orphan), 1)
             self.assertEqual(orphan[0]["status"], "EXCEPTION")
+
+    def test_unexplained_settlement_row_carries_a_stage_entry(self):
+        """Same bug as DUPLICATE/ROUNDING: a settlement-side UNEXPLAINED row
+        must have a non-empty replay log, not just a `reason` string."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["category"], "UNEXPLAINED")
+            self.assertTrue(r["stage"], "UNEXPLAINED settlement row must have a non-empty replay log")
 
 
 class TestUTRLevelMismatch(unittest.TestCase):
