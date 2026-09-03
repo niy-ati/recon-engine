@@ -155,6 +155,8 @@ Razorpay's own stated AI direction is the opposite extreme, deliberately, and it
 
 The connection to Razorpay's [Settlement Recon API](https://razorpay.com/docs/api/settlements/fetch-recon/) **is authenticated and has actually been fired against real test-mode credentials**, not just built and left unexercised. Test mode correctly returns zero settlements (no real money moves in test mode), and the system reports that as the expected result, not an error. The call retries with exponential backoff on a network failure, verified against a transport substituted to fail twice before succeeding.
 
+Independently cross-checked against Razorpay's own official [`razorpay-cli`](https://github.com/razorpay/razorpay-cli) (its `settlements recon` command, [source](https://github.com/razorpay/razorpay-cli/blob/master/cmd/settlements/recon.go)): the endpoint (`GET /v1/settlements/recon/combined`) and the year/month/day query parameters `fetch_live_recon()` in [`src/ingest.py`](src/ingest.py) uses are identical to Razorpay's own tool, not just to the docs page.
+
 ## Compared to Razorpay's Own Reconciliation Agent
 
 Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) is real and shipped, in their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." Two sources, ending at "flag a discrepancy."
