@@ -153,6 +153,63 @@ class TestPersistResults(DbTestCase):
         self.assertIsNone(row["dispute_id"])
 
 
+class TestResetBatch(DbTestCase):
+    """See reset_batch()'s own docstring for the real bug this exists to
+    prevent: generate_data.py draws every ID from one seeded random
+    stream, so an unrelated code change to that file (a new field, a new
+    case bucket) shifts every ID drawn after it -- a genuinely different
+    batch under the same seed, sharing no match_keys with whatever's
+    already persisted. Found live: 6 small edits during one session grew
+    data/reconcile.db from ~525 real rows to 3,104, one batch's worth of
+    orphaned rows behind every edit, because persist_results()'s own
+    upsert-on-match_key is correct for re-running the SAME batch and has
+    no way to know a genuinely new one just replaced it."""
+
+    def test_clears_every_persisted_row(self):
+        db.persist_results([
+            make_result("order_1", "MATCHED"),
+            make_result("order_2", "EXCEPTION", category="UNEXPLAINED"),
+        ], run_id="run-1")
+        self.assertEqual(len(db.get_all_exceptions()), 2)
+        db.reset_batch()
+        self.assertEqual(db.get_all_exceptions(), [])
+
+    def test_a_new_batch_after_reset_starts_clean_not_accumulated(self):
+        """The exact accumulation bug, reproduced directly: two batches
+        with disjoint match_keys (simulating two runs of generate_data.py
+        after an edit shifted every random ID) must not both survive."""
+        db.persist_results([make_result("order_1", "MATCHED", match_key="settlement:setl_old_1")], run_id="run-1")
+        db.reset_batch()
+        db.persist_results([make_result("order_2", "MATCHED", match_key="settlement:setl_new_1")], run_id="run-2")
+        rows = db.get_all_exceptions()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["order_id"], "order_2")
+
+    def test_reset_on_an_empty_database_does_not_raise(self):
+        db.reset_batch()  # must not error on a fresh DB with nothing persisted yet
+        self.assertEqual(db.get_all_exceptions(), [])
+
+    def test_does_not_touch_narration_rules(self):
+        """narration_rules/narration_templates are cross-batch learned
+        memory by design -- a human confirming a narration pattern once
+        must keep working on a genuinely new batch that happens to share
+        the same recurring template, not get wiped alongside per-batch
+        exception rows."""
+        db.persist_results(
+            [make_result("order_1042", "MATCHED_LOW_CONFIDENCE", category="FUZZY_MATCH_NEEDS_REVIEW",
+                          narration="pymt rcvd Alice ord#1042 thx")],
+            run_id="run-1",
+        )
+        row_id = db.get_open_exceptions()[0]["id"]
+        db.resolve_exception(row_id, "confirm")
+        self.assertIsNotNone(db.get_narration_rule("pymt rcvd Alice ord#1042 thx"))
+
+        db.reset_batch()
+
+        self.assertEqual(db.get_all_exceptions(), [])
+        self.assertIsNotNone(db.get_narration_rule("pymt rcvd Alice ord#1042 thx"))
+
+
 class TestResolveException(DbTestCase):
     def test_confirm_closes_the_row(self):
         db.persist_results([make_result("order_1", "EXCEPTION", category="UNEXPLAINED")], run_id="run-1")

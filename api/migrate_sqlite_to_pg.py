@@ -1,7 +1,7 @@
 """
 One-off local script: copies the current local data/reconcile.db (SQLite)
 into the Neon Postgres database the Vercel deployment reads from, so the
-hosted demo shows the same real 514-row batch and resolution history as
+hosted demo shows the same real 525-row batch and resolution history as
 the local review site, not an empty queue.
 
 Run once, locally, after DATABASE_URL is set:

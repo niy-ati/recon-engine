@@ -164,6 +164,36 @@ def persist_results(results: list[dict], run_id: str) -> None:
         conn.close()
 
 
+def reset_batch() -> None:
+    """Deletes every row from `exceptions` -- a deliberate, explicit "start
+    over," never called from persist_results() itself. That function's own
+    upsert-on-match_key is correct for re-running the SAME batch (a code
+    change to the matching logic, say) without losing a human's earlier
+    confirm/reject. But generate_data.py draws every ID from one seeded
+    random stream, so touching that file (adding a field, a new case
+    bucket, anything that changes how many random values are drawn before
+    another) shifts every ID after that point -- the batch is still fully
+    reproducible under its seed, just a DIFFERENT batch, with settlement_ids
+    that share nothing with whatever's already persisted. Found live: five
+    small, unrelated edits to generate_data.py during one session each
+    left the previous run's rows behind under now-orphaned match_keys,
+    silently growing data/reconcile.db from one real batch's ~525 rows to
+    3,104 rows across 6 forgotten runs -- report.py calling persist_results()
+    dutifully, correctly, upserting rows that could never collide with the
+    old ones because their IDs were never going to match again.
+
+    narration_rules/narration_templates are deliberately NOT touched here:
+    those are cross-batch learned memory by design (a human confirming a
+    narration pattern once should keep working on a future batch with the
+    same recurring template), not per-batch state the way `exceptions` is."""
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM exceptions")
+    finally:
+        conn.close()
+
+
 def get_open_exceptions() -> list[dict]:
     """Rows needing a human decision: needs_action='yes' and not yet
     confirmed/rejected. What review_server.py's /queue page lists."""

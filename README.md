@@ -16,9 +16,9 @@ Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments cu
 
 ## At a glance
 
-- **90.5% resolved with zero human input**, versus roughly 51% for manual spreadsheet reconciliation. Measured on a real 514-row batch, holding 87 to 91% across five other untuned batches.
+- **87.6% resolved with zero human input**, versus roughly 51% for manual spreadsheet reconciliation. Measured on a real 525-row batch, holding 86 to 88% across five other untuned batches.
+- **9 named exception categories**, including `DISPUTED`, which exists precisely because it's the reason this number isn't higher: a settlement with an active dispute used to count as a plain clean match. It doesn't anymore, on purpose. See [Exception Categories](#exception-categories).
 - **7-pass deterministic matcher**: UTR, order ID, learned patterns, exact digit references, fuzzy narrowing, all before a model is ever consulted.
-- **9 named exception categories**, each with a stated reason and what a merchant should actually do about it, never a generic failure flag.
 - **One AI step, tightly gated**: a model picks between candidates a deterministic pass already shortlisted, at 90%+ confidence, and only auto-applies from a trust list that's empty until a tier proves itself. Nothing has ever auto-applied.
 - **Full audit trail**: every automatic and human decision is a real, replayable SQLite record.
 - **Live dashboard**: Overview, Queue, Records, Sources, with real charts computed from the batch, not screenshots.
@@ -26,7 +26,7 @@ Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments cu
 - **Hands-free Voice Agent**: listens, answers out loud, and can be interrupted mid-answer, entirely in-browser.
 - **Real Razorpay connection**: authenticated and fired against the live Settlement Recon API, not just built and left unexercised.
 - **Zero paid API keys anywhere.** The only model used, Ollama, runs locally.
-- **Tax line matcher**: checks every settlement's GST against the real statutory rate, independent of matching. Found live: 2 rows the reconciliation itself calls clean are still charging the wrong GST.
+- **Tax line matcher**: checks every settlement's GST against the real statutory rate, independent of matching. Found live: 10 rows the reconciliation itself calls clean are still charging the wrong GST.
 - **Forward cash forecast**: not a second Cashflow Forecaster. Projects exactly how much cash unlocks the moment the queue's already-computed matches get confirmed.
 
 ## Table of Contents
@@ -90,18 +90,21 @@ Every unmatched row gets a specific, named category and a stated reason, not a g
 | `AFA_MANDATE_HOLD` | Subscription renewal above the RBI [₹15,000 e-mandate threshold](https://www.business-standard.com/amp/article/finance/new-e-mandate-guidelines-rbi-enhances-limit-for-e-mandates-on-credit-debit-cards-to-rs-15-000-122060800417_1.html) | Needs a **compliant step-up re-auth**, not a blind retry. |
 | `FUZZY_MATCH_NEEDS_REVIEW` | Arbiter proposed a candidate, didn't clear the trust gate | A ranked candidate exists, **one click** confirms or rejects. |
 | `UNEXPLAINED` | No counterpart anywhere after every pass runs | Genuinely unexplained. **Expected to stay above zero**, a perfect match rate is a red flag, not a win. |
+| `DISPUTED` | Settlement recon line carries an active `dispute_id` | The bank credit can still look clean. **Don't treat it as booked** until the dispute resolves. |
+
+`DISPUTED` is the newest category, and the reason the headline resolved percentage is lower than it used to be: a disputed settlement with an otherwise clean bank match used to count as plain `MATCHED`. It shouldn't have, the money can still be clawed back, so it no longer does. See [AI Usage and Validation](#ai-usage-and-validation) for what this cost the number, on purpose.
 
 ## Metrics
 
-- **90.5% resolved, zero human input**, on a 514-row batch. Re-run against five other untuned seeds: **87.1% to 90.9%**, every one clear of the roughly 51% manual baseline by 35+ points. `python extras/seed_sweep.py` reproduces this live.
-- **89.8 rows per second throughput**, 514 rows in 5.72 seconds, including the one LLM call the batch actually needs.
+- **87.6% resolved, zero human input**, on a 525-row batch. Re-run against five other untuned seeds: **86.4% to 88.4%**, every one clear of the roughly 51% manual baseline by 35+ points. `python extras/seed_sweep.py` reproduces this live.
+- **95.3 rows per second throughput**, 525 rows in 5.51 seconds, including the one LLM call the batch actually needs.
 - A row the arbiter *proposed* but nobody confirmed is never counted as resolved. Duplicate rows are excluded from cash figures entirely, since that money already cleared under its sibling row.
 
 <img src="assets/metrics.svg" alt="Row resolution state and cash position clarity, both shown as stacked bars: resolved in green, pending human confirmation in orange, genuinely open in red" width="100%">
 
 ## Performance
 
-- **5.72 seconds end to end for the full 514-row batch** (89.8 rows/sec), including the one LLM call the batch actually needs. Pass 1 through 2.75 alone clear in well under a second.
+- **5.51 seconds end to end for the full 525-row batch** (95.3 rows/sec), including the one LLM call the batch actually needs. Pass 1 through 2.75 alone clear in well under a second.
 - **Persistence reads every learned pattern and match index once per batch**, not once per row, via a bulk read plus two dictionary indexes. A 3,000-row stress batch runs in 0.9 seconds and holds at 3.3 seconds even at 6,000 rows, 12x the demo batch size, with byte-identical output at every scale.
 - **The Ollama client connects over the literal loopback address, not the hostname.** On Windows, resolving `localhost` tries IPv6 first and only falls back to IPv4 after a real timeout, adding measurable latency to every single call.
 
@@ -161,7 +164,7 @@ Independently cross-checked against Razorpay's own official [`razorpay-cli`](htt
 
 Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) is real and shipped, in their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." Two sources, ending at "flag a discrepancy."
 
-**What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **77 of 514 rows (15.0%) are resolved or explained only because the ledger got read**, including two rows with a perfectly clean UTR, amount, and date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
+**What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **65 of 523 rows (12.4%) are resolved or explained only because the ledger got read**, including 3 rows with a perfectly clean UTR, amount, and date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
 
 The same gap holds even for Razorpay's own multi-gateway product. [Optimizer's Single View Recon](https://razorpay.com/blog/single-view-recon/) consolidates settlements across payment gateways into one dashboard, but it's a consolidated view, not a matching engine: no AI matching, no exception taxonomy, no merchant ledger as a source, and it only works on payments already routed through Optimizer.
 
@@ -212,11 +215,11 @@ This is the same direction Razorpay's own CEO has staked the company's dashboard
 
 A named use case in its own right, separate from reconciliation. Matching settlement, bank, and ledger amounts against each other says nothing about whether the tax on those amounts is *correct*. [`src/tax_audit.py`](src/tax_audit.py) checks every settlement's GST-on-MDR against the real, current statutory rate: **18%** of the MDR fee, not of the transaction's gross value ([source](https://razorpay.com/blog/enterprise-payment-gateway-pricing-india/)).
 
-Found live on this project's own real 503-row batch: **2 settlements** (`order_1210`, `order_1151`) are currently plain `MATCHED` rows with no exception at all, clean by every check reconciliation runs, and clean by a dashboard that only compares settlement to ledger, yet both were charged Rs.1 more GST than the law requires. Their settlement and ledger figures agree with each other; they just both agree on the wrong number, exactly the case a pure amount-matching check can never catch.
+Found live on this project's own real 509-row batch: **10 settlements** (`order_1058`, `order_1128`, and 8 others) are currently plain `MATCHED` rows with no exception at all, clean by every check reconciliation runs, and clean by a dashboard that only compares settlement to ledger, yet every one was charged Rs.1 more GST than the law requires. Their settlement and ledger figures agree with each other; they just both agree on the wrong number, exactly the case a pure amount-matching check can never catch.
 
 **A second, distinct tier**, because RazorpayX itself ships one for real: [Manage Teams to Billing](https://razorpay.com/docs/x/manage-teams/billing/) describes a transaction-level **Invoice Reconciliation Report** and a consolidated **Monthly Tax Invoice Report** a GST-registered merchant reconciles against before filing ITC, two different reports because they genuinely catch different things. `audit_monthly_reconciliation()` mirrors the second tier: it sums a month's actual GST-on-MDR against what the real 18% rate should produce in aggregate.
 
-Found live on the same batch: the month's real aggregate drift is **Rs.4.81**, but the two known per-row overcharges only account for **Rs.2.00** of it. The remaining **Rs.2.81** comes from sub-tolerance rounding spread across roughly 500 other rows, each individually inside this project's own Rs.0.50 tolerance, already tighter than the GST-reconciliation industry's own common ±Rs.1 convention, per [ClearTax](https://cleartax.in/s/gst-reconciliation), a gap no per-row check, at any reasonable tolerance, is structurally able to see.
+Found live on the same batch: the month's real aggregate drift is **Rs.9.83**, and the ten known per-row overcharges already sum to **Rs.10.00** on their own, a Rs.0.17 residual, well inside ordinary rounding noise. This run, the two tiers confirm each other: the per-row check already accounts for essentially the whole month's drift. A different seed can flip this the other way (per-row under-explaining the aggregate, revealing sub-tolerance drift spread across the rest of the month, each row individually inside this project's own Rs.0.50 tolerance, already tighter than the GST-reconciliation industry's own common ±Rs.1 convention, per [ClearTax](https://cleartax.in/s/gst-reconciliation)), both are real outcomes this second tier can surface, not a gap a per-row check alone could ever see either way.
 
 Shown on the **Sources** page, and answerable directly, "check tax rates" for the per-row tier, "is the monthly tax invoice reconciled" for the aggregate one, through the same Settlement Q&A path as everything else.
 
@@ -226,7 +229,7 @@ Track 4's fourth named use case. Razorpay already ships a real, production Cashf
 
 What it answers instead is a different, fully honest question: not *when* will this resolve, but *how much unlocks the moment someone acts on what's already been verified*. `db.compute_cash_clarity()`'s `pending_review` figure is exactly that, cash sitting on a match this engine has already computed and proposed, waiting only on a human's confirm, not on new information. Projecting it forward is arithmetic over real, already-computed numbers, not a guess about the future.
 
-On the real batch: confirming everything currently in the queue moves resolved cash from **28.7% to 39.1%**, an extra **Rs.30,254.68** unlocked with zero new matching work. The remaining still-open cash has no proposed match yet, and is disclosed as exactly that rather than forecast forward without new information.
+On the real batch: confirming everything currently in the queue moves resolved cash from **32.5% to 45.0%**, an extra **Rs.40,999.00** unlocked with zero new matching work. The remaining still-open cash has no proposed match yet, and is disclosed as exactly that rather than forecast forward without new information.
 
 Shown on the **Overview** page, right under Cash-position clarity, and answerable directly, "forecast my cash," "what if I confirm everything," through Settlement Q&A.
 

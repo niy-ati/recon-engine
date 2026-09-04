@@ -14,7 +14,14 @@ from reconcile import reconcile, summarize, new_correlation_id
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-def generate(settlement_source: str = "synthetic") -> None:
+def generate(settlement_source: str = "synthetic", fresh_batch: bool = False) -> None:
+    if fresh_batch:
+        # See db.reset_batch()'s own docstring for why this exists: a
+        # brand-new synthetic (or live) dataset means every ID persist_
+        # results() is about to upsert is unrelated to whatever's already
+        # in the database, so the old rows would otherwise just accumulate
+        # forever instead of being replaced.
+        db.reset_batch()
     if settlement_source == "live":
         print("Using LIVE Razorpay settlement data (test-mode keys). Test-mode "
               "transactions never generate settlements, so an authenticated "
@@ -122,5 +129,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true",
                          help="Use the real Razorpay settlement API (test-mode keys) instead of synthetic data")
+    parser.add_argument("--fresh-batch", action="store_true",
+                         help="Clear all persisted rows first -- pass this whenever generate_data.py just "
+                              "created a brand-new dataset (run_all.py does, unless --keep-data), never "
+                              "when re-running against data/ already sitting on disk")
     args = parser.parse_args()
-    generate(settlement_source="live" if args.live else "synthetic")
+    generate(settlement_source="live" if args.live else "synthetic", fresh_batch=args.fresh_batch)

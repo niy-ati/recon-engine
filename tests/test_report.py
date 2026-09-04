@@ -134,6 +134,59 @@ class TestMarkdownMatchesSummaryDict(ReportTestCase):
         self.assertNotIn("pure deterministic matching", self.markdown)
 
 
+class TestFreshBatch(unittest.TestCase):
+    """See db.reset_batch()'s own docstring for the real accumulation bug
+    this flag exists to prevent: report.py's persist_results() call
+    upserts on match_key, correct for re-running the SAME batch, but with
+    no way to know a genuinely new one (different settlement_ids, from a
+    generate_data.py edit or a fresh live pull) just replaced it."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp_path = Path(self._tmpdir.name)
+        self._original_output_dir = report.OUTPUT_DIR
+        report.OUTPUT_DIR = tmp_path
+        self._original_db_path = db.DB_PATH
+        db.DB_PATH = tmp_path / "test_reconcile.db"
+
+    def tearDown(self):
+        report.OUTPUT_DIR = self._original_output_dir
+        db.DB_PATH = self._original_db_path
+        self._tmpdir.cleanup()
+
+    def test_fresh_batch_clears_rows_from_an_unrelated_earlier_batch(self):
+        old_batch = [make_result("order_old", "MATCHED")]
+        old_batch[0]["match_key"] = "settlement:setl_old"
+        with patch("report.reconcile", return_value=old_batch):
+            report.generate()
+        self.assertEqual(len(db.get_all_exceptions()), 1)
+
+        new_batch = [make_result("order_new", "MATCHED")]
+        new_batch[0]["match_key"] = "settlement:setl_new"
+        with patch("report.reconcile", return_value=new_batch):
+            report.generate(fresh_batch=True)
+
+        rows = db.get_all_exceptions()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["order_id"], "order_new")
+
+    def test_without_fresh_batch_old_rows_accumulate(self):
+        """The bug, reproduced directly: two disjoint-match_key batches
+        both surviving is exactly what silently grew data/reconcile.db to
+        3,104 rows across 6 forgotten runs during real use."""
+        old_batch = [make_result("order_old", "MATCHED")]
+        old_batch[0]["match_key"] = "settlement:setl_old"
+        with patch("report.reconcile", return_value=old_batch):
+            report.generate()
+
+        new_batch = [make_result("order_new", "MATCHED")]
+        new_batch[0]["match_key"] = "settlement:setl_new"
+        with patch("report.reconcile", return_value=new_batch):
+            report.generate(fresh_batch=False)
+
+        self.assertEqual(len(db.get_all_exceptions()), 2)
+
+
 class TestExceptionsCsvMatchesResults(ReportTestCase):
     def test_matched_rows_excluded(self):
         self.assertNotIn("order_1,", self.csv_text)

@@ -50,8 +50,8 @@ def make_og_image():
     draw.text((pad, 160), "A deterministic-first AI Finance Controller", font=font("segoeui.ttf", 30), fill=MUTED)
 
     # The one number this whole project is built to defend: measured on a
-    # real, cited 514-row batch, not a marketing claim -- see README.
-    draw.text((pad, 268), "90.5%", font=font("segoeuib.ttf", 130), fill=PRIMARY_STRONG)
+    # real, cited 525-row batch, not a marketing claim -- see README.
+    draw.text((pad, 268), "87.6%", font=font("segoeuib.ttf", 130), fill=PRIMARY_STRONG)
     draw.text((pad + 4, 410), "resolved, zero AI auto-applied", font=font("segoeui.ttf", 32), fill=INK)
 
     draw.line([(pad, 480), (W - pad, 480)], fill=(220, 228, 238), width=2)

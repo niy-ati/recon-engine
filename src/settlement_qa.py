@@ -312,8 +312,8 @@ PROJECT_KNOWLEDGE = [
          "what metrics", "what are your metrics", "how accurate is this",
          "whats the baseline", "compared to manual", "how much better than manual"),
         "Manual reconciliation typically clears about 51 percent of rows. "
-        "This engine resolves 90.5 percent with zero human input on a "
-        "real 514-row batch, holding between 87 and 91 percent across "
+        "This engine resolves 87.6 percent with zero human input on a "
+        "real 525-row batch, holding between 86 and 88 percent across "
         "five different re-tested batches."
     ),
     (

@@ -37,11 +37,12 @@ Injected failure modes:
     posting itself looks clean
 
 Known limitation: the overall resolved percentage varies by seed. Held-out
-re-measurement against the current code (2026-08-24), five fresh seeds not
-tuned against: 42 -> 90.5%, 7 -> 88.0%, 21 -> 88.5%, 99 -> 87.1%,
-555 -> 90.9% -- an 87.1%-90.9% range, every one comfortably clear of the
-~51% manual baseline. The seed is pinned to 42 for a reproducible default
-run, not because 90.5% specifically is a guaranteed constant. Reproduce
+re-measurement against the current code (2026-09-04, after DISPUTED and
+method were added), five fresh seeds not tuned against: 42 -> 87.6%,
+7 -> 86.4%, 21 -> 87.1%, 99 -> 87.8%, 555 -> 88.4% -- an 86.4%-88.4% range,
+every one comfortably clear of the ~51% manual baseline. The seed is
+pinned to 42 for a reproducible default run, not because 87.6% specifically
+is a guaranteed constant. Reproduce
 the range yourself with `python extras/seed_sweep.py`, which drives this
 via the RECON_SEED environment variable below and restores data/ and
 output/ to their committed state afterward, whatever seed it's given.

@@ -71,7 +71,7 @@ ASSET_CONTENT_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "im
 # per-request. A live-computed description would drift between whichever
 # moment a platform's crawler happened to cache it and whatever the batch
 # looks like later, so this states the same headline number the README and
-# pitch already commit to (90.5% on the real 514-row batch), not a number
+# pitch already commit to (87.6% on the real 525-row batch), not a number
 # that changes under a shared link. og:image needs an absolute URL to be
 # fetched cross-origin by Slack/WhatsApp/LinkedIn -- pointed at the actual
 # shared demo link (see README's Live demo link) since that's the one
@@ -79,7 +79,7 @@ ASSET_CONTENT_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "im
 # Render deployment instead. See scripts/generate_share_assets.py for how
 # the image itself was built.
 SHARE_DESCRIPTION = (
-    "A deterministic-first reconciliation engine that resolves 90.5% of a real 514-row "
+    "A deterministic-first reconciliation engine that resolves 87.6% of a real 525-row "
     "settlement batch with zero AI auto-applied -- plus a settlement Q&A agent, tax-line "
     "matcher, and forward cash forecast. Built for Razorpay's AI Buildathon 2026, Track 04."
 )
@@ -2856,8 +2856,9 @@ def render_about() -> str:
           {finding(ICON_GATEWAY, "The settlement UTR is genuinely two-tier", 'A settlement\'s batch-level UTR and its per-line <a href="https://razorpay.com/docs/api/settlements/fetch-recon/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">recon UTR</a> can diverge for the same transfer. Pass 1 checks every unclaimed bank row for an exact amount-and-date match under a different UTR, and only resolves it when exactly one candidate exists. `UTR_LEVEL_MISMATCH` above is that category.', "tone-information")}
           {finding(ICON_BANK, f"GST-on-MDR checked against the real 18% rate, live", f'Reconciliation only checks that the settlement report and the ledger agree with each other, not with the law. <code>tax_audit.py</code> checks the real statutory rate directly: <mark>{len(tax_findings)}</mark> settlement{"s" if len(tax_findings) != 1 else ""} in this batch currently sit as a plain, clean match and are still charging the wrong GST.', "tone-positive" if tax_findings else "tone-information")}
           {finding(ICON_ALERT, "The AFA mandate threshold is a real RBI rule, not an assumption", 'A subscription renewal above the RBI\'s <a href="https://www.business-standard.com/amp/article/finance/new-e-mandate-guidelines-rbi-enhances-limit-for-e-mandates-on-credit-debit-cards-to-rs-15-000-122060800417_1.html" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">₹15,000 e-mandate threshold</a> needs a compliant step-up re-authentication, not a blind retry. `AFA_MANDATE_HOLD` reads this off the ledger narration directly.', "tone-information")}
-          {finding(ICON_LEDGER, "The third source resolves 15% of the batch on its own", 'Razorpay\'s own published Reconciliation Agent checks two sources: a bank statement against Razorpay\'s settlement records. <mark>77 of 514 rows (15.0%)</mark> in this batch are resolved or explained only because this system also reads the merchant\'s own ledger, including two rows with a perfectly clean UTR/amount/date match that a two-source tool would already call done.', "tone-positive")}
+          {finding(ICON_LEDGER, "The third source resolves 12% of the batch on its own", 'Razorpay\'s own published Reconciliation Agent checks two sources: a bank statement against Razorpay\'s settlement records. <mark>65 of 523 rows (12.4%)</mark> in this batch are resolved or explained only because this system also reads the merchant\'s own ledger, including 3 rows with a perfectly clean UTR/amount/date match that a two-source tool would already call done.', "tone-positive")}
           {finding(ICON_BANK, "Sits underneath Razorpay's own Bookkeeping Agent, not against it", 'The <a href="https://razorpay.com/agentic-business-banking/" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Bookkeeping Agent</a> posts entries from predefined rules and can\'t resolve an exception no rule covers. This system is that layer underneath it: everything the rules can\'t settle lands here with a stated reason and a reviewable trail, not a silent drop.', "tone-information")}
+          {finding(ICON_ALERT, "The resolved rate dropped on purpose when DISPUTED was added", 'Before this category existed, a settlement with an active dispute but a clean bank match counted as plain <code>MATCHED</code> -- resolved, safe to book. It never was: the money can still be clawed back. Adding <code>DISPUTED</code> moved 5 rows out of the resolved count and the headline number fell from 90.5% to 87.6% -- not a regression, the honest cost of a metric that used to hide a real risk.', "tone-positive")}
         </div>
       </div>
     </div>

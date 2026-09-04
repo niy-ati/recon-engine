@@ -5,7 +5,7 @@ trust five numbers typed into a comment.
 
 Runs the full pipeline (generate_data.py -> reconcile.py ->
 failure_injection_demo.py -> report.py, the same steps run_all.py runs)
-once per seed, against a genuinely different 514-row batch each time,
+once per seed, against a genuinely different ~525-row batch each time,
 and reports the "Overall resolved" figure the pipeline itself computed --
 never recomputed or estimated here.
 
@@ -66,8 +66,15 @@ def restore_tracked() -> None:
 def measure_one_seed(seed: int) -> float:
     full_env = {**os.environ, "RECON_SEED": str(seed)}
     for step in ["generate_data.py", "reconcile.py", "failure_injection_demo.py", "report.py"]:
+        # --fresh-batch on report.py only: each seed draws every ID from a
+        # different point in its own random stream, so five seeds run back
+        # to back would otherwise persist as five disjoint batches that
+        # never overwrite each other -- see db.reset_batch()'s own
+        # docstring for the real accumulation bug this prevents (this
+        # script, run without this flag, was one of its real causes).
+        args = [sys.executable, step] + (["--fresh-batch"] if step == "report.py" else [])
         try:
-            result = subprocess.run([sys.executable, step], cwd=SRC, env=full_env,
+            result = subprocess.run(args, cwd=SRC, env=full_env,
                                      capture_output=True, text=True, timeout=STEP_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             raise RuntimeError(

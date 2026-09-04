@@ -361,7 +361,7 @@ class TestProjectKnowledge(SettlementQaTestCase):
 
     def test_accuracy_question(self):
         result = qa.answer("what's your accuracy")
-        self.assertIn("90.5", result)
+        self.assertIn("87.6", result)
 
     def test_slash_research_question(self):
         result = qa.answer("tell me about slash")

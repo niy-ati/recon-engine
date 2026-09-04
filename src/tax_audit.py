@@ -11,14 +11,14 @@ with each other says nothing about agreeing with the statute.
 This module checks the one thing neither the reconciliation passes nor a
 naive "do the totals match" review ever would: whether the GST actually
 charged on each settlement's MDR fee matches the real, current statutory
-rate. Found live on this project's own real 500-row batch: two rows
-(order_1210, order_1151) currently sit as plain MATCHED with no category
-at all -- clean by every check this system already runs, and clean by
-Razorpay's own dashboard too -- yet both were actually charged Rs.1 more
-GST than the law requires. That's the differentiated case a tax-line
-matcher exists for: not a bigger discrepancy, but one invisible to
-amount-matching entirely, because the settlement and the ledger AGREE with
-each other -- they just both agree on the wrong number.
+rate. Found live on this project's own real 509-row batch: ten rows
+(order_1058, order_1128, and eight others) currently sit as plain MATCHED
+with no category at all -- clean by every check this system already runs,
+and clean by Razorpay's own dashboard too -- yet every one was actually
+charged Rs.1 more GST than the law requires. That's the differentiated
+case a tax-line matcher exists for: not a bigger discrepancy, but one
+invisible to amount-matching entirely, because the settlement and the
+ledger AGREE with each other -- they just both agree on the wrong number.
 
 GST_ON_MDR_RATE is a real, verified figure (18%, the standard GST rate
 applied to payment-gateway/aggregator service fees in India), not
@@ -37,12 +37,19 @@ the transaction tier. audit_monthly_reconciliation() below is the second
 tier, and it exists because the two tiers genuinely catch different
 things: a month of settlements can have every single row sit inside
 audit_tax_lines()'s own Rs.0.50 tolerance -- individually invisible -- and
-still add up to a materially wrong monthly total. Found live on the real
-batch: the known per-row overcharges (order_1210, order_1151) only explain
-Rs.2.00 of the month's real Rs.4.81 aggregate drift; the remaining Rs.2.81
-comes from sub-tolerance rounding spread across the other ~500 rows,
-something no per-row check, at any reasonable tolerance, would ever
-surface on its own.
+still add up to a materially wrong monthly total, or (the case found live
+on the current real batch) the two tiers can cross-check each other and
+agree: the ten known per-row overcharges above sum to Rs.10.00, against a
+real Rs.9.83 aggregate drift for the month -- a Rs.0.17 residual, well
+inside ordinary rounding noise, confirming the per-row tier already
+accounts for essentially the whole month's drift on its own this run. A
+materially different seed can flip this the other way (per-row
+under-explaining the aggregate, revealing sub-tolerance drift spread
+across the rest of the month no per-row check could see) -- both outcomes
+are real findings this second tier can surface; this run's own numbers
+happen to be the confirming case, not the revealing one, and are reported
+as such rather than forced into a more dramatic story than what actually
+ran.
 """
 import csv
 from collections import defaultdict
@@ -100,7 +107,7 @@ def audit_tax_lines() -> list[dict]:
 # single flagged row could produce on its own (TOLERANCE_RS is 0.50) so
 # this tier is never just re-stating a per-row finding, while staying low
 # enough that a real, modest, systemic drift like the one found live on
-# this project's own batch (Rs.4.81 across ~500 rows -- see docstring)
+# this project's own batch (Rs.9.83 across ~500 rows -- see docstring)
 # doesn't slip through as "immaterial" just because it's spread thin.
 MONTHLY_TOLERANCE_RS = 2.00
 
@@ -116,10 +123,14 @@ def audit_monthly_reconciliation() -> list[dict]:
     audit_tax_lines()'s own per-row findings for the same month so the
     reported "unexplained" figure is genuinely new information a
     transaction-level check already surfaced can't take credit for --
-    found live: of the real batch's one month's Rs.4.81 aggregate drift,
-    only Rs.2.00 traces back to the two rows audit_tax_lines() already
-    flags; the remaining Rs.2.81 comes from sub-tolerance rounding spread
-    across roughly 500 rows no per-row check would ever catch on its own."""
+    found live: of the real batch's one month's Rs.9.83 aggregate drift,
+    the ten rows audit_tax_lines() already flags sum to Rs.10.00 on their
+    own -- a Rs.0.17 residual, inside ordinary rounding noise, meaning the
+    per-row tier already accounts for essentially the whole month's drift
+    this run. A different seed can flip this the other way (per-row
+    under-explaining the aggregate, revealing sub-tolerance drift spread
+    across the rest of the month no per-row check could see) -- both are
+    real outcomes this second tier can surface; see the module docstring."""
     path = DATA_DIR / "settlement_report.csv"
     if not path.exists():
         return []

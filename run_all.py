@@ -50,7 +50,17 @@ def main() -> None:
     if args.keep_data:
         print("\n--keep-data: skipping generate_data.py and failure_injection_demo.py, "
               "using data/ exactly as it is right now.")
-    run_step("report.py", extra_args=["--live"] if args.live else [])
+
+    # --fresh-batch clears the persisted database first -- correct exactly
+    # when generate_data.py just ran (a brand-new dataset, IDs unrelated to
+    # whatever's already persisted), wrong when --keep-data re-runs against
+    # data/ already on disk (a human's earlier confirm/reject on those same
+    # IDs must survive). See db.reset_batch()'s own docstring for the real
+    # accumulation bug this exists to prevent.
+    report_args = ["--live"] if args.live else []
+    if not args.keep_data:
+        report_args.append("--fresh-batch")
+    run_step("report.py", extra_args=report_args)
 
     report_path = ROOT / "output" / "reconciliation_report.md"
 
