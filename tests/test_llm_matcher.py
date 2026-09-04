@@ -52,10 +52,11 @@ class TestCallLlmArbiter(unittest.TestCase):
         self.assertFalse(result.auto_applied)
 
     def test_reconcile_module_has_no_import_path_to_this_module(self):
-        """Regression test for Razorpay's own Agent Studio guardrail:
-        "every agent action passes through a platform-level validation
-        layer before execution." reconcile.py must reach the arbiter only
-        through validation_gate.py, never by importing llm_matcher directly."""
+        """Regression test for Razorpay's own Agent Studio guardrail: "a
+        two-layer system: agents operate on verified merchant data, and
+        the platform independently validates every action before it goes
+        through." reconcile.py must reach the arbiter only through
+        validation_gate.py, never by importing llm_matcher directly."""
         reconcile_path = SRC / "reconcile.py"
         source = reconcile_path.read_text()
         self.assertNotIn("llm_matcher", source)

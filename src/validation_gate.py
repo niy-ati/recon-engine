@@ -4,9 +4,14 @@ never call_llm_arbiter from llm_matcher.py directly -- so no code path in
 this codebase reaches an ungated arbiter result.
 
 This is the platform-level validation layer, independent of agent logic,
-that Razorpay's own Agent Studio guardrails require: "every agent action
-passes through a platform-level validation layer before execution"
+that Razorpay's own Agent Studio guardrails require: "every action is
+validated before it executes," through "a two-layer system: agents
+operate on verified merchant data, and the platform independently
+validates every action before it goes through"
 (razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control).
+This module is that second, independent layer for the arbiter's proposals
+specifically -- reconcile.py has no import path to raw model output that
+skips it, enforced by an automated test.
 
 A result auto-applies only if both hold:
   1. confidence >= CONFIDENCE_AUTO_ACCEPT

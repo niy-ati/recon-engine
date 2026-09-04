@@ -9,6 +9,8 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 
 **Governing principle:** every action traces back to a verifiable rule, a verifiable data field, or a human decision. Nothing is inferred or shown as resolved unless the data proves it.
 
+Track 04's own stated bar, verified directly from [razorpay.com/buildathon](https://razorpay.com/buildathon/), not a paraphrase: close a finance-ops loop across "a 50+ record batch of synthetic data, reporting its match rate and the exceptions it could not resolve." Judged on "throughput plus measured accuracy plus an honest exception list," because "one cherry-picked match proves nothing." This system runs on a 525-row batch, reports its real match rate every time, names every exception it can't resolve, and backs the accuracy claim with a 5-seed sweep (`extras/seed_sweep.py`) and a persisted evaluation harness (`src/arbiter_eval.py`), not one lucky run.
+
 Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments customer reports that automatic reconciliation cut booking cancellations from 18% to 5%, cut payment failures by 40%, and saved staff 15 hours a week. ([Source](https://www.linkedin.com/posts/aeijaz-sodawala-a2202a64_hoteltech-hospitalitytechnology-payments-share-7500577134541713408-vsug/)) That's the exact kind of manual-matching time this system exists to eliminate.
 
 **Live demo:** [reconcile-engine-demo.vercel.app](https://reconcile-engine-demo.vercel.app), the real review dashboard and Settlement Q&A, running against a persisted batch.
@@ -162,7 +164,7 @@ Independently cross-checked against Razorpay's own official [`razorpay-cli`](htt
 
 ## Compared to Razorpay's Own Reconciliation Agent
 
-Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) is real and shipped, in their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." Two sources, ending at "flag a discrepancy."
+Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) is real and shipped, in their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." Two sources, ending at "flag a discrepancy." The same claim was repeated at their FTX'26 Agent Studio launch: "match this with my Razorpay settlements...reads the file, finds payment details, and matches them instantly. What once took finance teams hours of manual work can now be done in seconds." ([Source](https://razorpay.com/newsroom/razorpay-launches-the-worlds-first-ai-native-agent-studio-for-payments-at-ftx26-powered-by-anthropics-claude/)) Still two sources, still stopping at a match, not a taxonomy.
 
 **What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **65 of 523 rows (12.4%) are resolved or explained only because the ledger got read**, including 3 rows with a perfectly clean UTR, amount, and date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
 
@@ -209,7 +211,7 @@ This is the same direction Razorpay's own CEO has staked the company's dashboard
 
 **Voice output tries [Kokoro](https://huggingface.co/posts/Xenova/503648859052804) first**, a real 82M-parameter neural voice that runs entirely client-side via WASM (MIT licensed, zero cost, nothing leaves the browser). This is a strict progressive enhancement, not a replacement: every failure mode (network, WASM, an unexpected API shape) is caught and falls straight back to the browser's own built-in speech, exactly as it worked before.
 
-**Everything here runs local, no cloud API, no key, no cost**, for the chat, the voice, or the document upload. A gated model fallback exists underneath for phrasing the keyword matching doesn't recognize, same confidence-gate discipline as the reconciliation engine's own Pass 4, held untrusted for the same reason.
+**Everything here runs local, no cloud API, no key, no cost**, for the chat, the voice, or the document upload, the same principle Razorpay's own Agent Studio states as a hard guarantee for its own agents: "agents operate entirely within Razorpay's infrastructure; merchant data never leaves systems." ([Source](https://razorpay.com/blog/razorpay-agent-studio-principles-guardrails-and-merchant-control/)) A gated model fallback exists underneath for phrasing the keyword matching doesn't recognize, same confidence-gate discipline as the reconciliation engine's own Pass 4, held untrusted for the same reason.
 
 ## Tax Line Matcher
 
