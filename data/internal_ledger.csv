@@ -1,499 +1,497 @@
 invoice_id,order_ref,customer,amount,narration,gst_line
-INV-1315,order_1315,Customer 27,4999,Payment received order order_1315 - Customer 27,18.0
-INV-1148,order_1148,Customer 4,9999,Payment received order order_1148 - Customer 4,36.0
-INV-1456,order_1456,Customer 27,999,Payment received order order_1456 - Customer 27,3.6
-INV-1053,order_1053,Customer 8,9999,Payment received order order_1053 - Customer 8,36.0
-INV-1102,,Customer 27,1499,pymt rcvd 27 ord#11O2 thx,5.4
-INV-1133,order_1133,Customer 16,1499,Payment received order order_1133 - Customer 16,5.4
-INV-1156,order_1156,Customer 6,999,Payment received order order_1156 - Customer 6,3.6
-INV-1040,order_1040,Customer 18,2499,Payment received order order_1040 - Customer 18,9.0
-INV-1383,order_1383,Customer 6,2499,Payment received order order_1383 - Customer 6,9.0
-INV-1032,,Customer 15,499,pymt rcvd 15 ord#1O32 thx,1.8
-INV-1446,order_1446,Customer 9,999,Payment received order order_1446 - Customer 9,3.6
-INV-1492,order_1492,Customer 22,499,Payment received order order_1492 - Customer 22 PARTIAL REFUND 149.7,1.8
-INV-1044,order_1044,Customer 6,9999,Payment received order order_1044 - Customer 6,36.0
-INV-1287,order_1287,Customer 27,499,Payment received order order_1287 - Customer 27,1.8
-INV-1004,order_1004,Customer 17,499,Payment received order order_1004 - Customer 17,1.8
-INV-1382,order_1382,Customer 10,2499,Payment received order order_1382 - Customer 10,9.0
-INV-1331,order_1331,Customer 23,4999,Payment received order order_1331 - Customer 23,18.0
-INV-1486,order_1486,Customer 26,4999,Payment received order order_1486 - Customer 26,18.0
-INV-1381,order_1381,Customer 21,9999,Payment received order order_1381 - Customer 21,36.0
-INV-1374,order_1374,Customer 1,4999,Payment received order order_1374 - Customer 1,18.0
-INV-1074,order_1074,Customer 25,4999,Payment received order order_1074 - Customer 25,18.0
-INV-1092,order_1092,Customer 18,2499,Payment received order order_1092 - Customer 18,9.0
-INV-1460,order_1460,Customer 6,999,Payment received order order_1460 - Customer 6,3.6
-INV-1336,order_1336,Customer 18,1499,Payment received order order_1336 - Customer 18,5.4
-INV-1114,order_1114,Customer 5,2499,Payment received order order_1114 - Customer 5 PARTIAL REFUND 749.7,9.0
-INV-1243,order_1243,Customer 25,4999,Payment received order order_1243 - Customer 25,18.0
-INV-1304,order_1304,Customer 2,9999,Payment received order order_1304 - Customer 2,36.0
-INV-1121,order_1121,Customer 12,2499,Payment received order order_1121 - Customer 12,9.0
-INV-1212,order_1212,Customer 23,1499,Payment received order order_1212 - Customer 23,5.4
-INV-1388,order_1388,Customer 18,18500,Subscription renewal order order_1388 - Customer 18 - AFA_MANDATE_HOLD pending step-up auth,66.6
-INV-1138,order_1138,Customer 29,4999,Payment received order order_1138 - Customer 29,18.0
-INV-1351,order_1351,Customer 18,2499,Payment received order order_1351 - Customer 18,9.0
-INV-1280,order_1280,Customer 1,1499,Payment received order order_1280 - Customer 1,5.4
-INV-1244,,Customer 12,9999,pymt rcvd 12 ord#l244 thx,36.0
-INV-1126,order_1126,Customer 3,4999,Payment received order order_1126 - Customer 3,18.0
-INV-1108,order_1108,Customer 5,1499,Payment received order order_1108 - Customer 5,5.4
-INV-1256,order_1256,Customer 15,9999,Payment received order order_1256 - Customer 15,36.0
-INV-1457,order_1457,Customer 27,999,Payment received order order_1457 - Customer 27,3.6
-INV-1320,order_1320,Customer 3,9999,Payment received order order_1320 - Customer 3,36.0
-INV-1071,order_1071,Customer 10,2499,Payment received order order_1071 - Customer 10,9.0
-INV-1230,order_1230,Customer 19,2499,Payment received order order_1230 - Customer 19,9.0
-INV-1429,order_1429,Customer 25,499,Payment received order order_1429 - Customer 25,1.8
-INV-1312,order_1312,Customer 4,1499,Payment received order order_1312 - Customer 4,5.4
-INV-1484,order_1484,Customer 23,999,Payment received order order_1484 - Customer 23,3.6
-INV-1378,order_1378,Customer 17,1499,Payment received order order_1378 - Customer 17,5.4
-INV-1218,order_1218,Customer 25,9999,Payment received order order_1218 - Customer 25,36.0
-INV-1081,order_1081,Customer 12,1499,Payment received order order_1081 - Customer 12,5.4
-INV-1059,order_1059,Customer 24,4999,Payment received order order_1059 - Customer 24,18.0
-INV-1348,order_1348,Customer 6,4999,Payment received order order_1348 - Customer 6,18.0
-INV-1270,order_1270,Customer 24,4999,Payment received order order_1270 - Customer 24,18.0
-INV-1474,order_1474,Customer 15,9999,Payment received order order_1474 - Customer 15,36.0
-INV-1399,,Customer 23,9999,pymt rcvd 23 ord#1399 thx,36.0
-INV-1013,order_1013,Customer 9,4999,Payment received order order_1013 - Customer 9,18.0
-INV-1206,order_1206,Customer 1,1499,Payment received order order_1206 - Customer 1,5.4
-INV-1150,order_1150,Customer 25,999,Payment received order order_1150 - Customer 25,3.6
-INV-1453,order_1453,Customer 24,2499,Payment received order order_1453 - Customer 24,9.0
-INV-1377,order_1377,Customer 20,4999,Payment received order order_1377 - Customer 20 PARTIAL REFUND 1499.7,18.0
-INV-1145,order_1145,Customer 29,999,Payment received order order_1145 - Customer 29,3.6
-INV-1332,order_1332,Customer 17,2499,Payment received order order_1332 - Customer 17,9.0
-INV-1129,order_1129,Customer 21,1499,Payment received order order_1129 - Customer 21,5.4
-INV-1361,order_1361,Customer 15,4999,Payment received order order_1361 - Customer 15,18.0
-INV-1493,,Customer 13,1499,pymt rcvd 13 ord#1493 thx,5.4
-INV-1424,order_1424,Customer 8,2499,Payment received order order_1424 - Customer 8,9.0
-INV-1031,order_1031,Customer 17,2499,Payment received order order_1031 - Customer 17,9.0
-INV-1407,order_1407,Customer 25,999,Payment received order order_1407 - Customer 25,3.6
-INV-1471,order_1471,Customer 8,999,Payment received order order_1471 - Customer 8,3.6
-INV-1347,order_1347,Customer 19,999,Payment received order order_1347 - Customer 19,3.6
-INV-1207,order_1207,Customer 18,2499,Payment received order order_1207 - Customer 18,9.0
-INV-1359,order_1359,Customer 18,999,Payment received order order_1359 - Customer 18,3.6
-INV-1483,order_1483,Customer 4,499,Payment received order order_1483 - Customer 4,1.8
-INV-1292,order_1292,Customer 25,999,Payment received order order_1292 - Customer 25,3.6
-INV-1124,order_1124,Customer 10,4999,Payment received order order_1124 - Customer 10,18.0
-INV-1254,order_1254,Customer 26,1499,Payment received order order_1254 - Customer 26 PARTIAL REFUND 449.7,5.4
-INV-1319,order_1319,Customer 21,1499,Payment received order order_1319 - Customer 21,5.4
-INV-1262,order_1262,Customer 14,2499,Payment received order order_1262 - Customer 14,9.0
-INV-1017,order_1017,Customer 16,1499,Payment received order order_1017 - Customer 16,5.4
-INV-1242,order_1242,Customer 16,999,Payment received order order_1242 - Customer 16,3.6
-INV-1485,order_1485,Customer 9,2499,Payment received order order_1485 - Customer 9,9.0
-INV-1296,order_1296,Customer 26,999,Payment received order order_1296 - Customer 26,3.6
-INV-1410,order_1410,Customer 9,2499,Payment received order order_1410 - Customer 9,9.0
-INV-1432,order_1432,Customer 12,499,Payment received order order_1432 - Customer 12,1.8
-INV-1496,order_1496,Customer 28,499,Payment received order order_1496 - Customer 28,1.8
-INV-1157,order_1157,Customer 18,2499,Payment received order order_1157 - Customer 18,9.0
-INV-1249,order_1249,Customer 2,999,Payment received order order_1249 - Customer 2,3.6
-INV-1123,order_1123,Customer 20,1499,Payment received order order_1123 - Customer 20,5.4
-INV-1479,order_1479,Customer 4,2499,Payment received order order_1479 - Customer 4,9.0
-INV-1180,order_1180,Customer 1,1499,Payment received order order_1180 - Customer 1,5.4
-INV-1182,order_1182,Customer 22,1499,Payment received order order_1182 - Customer 22,5.4
-INV-1278,order_1278,Customer 12,999,Payment received order order_1278 - Customer 12,3.6
-INV-1345,,Customer 16,999,pymt rcvd 16 ord#l345 thx,3.6
-INV-1402,order_1402,Customer 22,499,Payment received order order_1402 - Customer 22,1.8
-INV-1192,,Customer 21,499,pymt rcvd 21 ord#1192 thx,1.8
-INV-1023,order_1023,Customer 27,2499,Payment received order order_1023 - Customer 27,9.0
-INV-1231,order_1231,Customer 2,999,Payment received order order_1231 - Customer 2,3.6
-INV-1490,,Customer 16,499,pymt rcvd 16 ord#149O thx,1.8
-INV-1210,order_1210,Customer 1,9999,Payment received order order_1210 - Customer 1,36.0
-INV-1497,order_1497,Customer 6,9999,Payment received order order_1497 - Customer 6,36.0
-INV-1178,order_1178,Customer 29,4999,Payment received order order_1178 - Customer 29,18.0
-INV-1442,order_1442,Customer 28,4999,Payment received order order_1442 - Customer 28,18.0
-INV-1454,order_1454,Customer 19,499,Payment received order order_1454 - Customer 19,1.8
-INV-1317,order_1317,Customer 17,9999,Payment received order order_1317 - Customer 17,36.0
-INV-1090,order_1090,Customer 1,9999,Payment received order order_1090 - Customer 1,36.0
-INV-1134,order_1134,Customer 11,499,Payment received order order_1134 - Customer 11,1.8
-INV-1229,order_1229,Customer 16,1499,Payment received order order_1229 - Customer 16,5.4
-INV-1330,order_1330,Customer 12,2499,Payment received order order_1330 - Customer 12,9.0
-INV-1302,order_1302,Customer 26,499,Payment received order order_1302 - Customer 26,1.8
-INV-1219,order_1219,Customer 4,2499,Payment received order order_1219 - Customer 4,9.0
-INV-1298,order_1298,Customer 27,9999,Payment received order order_1298 - Customer 27 PARTIAL REFUND 2999.7,36.0
+INV-1441,order_1441,Customer 1,499,Payment received order order_1441 - Customer 1,1.8
+INV-1472,order_1472,Customer 24,2499,Payment received order order_1472 - Customer 24,9.0
+INV-1449,order_1449,Customer 11,2499,Payment received order order_1449 - Customer 11,9.0
+INV-1235,order_1235,Customer 6,4999,Payment received order order_1235 - Customer 6,18.0
+INV-1396,order_1396,Customer 29,2499,Payment received order order_1396 - Customer 29,9.0
+INV-1257,order_1257,Customer 28,1499,Payment received order order_1257 - Customer 28,5.4
+INV-1128,order_1128,Customer 11,499,Payment received order order_1128 - Customer 11,1.8
+INV-1395,order_1395,Customer 6,4999,Payment received order order_1395 - Customer 6,18.0
+INV-1110,order_1110,Customer 4,1499,Payment received order order_1110 - Customer 4,5.4
+INV-1013,order_1013,Customer 28,2499,Payment received order order_1013 - Customer 28,9.0
+INV-1413,order_1413,Customer 16,999,Payment received order order_1413 - Customer 16 PARTIAL REFUND 299.7,3.6
+INV-1326,order_1326,Customer 6,999,Payment received order order_1326 - Customer 6 PARTIAL REFUND 299.7,3.6
+INV-1261,order_1261,Customer 21,1499,Payment received order order_1261 - Customer 21,5.4
+INV-1089,order_1089,Customer 2,2499,Payment received order order_1089 - Customer 2,9.0
+INV-1281,order_1281,Customer 14,9999,Payment received order order_1281 - Customer 14,36.0
+INV-1185,order_1185,Customer 11,4999,Payment received order order_1185 - Customer 11,18.0
+INV-1433,order_1433,Customer 12,9999,Payment received order order_1433 - Customer 12,36.0
+INV-1446,order_1446,Customer 26,4999,Payment received order order_1446 - Customer 26,18.0
+INV-1361,order_1361,Customer 5,999,Payment received order order_1361 - Customer 5,3.6
+INV-1414,order_1414,Customer 11,9999,Payment received order order_1414 - Customer 11,36.0
+INV-1147,,Customer 22,499,pymt rcvd 22 ord#l147 thx,1.8
+INV-1368,order_1368,Customer 11,1499,Payment received order order_1368 - Customer 11,5.4
+INV-1367,order_1367,Customer 15,499,Payment received order order_1367 - Customer 15,1.8
+INV-1175,order_1175,Customer 3,1499,Payment received order order_1175 - Customer 3 PARTIAL REFUND 449.7,5.4
+INV-1199,order_1199,Customer 4,499,Payment received order order_1199 - Customer 4,1.8
+INV-1253,order_1253,Customer 21,999,Payment received order order_1253 - Customer 21,3.6
+INV-1399,order_1399,Customer 13,4999,Payment received order order_1399 - Customer 13,18.0
+INV-1150,order_1150,Customer 18,2499,Payment received order order_1150 - Customer 18,9.0
+INV-1121,order_1121,Customer 12,9999,Payment received order order_1121 - Customer 12,36.0
+INV-1383,order_1383,Customer 27,499,Payment received order order_1383 - Customer 27,1.8
+INV-1403,order_1403,Customer 7,2499,Payment received order order_1403 - Customer 7,9.0
+INV-1378,order_1378,Customer 25,999,Payment received order order_1378 - Customer 25,3.6
+INV-1028,order_1028,Customer 2,9999,Payment received order order_1028 - Customer 2,36.0
+INV-1192,order_1192,Customer 28,9999,Payment received order order_1192 - Customer 28,36.0
+INV-1497,order_1497,Customer 22,499,Payment received order order_1497 - Customer 22,1.8
+INV-1331,order_1331,Customer 1,999,Payment received order order_1331 - Customer 1,3.6
+INV-1247,order_1247,Customer 12,499,Payment received order order_1247 - Customer 12,1.8
+INV-1043,order_1043,Customer 16,499,Payment received order order_1043 - Customer 16,1.8
+INV-1276,order_1276,Customer 9,4999,Payment received order order_1276 - Customer 9,18.0
+INV-1038,order_1038,Customer 6,4999,Payment received order order_1038 - Customer 6,18.0
+INV-1489,order_1489,Customer 24,2499,Payment received order order_1489 - Customer 24,9.0
+INV-1354,order_1354,Customer 22,1499,Payment received order order_1354 - Customer 22,5.4
+INV-1474,order_1474,Customer 9,1499,Payment received order order_1474 - Customer 9,5.4
+INV-1107,order_1107,Customer 1,499,Payment received order order_1107 - Customer 1,1.8
+INV-1487,order_1487,Customer 13,2499,Payment received order order_1487 - Customer 13,9.0
+INV-1425,order_1425,Customer 24,4999,Payment received order order_1425 - Customer 24,18.0
+INV-1151,order_1151,Customer 10,2499,Payment received order order_1151 - Customer 10,9.0
+INV-1163,order_1163,Customer 3,499,Payment received order order_1163 - Customer 3,1.8
+INV-1159,order_1159,Customer 22,2499,Payment received order order_1159 - Customer 22,9.0
+INV-1196,order_1196,Customer 19,4999,Payment received order order_1196 - Customer 19,18.0
+INV-1249,order_1249,Customer 22,999,Payment received order order_1249 - Customer 22,3.6
+INV-1259,order_1259,Customer 1,2499,Payment received order order_1259 - Customer 1,9.0
+INV-1060,order_1060,Customer 14,9999,Payment received order order_1060 - Customer 14,36.0
+INV-1090,order_1090,Customer 29,9999,Payment received order order_1090 - Customer 29,36.0
+INV-1320,order_1320,Customer 22,4999,Payment received order order_1320 - Customer 22,18.0
+INV-1042,order_1042,Customer 28,1499,Payment received order order_1042 - Customer 28,5.4
+INV-1068,order_1068,Customer 13,999,Payment received order order_1068 - Customer 13,3.6
+INV-1198,order_1198,Customer 29,999,Payment received order order_1198 - Customer 29,3.6
+INV-1122,order_1122,Customer 26,4999,Payment received order order_1122 - Customer 26,18.0
+INV-1419,,Customer 7,499,pymt rcvd 7 ord#l419 thx,1.8
+INV-1173,order_1173,Customer 19,9999,Payment received order order_1173 - Customer 19,36.0
+INV-1285,order_1285,Customer 4,9999,Payment received order order_1285 - Customer 4,36.0
+INV-1363,order_1363,Customer 10,9999,Payment received order order_1363 - Customer 10,36.0
+INV-1176,order_1176,Customer 27,4999,Payment received order order_1176 - Customer 27,18.0
+INV-1123,order_1123,Customer 28,4999,Payment received order order_1123 - Customer 28,18.0
+INV-1385,order_1385,Customer 27,499,Payment received order order_1385 - Customer 27 PARTIAL REFUND 149.7,1.8
+INV-1006,order_1006,Customer 4,4999,Payment received order order_1006 - Customer 4,18.0
+INV-1251,order_1251,Customer 18,9999,Payment received order order_1251 - Customer 18,36.0
+INV-1386,order_1386,Customer 21,1499,Payment received order order_1386 - Customer 21,5.4
+INV-1410,order_1410,Customer 16,1499,Payment received order order_1410 - Customer 16,5.4
+INV-1020,order_1020,Customer 23,1499,Payment received order order_1020 - Customer 23,5.4
+INV-1480,order_1480,Customer 18,2499,Payment received order order_1480 - Customer 18,9.0
+INV-1437,order_1437,Customer 18,2499,Payment received order order_1437 - Customer 18,9.0
+INV-1187,order_1187,Customer 21,999,Payment received order order_1187 - Customer 21,3.6
+INV-1301,order_1301,Customer 29,9999,Payment received order order_1301 - Customer 29,36.0
+INV-1116,order_1116,Customer 25,1499,Payment received order order_1116 - Customer 25,5.4
+INV-1408,order_1408,Customer 21,9999,Payment received order order_1408 - Customer 21,36.0
+INV-1321,order_1321,Customer 6,9999,Payment received order order_1321 - Customer 6,36.0
+INV-1191,order_1191,Customer 2,2499,Payment received order order_1191 - Customer 2,9.0
+INV-1432,,Customer 2,9999,pymt rcvd 2 ord#1432 thx,36.0
+INV-1174,order_1174,Customer 4,2499,Payment received order order_1174 - Customer 4,9.0
+INV-1424,order_1424,Customer 8,999,Payment received order order_1424 - Customer 8,3.6
+INV-1136,order_1136,Customer 18,999,Payment received order order_1136 - Customer 18,3.6
+INV-1475,order_1475,Customer 20,499,Payment received order order_1475 - Customer 20,1.8
+INV-1030,order_1030,Customer 11,2499,Payment received order order_1030 - Customer 11,9.0
+INV-1243,order_1243,Customer 21,4999,Payment received order order_1243 - Customer 21,18.0
+INV-1442,order_1442,Customer 5,999,Payment received order order_1442 - Customer 5,3.6
+INV-1033,order_1033,Customer 2,2499,Payment received order order_1033 - Customer 2,9.0
+INV-1360,order_1360,Customer 23,999,Payment received order order_1360 - Customer 23,3.6
+INV-1217,order_1217,Customer 7,999,Payment received order order_1217 - Customer 7 PARTIAL REFUND 299.7,3.6
+INV-1029,order_1029,Customer 5,4999,Payment received order order_1029 - Customer 5,18.0
+INV-1299,order_1299,Customer 15,999,Payment received order order_1299 - Customer 15,3.6
+INV-1010,order_1010,Customer 3,4999,Payment received order order_1010 - Customer 3,18.0
+INV-1284,order_1284,Customer 14,9999,Payment received order order_1284 - Customer 14,36.0
+INV-1026,order_1026,Customer 8,2499,Payment received order order_1026 - Customer 8,9.0
+INV-1047,order_1047,Customer 16,2499,Payment received order order_1047 - Customer 16,9.0
+INV-1390,order_1390,Customer 6,2499,Payment received order order_1390 - Customer 6,9.0
+INV-1328,order_1328,Customer 8,2499,Payment received order order_1328 - Customer 8,9.0
+INV-1457,order_1457,Customer 9,4999,Payment received order order_1457 - Customer 9,18.0
+INV-1282,order_1282,Customer 4,2499,Payment received order order_1282 - Customer 4,9.0
+INV-1447,order_1447,Customer 29,2499,Payment received order order_1447 - Customer 29,9.0
+INV-1309,order_1309,Customer 25,2499,Payment received order order_1309 - Customer 25,9.0
+INV-1184,order_1184,Customer 28,499,Payment received order order_1184 - Customer 28,1.8
+INV-1096,order_1096,Customer 29,1499,Payment received order order_1096 - Customer 29,5.4
+INV-1044,order_1044,Customer 1,999,Payment received order order_1044 - Customer 1,3.6
+INV-1203,order_1203,Customer 16,499,Payment received order order_1203 - Customer 16,1.8
+INV-1078,order_1078,Customer 12,2499,Payment received order order_1078 - Customer 12,9.0
+INV-1495,order_1495,Customer 4,18500,Subscription renewal order order_1495 - Customer 4 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1304,order_1304,Customer 16,999,Payment received order order_1304 - Customer 16 PARTIAL REFUND 299.7,3.6
+INV-1242,order_1242,Customer 9,4999,Payment received order order_1242 - Customer 9,18.0
+INV-1118,order_1118,Customer 18,9999,Payment received order order_1118 - Customer 18,36.0
+INV-1109,order_1109,Customer 18,999,Payment received order order_1109 - Customer 18,3.6
+INV-1482,order_1482,Customer 28,999,Payment received order order_1482 - Customer 28,3.6
+INV-1260,order_1260,Customer 9,999,Payment received order order_1260 - Customer 9,3.6
+INV-1426,order_1426,Customer 24,499,Payment received order order_1426 - Customer 24,1.8
+INV-1365,order_1365,Customer 15,999,Payment received order order_1365 - Customer 15,3.6
+INV-1387,order_1387,Customer 7,499,Payment received order order_1387 - Customer 7,1.8
+INV-1287,,Customer 6,9999,pymt rcvd 6 ord#1287 thx,36.0
+INV-1274,order_1274,Customer 10,999,Payment received order order_1274 - Customer 10,3.6
+INV-1206,,Customer 19,4999,pymt rcvd 19 ord#1206 thx,18.0
+INV-1085,order_1085,Customer 10,4999,Payment received order order_1085 - Customer 10,18.0
+INV-1015,order_1015,Customer 10,1499,Payment received order order_1015 - Customer 10,5.4
 INV-1308,order_1308,Customer 10,9999,Payment received order order_1308 - Customer 10,36.0
-INV-1016,order_1016,Customer 12,499,Payment received order order_1016 - Customer 12,1.8
-INV-1205,order_1205,Customer 10,2499,Payment received order order_1205 - Customer 10,9.0
-INV-1026,order_1026,Customer 22,9999,Payment received order order_1026 - Customer 22,36.0
-INV-1321,order_1321,Customer 12,499,Payment received order order_1321 - Customer 12 PARTIAL REFUND 149.7,1.8
-INV-1187,order_1187,Customer 24,9999,Payment received order order_1187 - Customer 24,36.0
-INV-1232,order_1232,Customer 19,4999,Payment received order order_1232 - Customer 19,18.0
-INV-1222,order_1222,Customer 2,499,Payment received order order_1222 - Customer 2,1.8
-INV-1349,,Customer 28,9999,pymt rcvd 28 ord#1349 thx,36.0
-INV-1140,order_1140,Customer 21,999,Payment received order order_1140 - Customer 21 PARTIAL REFUND 299.7,3.6
-INV-1398,order_1398,Customer 1,4999,Payment received order order_1398 - Customer 1,18.0
-INV-1252,order_1252,Customer 7,499,Payment received order order_1252 - Customer 7,1.8
-INV-1141,order_1141,Customer 3,9999,Payment received order order_1141 - Customer 3,36.0
-INV-1314,order_1314,Customer 11,2499,Payment received order order_1314 - Customer 11 PARTIAL REFUND 749.7,9.0
-INV-1240,order_1240,Customer 25,499,Payment received order order_1240 - Customer 25,1.8
-INV-1227,order_1227,Customer 6,1499,Payment received order order_1227 - Customer 6,5.4
-INV-1379,,Customer 18,2499,pymt rcvd 18 ord#l379 thx,9.0
-INV-1158,order_1158,Customer 7,4999,Payment received order order_1158 - Customer 7,18.0
-INV-1165,order_1165,Customer 11,18500,Subscription renewal order order_1165 - Customer 11 - AFA_MANDATE_HOLD pending step-up auth,66.6
-INV-1380,order_1380,Customer 19,999,Payment received order order_1380 - Customer 19,3.6
-INV-1356,order_1356,Customer 12,4999,Payment received order order_1356 - Customer 12,18.0
-INV-1152,order_1152,Customer 26,1499,Payment received order order_1152 - Customer 26,5.4
-INV-1335,order_1335,Customer 24,499,Payment received order order_1335 - Customer 24,1.8
-INV-1175,order_1175,Customer 29,999,Payment received order order_1175 - Customer 29,3.6
-INV-1426,order_1426,Customer 4,4999,Payment received order order_1426 - Customer 4,18.0
-INV-1139,order_1139,Customer 2,4999,Payment received order order_1139 - Customer 2,18.0
-INV-1103,order_1103,Customer 2,2499,Payment received order order_1103 - Customer 2,9.0
-INV-1447,order_1447,Customer 1,1499,Payment received order order_1447 - Customer 1,5.4
-INV-1085,order_1085,Customer 22,1499,Payment received order order_1085 - Customer 22,5.4
-INV-1294,order_1294,Customer 16,1499,Payment received order order_1294 - Customer 16,5.4
-INV-1248,order_1248,Customer 14,499,Payment received order order_1248 - Customer 14,1.8
-INV-1329,order_1329,Customer 4,9999,Payment received order order_1329 - Customer 4,36.0
-INV-1396,order_1396,Customer 29,4999,Payment received order order_1396 - Customer 29,18.0
-INV-1095,order_1095,Customer 27,499,Payment received order order_1095 - Customer 27,1.8
-INV-1389,order_1389,Customer 11,2499,Payment received order order_1389 - Customer 11,9.0
-INV-1498,order_1498,Customer 28,2499,Payment received order order_1498 - Customer 28,9.0
-INV-1449,order_1449,Customer 24,4999,Payment received order order_1449 - Customer 24,18.0
-INV-1305,order_1305,Customer 22,999,Payment received order order_1305 - Customer 22,3.6
-INV-1128,order_1128,Customer 9,2499,Payment received order order_1128 - Customer 9,9.0
-INV-1136,order_1136,Customer 25,999,Payment received order order_1136 - Customer 25,3.6
-INV-1309,order_1309,Customer 18,2499,Payment received order order_1309 - Customer 18,9.0
-INV-1263,,Customer 10,2499,pymt rcvd 10 ord#1263 thx,9.0
-INV-1019,order_1019,Customer 13,2499,Payment received order order_1019 - Customer 13,9.0
-INV-1167,order_1167,Customer 29,9999,Payment received order order_1167 - Customer 29,36.0
-INV-1008,order_1008,Customer 18,1499,Payment received order order_1008 - Customer 18,5.4
-INV-1394,order_1394,Customer 27,4999,Payment received order order_1394 - Customer 27,18.0
-INV-1327,order_1327,Customer 23,9999,Payment received order order_1327 - Customer 23,36.0
-INV-1062,order_1062,Customer 13,2499,Payment received order order_1062 - Customer 13,9.0
-INV-1233,order_1233,Customer 25,2499,Payment received order order_1233 - Customer 25,9.0
-INV-1376,order_1376,Customer 6,499,Payment received order order_1376 - Customer 6,1.8
-INV-1499,order_1499,Customer 10,9999,Payment received order order_1499 - Customer 10,36.0
-INV-1162,order_1162,Customer 26,9999,Payment received order order_1162 - Customer 26,36.0
-INV-1288,order_1288,Customer 19,2499,Payment received order order_1288 - Customer 19,9.0
-INV-1094,order_1094,Customer 13,499,Payment received order order_1094 - Customer 13,1.8
-INV-1325,order_1325,Customer 6,4999,Payment received order order_1325 - Customer 6,18.0
-INV-1464,order_1464,Customer 17,4999,Payment received order order_1464 - Customer 17,18.0
-INV-1072,order_1072,Customer 7,2499,Payment received order order_1072 - Customer 7,9.0
-INV-1220,order_1220,Customer 5,4999,Payment received order order_1220 - Customer 5 PARTIAL REFUND 1499.7,18.0
-INV-1273,order_1273,Customer 17,9999,Payment received order order_1273 - Customer 17,36.0
-INV-1387,order_1387,Customer 27,1499,Payment received order order_1387 - Customer 27,5.4
-INV-1144,order_1144,Customer 13,9999,Payment received order order_1144 - Customer 13,36.0
-INV-1051,order_1051,Customer 2,4999,Payment received order order_1051 - Customer 2,18.0
-INV-1358,order_1358,Customer 11,999,Payment received order order_1358 - Customer 11,3.6
-INV-1433,order_1433,Customer 29,499,Payment received order order_1433 - Customer 29,1.8
-INV-1098,order_1098,Customer 14,499,Payment received order order_1098 - Customer 14,1.8
-INV-1147,order_1147,Customer 17,9999,Payment received order order_1147 - Customer 17 PARTIAL REFUND 2999.7,36.0
-INV-1154,order_1154,Customer 2,4999,Payment received order order_1154 - Customer 2,18.0
-INV-1169,order_1169,Customer 18,2499,Payment received order order_1169 - Customer 18,9.0
-INV-1328,,Customer 11,9999,pymt rcvd 11 ord#1328 thx,36.0
-INV-1370,order_1370,Customer 25,499,Payment received order order_1370 - Customer 25,1.8
-INV-1289,order_1289,Customer 8,4999,Payment received order order_1289 - Customer 8,18.0
-INV-1164,order_1164,Customer 7,2499,Payment received order order_1164 - Customer 7,9.0
-INV-1211,order_1211,Customer 24,1499,Payment received order order_1211 - Customer 24,5.4
-INV-1105,order_1105,Customer 22,9999,Payment received order order_1105 - Customer 22,36.0
-INV-1466,order_1466,Customer 22,2499,Payment received order order_1466 - Customer 22,9.0
-INV-1195,order_1195,Customer 20,4999,Payment received order order_1195 - Customer 20,18.0
-INV-1159,order_1159,Customer 16,4999,Payment received order order_1159 - Customer 16,18.0
-INV-1239,,Customer 14,2499,pymt rcvd 14 ord#1239 thx,9.0
-INV-1455,order_1455,Customer 29,4999,Payment received order order_1455 - Customer 29,18.0
-INV-1421,order_1421,Customer 18,1499,Payment received order order_1421 - Customer 18,5.4
-INV-1137,order_1137,Customer 26,4999,Payment received order order_1137 - Customer 26,18.0
-INV-1010,,Customer 13,1499,pymt rcvd 13 ord#1O10 thx,5.4
-INV-1163,order_1163,Customer 13,2499,Payment received order order_1163 - Customer 13,9.0
-INV-1403,,Customer 24,4999,pymt rcvd 24 ord#1403 thx,18.0
-INV-1132,order_1132,Customer 14,4999,Payment received order order_1132 - Customer 14,18.0
-INV-1413,order_1413,Customer 5,2499,Payment received order order_1413 - Customer 5,9.0
-INV-1342,order_1342,Customer 26,9999,Payment received order order_1342 - Customer 26,36.0
-INV-1038,order_1038,Customer 12,4999,Payment received order order_1038 - Customer 12,18.0
-INV-1173,order_1173,Customer 17,2499,Payment received order order_1173 - Customer 17,9.0
-INV-1068,order_1068,Customer 10,999,Payment received order order_1068 - Customer 10,3.6
-INV-1300,order_1300,Customer 22,499,Payment received order order_1300 - Customer 22,1.8
-INV-1179,order_1179,Customer 11,4999,Payment received order order_1179 - Customer 11,18.0
-INV-1363,,Customer 28,499,pymt rcvd 28 ord#1363 thx,1.8
-INV-1430,order_1430,Customer 7,2499,Payment received order order_1430 - Customer 7,9.0
-INV-1462,order_1462,Customer 1,499,Payment received order order_1462 - Customer 1,1.8
-INV-1190,order_1190,Customer 9,999,Payment received order order_1190 - Customer 9,3.6
-INV-1035,order_1035,Customer 16,1499,Payment received order order_1035 - Customer 16 PARTIAL REFUND 449.7,5.4
-INV-1438,order_1438,Customer 13,9999,Payment received order order_1438 - Customer 13,36.0
-INV-1106,order_1106,Customer 11,2499,Payment received order order_1106 - Customer 11,9.0
-INV-1271,order_1271,Customer 13,2499,Payment received order order_1271 - Customer 13,9.0
-INV-1055,order_1055,Customer 26,2499,Payment received order order_1055 - Customer 26,9.0
-INV-1247,order_1247,Customer 24,2499,Payment received order order_1247 - Customer 24,9.0
-INV-1354,order_1354,Customer 9,999,Payment received order order_1354 - Customer 9,3.6
-INV-1075,order_1075,Customer 20,4999,Payment received order order_1075 - Customer 20,18.0
-INV-1418,order_1418,Customer 3,2499,Payment received order order_1418 - Customer 3,9.0
-INV-1369,order_1369,Customer 18,999,Payment received order order_1369 - Customer 18,3.6
-INV-1266,order_1266,Customer 16,1499,Payment received order order_1266 - Customer 16 PARTIAL REFUND 449.7,5.4
-INV-1290,order_1290,Customer 13,1499,Payment received order order_1290 - Customer 13 PARTIAL REFUND 449.7,5.4
-INV-1436,order_1436,Customer 7,9999,Payment received order order_1436 - Customer 7,36.0
-INV-1099,order_1099,Customer 28,1499,Payment received order order_1099 - Customer 28,5.4
-INV-1344,order_1344,Customer 23,1499,Payment received order order_1344 - Customer 23,5.4
-INV-1217,order_1217,Customer 18,999,Payment received order order_1217 - Customer 18,3.6
-INV-1491,order_1491,Customer 18,499,Payment received order order_1491 - Customer 18,1.8
-INV-1235,,Customer 26,999,pymt rcvd 26 ord#1235 thx,3.6
-INV-1117,order_1117,Customer 13,2499,Payment received order order_1117 - Customer 13,9.0
-INV-1042,,Customer 4,9999,pymt rcvd 4 ord#1042 thx,36.0
-INV-1472,order_1472,Customer 24,1499,Payment received order order_1472 - Customer 24,5.4
-INV-1495,order_1495,Customer 14,4999,Payment received order order_1495 - Customer 14,18.0
-INV-1166,order_1166,Customer 16,499,Payment received order order_1166 - Customer 16,1.8
-INV-1253,order_1253,Customer 20,1499,Payment received order order_1253 - Customer 20,5.4
-INV-1452,order_1452,Customer 23,2499,Payment received order order_1452 - Customer 23,9.0
-INV-1414,,Customer 8,1499,pymt rcvd 8 ord#1414 thx,5.4
-INV-1343,order_1343,Customer 14,4999,Payment received order order_1343 - Customer 14 PARTIAL REFUND 1499.7,18.0
-INV-1146,order_1146,Customer 14,2499,Payment received order order_1146 - Customer 14,9.0
-INV-1444,order_1444,Customer 24,499,Payment received order order_1444 - Customer 24,1.8
-INV-1334,order_1334,Customer 16,499,Payment received order order_1334 - Customer 16,1.8
-INV-1423,order_1423,Customer 2,1499,Payment received order order_1423 - Customer 2,5.4
-INV-1198,order_1198,Customer 9,1499,Payment received order order_1198 - Customer 9,5.4
-INV-1155,order_1155,Customer 5,499,Payment received order order_1155 - Customer 5,1.8
-INV-1259,order_1259,Customer 10,4999,Payment received order order_1259 - Customer 10,18.0
-INV-1176,order_1176,Customer 14,4999,Payment received order order_1176 - Customer 14,18.0
-INV-1468,order_1468,Customer 10,1499,Payment received order order_1468 - Customer 10,5.4
-INV-1318,order_1318,Customer 17,999,Payment received order order_1318 - Customer 17,3.6
-INV-1406,order_1406,Customer 26,499,Payment received order order_1406 - Customer 26,1.8
-INV-1339,order_1339,Customer 21,9999,Payment received order order_1339 - Customer 21,36.0
-INV-1009,order_1009,Customer 6,999,Payment received order order_1009 - Customer 6 PARTIAL REFUND 299.7,3.6
-INV-1168,order_1168,Customer 23,9999,Payment received order order_1168 - Customer 23,36.0
-INV-1463,order_1463,Customer 4,2499,Payment received order order_1463 - Customer 4,9.0
-INV-1487,order_1487,Customer 19,9999,Payment received order order_1487 - Customer 19,36.0
-INV-1281,order_1281,Customer 27,2499,Payment received order order_1281 - Customer 27,9.0
-INV-1422,,Customer 14,2499,pymt rcvd 14 ord#1422 thx,9.0
-INV-1200,order_1200,Customer 3,499,Payment received order order_1200 - Customer 3,1.8
-INV-1073,order_1073,Customer 6,4999,Payment received order order_1073 - Customer 6,18.0
-INV-1149,,Customer 20,2499,pymt rcvd 20 ord#l149 thx,9.0
-INV-1285,order_1285,Customer 1,1499,Payment received order order_1285 - Customer 1,5.4
-INV-1015,order_1015,Customer 25,1499,Payment received order order_1015 - Customer 25,5.4
-INV-1473,order_1473,Customer 6,2499,Payment received order order_1473 - Customer 6 PARTIAL REFUND 749.7,9.0
-INV-1186,order_1186,Customer 13,9999,Payment received order order_1186 - Customer 13,36.0
-INV-1260,order_1260,Customer 23,2499,Payment received order order_1260 - Customer 23,9.0
-INV-1043,order_1043,Customer 12,4999,Payment received order order_1043 - Customer 12,18.0
-INV-1079,order_1079,Customer 24,1499,Payment received order order_1079 - Customer 24,5.4
-INV-1420,order_1420,Customer 22,999,Payment received order order_1420 - Customer 22,3.6
-INV-1120,order_1120,Customer 24,999,Payment received order order_1120 - Customer 24,3.6
-INV-1197,order_1197,Customer 13,1499,Payment received order order_1197 - Customer 13,5.4
-INV-1431,order_1431,Customer 16,499,Payment received order order_1431 - Customer 16,1.8
-INV-1451,order_1451,Customer 18,4999,Payment received order order_1451 - Customer 18,18.0
-INV-1202,order_1202,Customer 14,2499,Payment received order order_1202 - Customer 14,9.0
-INV-1324,order_1324,Customer 11,999,Payment received order order_1324 - Customer 11,3.6
-INV-1189,order_1189,Customer 8,1499,Payment received order order_1189 - Customer 8,5.4
-INV-1208,order_1208,Customer 17,499,Payment received order order_1208 - Customer 17,1.8
-INV-1450,order_1450,Customer 6,4999,Payment received order order_1450 - Customer 6,18.0
-INV-1028,order_1028,Customer 28,2499,Payment received order order_1028 - Customer 28,9.0
-INV-1257,order_1257,Customer 2,2499,Payment received order order_1257 - Customer 2,9.0
-INV-1007,,Customer 15,999,pymt rcvd 15 ord#1007 thx,3.6
-INV-1417,order_1417,Customer 10,4999,Payment received order order_1417 - Customer 10,18.0
-INV-1215,order_1215,Customer 9,4999,Payment received order order_1215 - Customer 9 PARTIAL REFUND 1499.7,18.0
-INV-1060,order_1060,Customer 27,499,Payment received order order_1060 - Customer 27,1.8
-INV-1104,order_1104,Customer 4,9999,Payment received order order_1104 - Customer 4,36.0
-INV-1435,order_1435,Customer 7,499,Payment received order order_1435 - Customer 7,1.8
-INV-1078,order_1078,Customer 21,18500,Subscription renewal order order_1078 - Customer 21 - AFA_MANDATE_HOLD pending step-up auth,66.6
-INV-1384,order_1384,Customer 24,18500,Subscription renewal order order_1384 - Customer 24 - AFA_MANDATE_HOLD pending step-up auth,66.6
-INV-1201,order_1201,Customer 24,1499,Payment received order order_1201 - Customer 24,5.4
-INV-1199,,Customer 18,999,pymt rcvd 18 ord#1199 thx,3.6
-INV-1405,order_1405,Customer 14,499,Payment received order order_1405 - Customer 14,1.8
-INV-1415,order_1415,Customer 1,9999,Payment received order order_1415 - Customer 1,36.0
-INV-1279,order_1279,Customer 21,499,Payment received order order_1279 - Customer 21,1.8
-INV-1127,order_1127,Customer 7,9999,Payment received order order_1127 - Customer 7,36.0
-INV-1135,order_1135,Customer 29,499,Payment received order order_1135 - Customer 29,1.8
-INV-1014,order_1014,Customer 9,4999,Payment received order order_1014 - Customer 9,18.0
-INV-1061,order_1061,Customer 2,9999,Payment received order order_1061 - Customer 2,36.0
-INV-1112,order_1112,Customer 13,1499,Payment received order order_1112 - Customer 13,5.4
-INV-1272,order_1272,Customer 2,4999,Payment received order order_1272 - Customer 2,18.0
-INV-1082,order_1082,Customer 8,499,Payment received order order_1082 - Customer 8,1.8
-INV-1020,order_1020,Customer 2,2499,Payment received order order_1020 - Customer 2,9.0
-INV-1194,,Customer 18,9999,pymt rcvd 18 ord#1194 thx,36.0
-INV-1153,order_1153,Customer 9,1499,Payment received order order_1153 - Customer 9,5.4
-INV-1427,order_1427,Customer 15,4999,Payment received order order_1427 - Customer 15,18.0
-INV-1037,order_1037,Customer 17,499,Payment received order order_1037 - Customer 17,1.8
-INV-1213,,Customer 20,999,pymt rcvd 20 ord#1213 thx,3.6
-INV-1478,order_1478,Customer 7,1499,Payment received order order_1478 - Customer 7,5.4
-INV-1480,order_1480,Customer 20,1499,Payment received order order_1480 - Customer 20,5.4
-INV-1011,order_1011,Customer 14,499,Payment received order order_1011 - Customer 14 PARTIAL REFUND 149.7,1.8
-INV-1036,order_1036,Customer 8,2499,Payment received order order_1036 - Customer 8,9.0
-INV-1391,order_1391,Customer 13,2499,Payment received order order_1391 - Customer 13 PARTIAL REFUND 749.7,9.0
-INV-1115,order_1115,Customer 21,499,Payment received order order_1115 - Customer 21,1.8
-INV-1277,,Customer 26,999,pymt rcvd 26 ord#l277 thx,3.6
-INV-1390,order_1390,Customer 11,4999,Payment received order order_1390 - Customer 11,18.0
-INV-1301,order_1301,Customer 24,2499,Payment received order order_1301 - Customer 24,9.0
-INV-1204,order_1204,Customer 10,9999,Payment received order order_1204 - Customer 10,36.0
-INV-1183,order_1183,Customer 23,999,Payment received order order_1183 - Customer 23,3.6
-INV-1236,order_1236,Customer 9,9999,Payment received order order_1236 - Customer 9,36.0
-INV-1234,order_1234,Customer 18,499,Payment received order order_1234 - Customer 18 PARTIAL REFUND 149.7,1.8
-INV-1226,,Customer 5,4999,pymt rcvd 5 ord#l226 thx,18.0
-INV-1119,order_1119,Customer 16,499,Payment received order order_1119 - Customer 16,1.8
-INV-1306,order_1306,Customer 4,1499,Payment received order order_1306 - Customer 4,5.4
-INV-1482,order_1482,Customer 2,9999,Payment received order order_1482 - Customer 2,36.0
-INV-1029,order_1029,Customer 29,2499,Payment received order order_1029 - Customer 29,9.0
-INV-1001,order_1001,Customer 27,9999,Payment received order order_1001 - Customer 27,36.0
-INV-1352,order_1352,Customer 26,499,Payment received order order_1352 - Customer 26,1.8
-INV-1203,order_1203,Customer 25,1499,Payment received order order_1203 - Customer 25,5.4
-INV-1368,order_1368,Customer 29,1499,Payment received order order_1368 - Customer 29,5.4
-INV-1209,order_1209,Customer 14,999,Payment received order order_1209 - Customer 14,3.6
-INV-1024,order_1024,Customer 11,2499,Payment received order order_1024 - Customer 11 PARTIAL REFUND 749.7,9.0
-INV-1172,order_1172,Customer 15,999,Payment received order order_1172 - Customer 15,3.6
-INV-1214,order_1214,Customer 28,999,Payment received order order_1214 - Customer 28,3.6
-INV-1047,order_1047,Customer 25,2499,Payment received order order_1047 - Customer 25,9.0
-INV-1443,order_1443,Customer 23,2499,Payment received order order_1443 - Customer 23,9.0
-INV-1425,order_1425,Customer 15,2499,Payment received order order_1425 - Customer 15,9.0
-INV-1021,order_1021,Customer 1,2499,Payment received order order_1021 - Customer 1,9.0
-INV-1100,order_1100,Customer 20,4999,Payment received order order_1100 - Customer 20,18.0
-INV-1439,order_1439,Customer 29,499,Payment received order order_1439 - Customer 29,1.8
-INV-1125,order_1125,Customer 3,499,Payment received order order_1125 - Customer 3,1.8
-INV-1052,order_1052,Customer 16,4999,Payment received order order_1052 - Customer 16,18.0
-INV-1350,order_1350,Customer 8,2499,Payment received order order_1350 - Customer 8,9.0
-INV-1184,,Customer 5,9999,pymt rcvd 5 ord#1184 thx,36.0
-INV-1255,order_1255,Customer 10,1499,Payment received order order_1255 - Customer 10,5.4
-INV-1225,order_1225,Customer 12,499,Payment received order order_1225 - Customer 12,1.8
-INV-1066,order_1066,Customer 25,2499,Payment received order order_1066 - Customer 25 PARTIAL REFUND 749.7,9.0
-INV-1408,,Customer 10,2499,pymt rcvd 10 ord#1408 thx,9.0
-INV-1113,order_1113,Customer 23,9999,Payment received order order_1113 - Customer 23,36.0
-INV-1076,order_1076,Customer 15,4999,Payment received order order_1076 - Customer 15,18.0
-INV-1395,order_1395,Customer 29,2499,Payment received order order_1395 - Customer 29,9.0
-INV-1416,order_1416,Customer 23,2499,Payment received order order_1416 - Customer 23,9.0
-INV-1107,,Customer 21,999,pymt rcvd 21 ord#1107 thx,3.6
-INV-1326,order_1326,Customer 16,999,Payment received order order_1326 - Customer 16,3.6
-INV-1018,order_1018,Customer 24,499,Payment received order order_1018 - Customer 24,1.8
-INV-1481,order_1481,Customer 9,999,Payment received order order_1481 - Customer 9,3.6
-INV-1006,order_1006,Customer 20,999,Payment received order order_1006 - Customer 20,3.6
-INV-1323,order_1323,Customer 14,18500,Subscription renewal order order_1323 - Customer 14 - AFA_MANDATE_HOLD pending step-up auth,66.6
-INV-1489,order_1489,Customer 27,2499,Payment received order order_1489 - Customer 27,9.0
-INV-1346,order_1346,Customer 9,499,Payment received order order_1346 - Customer 9,1.8
-INV-1005,,Customer 18,4999,pymt rcvd 18 ord#1005 thx,18.0
-INV-1101,order_1101,Customer 6,2499,Payment received order order_1101 - Customer 6,9.0
-INV-1310,order_1310,Customer 2,4999,Payment received order order_1310 - Customer 2,18.0
-INV-1297,order_1297,Customer 29,9999,Payment received order order_1297 - Customer 29,36.0
-INV-1185,order_1185,Customer 4,999,Payment received order order_1185 - Customer 4 PARTIAL REFUND 299.7,3.6
-INV-1216,,Customer 14,2499,pymt rcvd 14 ord#l216 thx,9.0
-INV-1033,order_1033,Customer 5,499,Payment received order order_1033 - Customer 5,1.8
-INV-1056,order_1056,Customer 13,2499,Payment received order order_1056 - Customer 13,9.0
-INV-1459,,Customer 24,499,pymt rcvd 24 ord#l459 thx,1.8
-INV-1067,order_1067,Customer 11,9999,Payment received order order_1067 - Customer 11,36.0
-INV-1441,order_1441,Customer 14,999,Payment received order order_1441 - Customer 14,3.6
-INV-1337,order_1337,Customer 11,499,Payment received order order_1337 - Customer 11,1.8
-INV-1365,order_1365,Customer 27,9999,Payment received order order_1365 - Customer 27,36.0
-INV-1250,order_1250,Customer 19,9999,Payment received order order_1250 - Customer 19,36.0
-INV-1366,order_1366,Customer 7,9999,Payment received order order_1366 - Customer 7,36.0
-INV-1143,order_1143,Customer 29,999,Payment received order order_1143 - Customer 29,3.6
-INV-1045,,Customer 5,9999,pymt rcvd 5 ord#1045 thx,36.0
-INV-1130,order_1130,Customer 9,2499,Payment received order order_1130 - Customer 9,9.0
-INV-1030,order_1030,Customer 2,999,Payment received order order_1030 - Customer 2 PARTIAL REFUND 299.7,3.6
-INV-1401,order_1401,Customer 19,2499,Payment received order order_1401 - Customer 19,9.0
-INV-1341,order_1341,Customer 5,9999,Payment received order order_1341 - Customer 5,36.0
-INV-1069,order_1069,Customer 27,999,Payment received order order_1069 - Customer 27 PARTIAL REFUND 299.7,3.6
-INV-1118,order_1118,Customer 27,4999,Payment received order order_1118 - Customer 27 PARTIAL REFUND 1499.7,18.0
-INV-1322,order_1322,Customer 28,9999,Payment received order order_1322 - Customer 28,36.0
-INV-1065,order_1065,Customer 3,9999,Payment received order order_1065 - Customer 3,36.0
-INV-1440,order_1440,Customer 22,499,Payment received order order_1440 - Customer 22,1.8
-INV-1151,order_1151,Customer 16,4999,Payment received order order_1151 - Customer 16,18.0
-INV-1316,order_1316,Customer 23,1499,Payment received order order_1316 - Customer 23,5.4
-INV-1110,order_1110,Customer 9,4999,Payment received order order_1110 - Customer 9,18.0
-INV-1284,order_1284,Customer 26,2499,Payment received order order_1284 - Customer 26,9.0
-INV-1091,order_1091,Customer 21,499,Payment received order order_1091 - Customer 21,1.8
-INV-1392,order_1392,Customer 24,4999,Payment received order order_1392 - Customer 24,18.0
-INV-1488,order_1488,Customer 15,1499,Payment received order order_1488 - Customer 15,5.4
-INV-1084,,Customer 9,9999,pymt rcvd 9 ord#1084 thx,36.0
-INV-1245,order_1245,Customer 8,2499,Payment received order order_1245 - Customer 8,9.0
-INV-1371,order_1371,Customer 11,999,Payment received order order_1371 - Customer 11,3.6
-INV-1469,order_1469,Customer 28,4999,Payment received order order_1469 - Customer 28,18.0
-INV-1070,,Customer 23,2499,pymt rcvd 23 ord#1O70 thx,9.0
-INV-1264,order_1264,Customer 6,499,Payment received order order_1264 - Customer 6,1.8
-INV-1049,,Customer 11,999,pymt rcvd 11 ord#1049 thx,3.6
-INV-1338,order_1338,Customer 1,1499,Payment received order order_1338 - Customer 1 PARTIAL REFUND 449.7,5.4
-INV-1027,order_1027,Customer 21,1499,Payment received order order_1027 - Customer 21,5.4
-INV-1160,order_1160,Customer 18,2499,Payment received order order_1160 - Customer 18,9.0
-INV-1170,order_1170,Customer 18,1499,Payment received order order_1170 - Customer 18,5.4
-INV-1142,order_1142,Customer 16,1499,Payment received order order_1142 - Customer 16,5.4
-INV-1400,order_1400,Customer 11,4999,Payment received order order_1400 - Customer 11,18.0
-INV-1089,order_1089,Customer 21,9999,Payment received order order_1089 - Customer 21,36.0
-INV-1411,order_1411,Customer 24,1499,Payment received order order_1411 - Customer 24,5.4
-INV-1299,order_1299,Customer 12,499,Payment received order order_1299 - Customer 12,1.8
-INV-1261,order_1261,Customer 8,9999,Payment received order order_1261 - Customer 8,36.0
-INV-1080,order_1080,Customer 3,2499,Payment received order order_1080 - Customer 3,9.0
-INV-1465,order_1465,Customer 20,4999,Payment received order order_1465 - Customer 20,18.0
-INV-1193,order_1193,Customer 14,4999,Payment received order order_1193 - Customer 14,18.0
-INV-1282,order_1282,Customer 4,9999,Payment received order order_1282 - Customer 4,36.0
-INV-1461,order_1461,Customer 18,1499,Payment received order order_1461 - Customer 18,5.4
-INV-1111,order_1111,Customer 26,4999,Payment received order order_1111 - Customer 26,18.0
-INV-1311,order_1311,Customer 11,9999,Payment received order order_1311 - Customer 11,36.0
-INV-1470,order_1470,Customer 2,1499,Payment received order order_1470 - Customer 2,5.4
-INV-1393,order_1393,Customer 5,499,Payment received order order_1393 - Customer 5,1.8
-INV-1274,order_1274,Customer 3,999,Payment received order order_1274 - Customer 3,3.6
-INV-1246,order_1246,Customer 9,9999,Payment received order order_1246 - Customer 9,36.0
-INV-1122,order_1122,Customer 14,9999,Payment received order order_1122 - Customer 14,36.0
-INV-1174,order_1174,Customer 10,2499,Payment received order order_1174 - Customer 10,9.0
-INV-1445,order_1445,Customer 24,9999,Payment received order order_1445 - Customer 24,36.0
-INV-1477,order_1477,Customer 8,9999,Payment received order order_1477 - Customer 8,36.0
-INV-1025,order_1025,Customer 28,1499,Payment received order order_1025 - Customer 28,5.4
-INV-1364,order_1364,Customer 4,9999,Payment received order order_1364 - Customer 4,36.0
-INV-1022,order_1022,Customer 25,1499,Payment received order order_1022 - Customer 25,5.4
-INV-1265,order_1265,Customer 1,9999,Payment received order order_1265 - Customer 1,36.0
-INV-1286,order_1286,Customer 10,2499,Payment received order order_1286 - Customer 10,9.0
-INV-1196,,Customer 13,499,pymt rcvd 13 ord#l196 thx,1.8
-INV-1448,order_1448,Customer 14,499,Payment received order order_1448 - Customer 14,1.8
-INV-1428,order_1428,Customer 28,4999,Payment received order order_1428 - Customer 28,18.0
-INV-1362,order_1362,Customer 5,9999,Payment received order order_1362 - Customer 5,36.0
-INV-1086,order_1086,Customer 2,499,Payment received order order_1086 - Customer 2,1.8
-INV-1241,,Customer 7,2499,pymt rcvd 7 ord#l241 thx,9.0
-INV-1355,order_1355,Customer 9,999,Payment received order order_1355 - Customer 9,3.6
-INV-1494,order_1494,Customer 23,2499,Payment received order order_1494 - Customer 23,9.0
-INV-1385,order_1385,Customer 1,9999,Payment received order order_1385 - Customer 1,36.0
-INV-1293,order_1293,Customer 13,2499,Payment received order order_1293 - Customer 13,9.0
-INV-1161,order_1161,Customer 26,4999,Payment received order order_1161 - Customer 26,18.0
-INV-1303,order_1303,Customer 16,499,Payment received order order_1303 - Customer 16,1.8
-INV-1375,order_1375,Customer 27,1499,Payment received order order_1375 - Customer 27,5.4
-INV-1041,order_1041,Customer 1,999,Payment received order order_1041 - Customer 1,3.6
-INV-1437,order_1437,Customer 24,9999,Payment received order order_1437 - Customer 24,36.0
-INV-1476,order_1476,Customer 7,4999,Payment received order order_1476 - Customer 7,18.0
-INV-1171,,Customer 3,499,pymt rcvd 3 ord#l171 thx,1.8
-INV-1191,order_1191,Customer 19,999,Payment received order order_1191 - Customer 19,3.6
-INV-1275,order_1275,Customer 28,9999,Payment received order order_1275 - Customer 28,36.0
-INV-1109,order_1109,Customer 1,2499,Payment received order order_1109 - Customer 1,9.0
-INV-1224,order_1224,Customer 7,4999,Payment received order order_1224 - Customer 7,18.0
-INV-1258,order_1258,Customer 10,1499,Payment received order order_1258 - Customer 10,5.4
-INV-1057,order_1057,Customer 23,9999,Payment received order order_1057 - Customer 23,36.0
-INV-1397,order_1397,Customer 10,499,Payment received order order_1397 - Customer 10,1.8
-INV-1054,order_1054,Customer 20,4999,Payment received order order_1054 - Customer 20 PARTIAL REFUND 1499.7,18.0
-INV-1223,order_1223,Customer 1,4999,Payment received order order_1223 - Customer 1,18.0
-INV-1048,order_1048,Customer 21,4999,Payment received order order_1048 - Customer 21,18.0
-INV-1291,order_1291,Customer 4,4999,Payment received order order_1291 - Customer 4,18.0
-INV-1188,order_1188,Customer 14,4999,Payment received order order_1188 - Customer 14,18.0
-INV-1353,order_1353,Customer 1,499,Payment received order order_1353 - Customer 1,1.8
+INV-1162,order_1162,Customer 14,499,Payment received order order_1162 - Customer 14,1.8
+INV-1407,order_1407,Customer 12,9999,Payment received order order_1407 - Customer 12,36.0
+INV-1130,order_1130,Customer 11,4999,Payment received order order_1130 - Customer 11,18.0
+INV-1450,order_1450,Customer 11,4999,Payment received order order_1450 - Customer 11 PARTIAL REFUND 1499.7,18.0
+INV-1448,,Customer 2,4999,pymt rcvd 2 ord#l448 thx,18.0
+INV-1292,order_1292,Customer 16,999,Payment received order order_1292 - Customer 16 PARTIAL REFUND 299.7,3.6
+INV-1204,order_1204,Customer 17,1499,Payment received order order_1204 - Customer 17,5.4
+INV-1324,order_1324,Customer 9,2499,Payment received order order_1324 - Customer 9,9.0
+INV-1335,order_1335,Customer 10,2499,Payment received order order_1335 - Customer 10,9.0
+INV-1405,order_1405,Customer 16,2499,Payment received order order_1405 - Customer 16,9.0
+INV-1286,order_1286,Customer 5,999,Payment received order order_1286 - Customer 5,3.6
+INV-1234,order_1234,Customer 26,9999,Payment received order order_1234 - Customer 26,36.0
+INV-1055,order_1055,Customer 2,4999,Payment received order order_1055 - Customer 2,18.0
+INV-1297,order_1297,Customer 23,4999,Payment received order order_1297 - Customer 23,18.0
+INV-1102,order_1102,Customer 23,2499,Payment received order order_1102 - Customer 23 PARTIAL REFUND 749.7,9.0
+INV-1084,order_1084,Customer 17,999,Payment received order order_1084 - Customer 17,3.6
+INV-1485,order_1485,Customer 4,2499,Payment received order order_1485 - Customer 4,9.0
+INV-1210,order_1210,Customer 26,999,Payment received order order_1210 - Customer 26,3.6
+INV-1345,order_1345,Customer 5,2499,Payment received order order_1345 - Customer 5,9.0
 INV-1002,order_1002,Customer 22,2499,Payment received order order_1002 - Customer 22,9.0
-INV-1372,order_1372,Customer 1,999,Payment received order order_1372 - Customer 1,3.6
-INV-1251,order_1251,Customer 1,999,Payment received order order_1251 - Customer 1,3.6
-INV-1295,order_1295,Customer 19,2499,Payment received order order_1295 - Customer 19,9.0
-INV-1268,order_1268,Customer 5,2499,Payment received order order_1268 - Customer 5,9.0
-INV-1063,order_1063,Customer 24,9999,Payment received order order_1063 - Customer 24,36.0
-INV-1404,order_1404,Customer 2,2499,Payment received order order_1404 - Customer 2,9.0
-INV-1269,order_1269,Customer 4,4999,Payment received order order_1269 - Customer 4,18.0
-INV-1181,order_1181,Customer 24,1499,Payment received order order_1181 - Customer 24,5.4
-INV-1034,order_1034,Customer 11,999,Payment received order order_1034 - Customer 11,3.6
-INV-1088,order_1088,Customer 19,499,Payment received order order_1088 - Customer 19,1.8
-INV-1340,order_1340,Customer 12,9999,Payment received order order_1340 - Customer 12 PARTIAL REFUND 2999.7,36.0
-INV-1373,order_1373,Customer 22,499,Payment received order order_1373 - Customer 22,1.8
-INV-1313,order_1313,Customer 3,1499,Payment received order order_1313 - Customer 3 PARTIAL REFUND 449.7,5.4
-INV-1409,order_1409,Customer 17,1499,Payment received order order_1409 - Customer 17,5.4
-INV-1333,order_1333,Customer 18,999,Payment received order order_1333 - Customer 18,3.6
-INV-1050,order_1050,Customer 2,2499,Payment received order order_1050 - Customer 2,9.0
-INV-1087,order_1087,Customer 9,4999,Payment received order order_1087 - Customer 9,18.0
-INV-1360,order_1360,Customer 27,4999,Payment received order order_1360 - Customer 27,18.0
-INV-1221,order_1221,Customer 1,2499,Payment received order order_1221 - Customer 1,9.0
-INV-1097,order_1097,Customer 15,1499,Payment received order order_1097 - Customer 15,5.4
-INV-1093,order_1093,Customer 4,4999,Payment received order order_1093 - Customer 4,18.0
-INV-1003,order_1003,Customer 29,1499,Payment received order order_1003 - Customer 29,5.4
-INV-1283,order_1283,Customer 6,4999,Payment received order order_1283 - Customer 6,18.0
-INV-1386,order_1386,Customer 13,999,Payment received order order_1386 - Customer 13,3.6
-INV-1367,order_1367,Customer 8,1499,Payment received order order_1367 - Customer 8,5.4
-INV-1116,order_1116,Customer 25,2499,Payment received order order_1116 - Customer 25,9.0
-INV-1083,order_1083,Customer 8,999,Payment received order order_1083 - Customer 8,3.6
-INV-1434,order_1434,Customer 7,499,Payment received order order_1434 - Customer 7,1.8
-INV-1177,order_1177,Customer 23,1499,Payment received order order_1177 - Customer 23,5.4
-INV-1412,order_1412,Customer 8,499,Payment received order order_1412 - Customer 8,1.8
-INV-1046,order_1046,Customer 28,2499,Payment received order order_1046 - Customer 28,9.0
-INV-1058,order_1058,Customer 24,499,Payment received order order_1058 - Customer 24,1.8
-INV-1228,order_1228,Customer 11,2499,Payment received order order_1228 - Customer 11,9.0
-INV-1467,order_1467,Customer 24,18500,Subscription renewal order order_1467 - Customer 24 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1436,order_1436,Customer 22,9999,Payment received order order_1436 - Customer 22,36.0
+INV-1394,order_1394,Customer 20,2499,Payment received order order_1394 - Customer 20,9.0
+INV-1255,order_1255,Customer 5,499,Payment received order order_1255 - Customer 5,1.8
+INV-1224,order_1224,Customer 3,2499,Payment received order order_1224 - Customer 3,9.0
+INV-1421,order_1421,Customer 13,9999,Payment received order order_1421 - Customer 13,36.0
+INV-1050,order_1050,Customer 8,9999,Payment received order order_1050 - Customer 8,36.0
+INV-1232,order_1232,Customer 16,999,Payment received order order_1232 - Customer 16,3.6
+INV-1384,order_1384,Customer 18,9999,Payment received order order_1384 - Customer 18 PARTIAL REFUND 2999.7,36.0
+INV-1461,order_1461,Customer 10,999,Payment received order order_1461 - Customer 10,3.6
+INV-1216,order_1216,Customer 21,499,Payment received order order_1216 - Customer 21,1.8
+INV-1086,order_1086,Customer 15,499,Payment received order order_1086 - Customer 15,1.8
+INV-1100,,Customer 27,999,pymt rcvd 27 ord#11O0 thx,3.6
+INV-1108,order_1108,Customer 27,499,Payment received order order_1108 - Customer 27,1.8
+INV-1186,,Customer 10,1499,pymt rcvd 10 ord#l186 thx,5.4
+INV-1402,order_1402,Customer 2,4999,Payment received order order_1402 - Customer 2,18.0
+INV-1143,order_1143,Customer 2,9999,Payment received order order_1143 - Customer 2,36.0
+INV-1381,order_1381,Customer 4,2499,Payment received order order_1381 - Customer 4,9.0
+INV-1041,order_1041,Customer 2,999,Payment received order order_1041 - Customer 2,3.6
+INV-1479,order_1479,Customer 19,4999,Payment received order order_1479 - Customer 19,18.0
+INV-1093,order_1093,Customer 26,4999,Payment received order order_1093 - Customer 26,18.0
+INV-1137,order_1137,Customer 8,999,Payment received order order_1137 - Customer 8,3.6
+INV-1272,order_1272,Customer 18,499,Payment received order order_1272 - Customer 18,1.8
+INV-1456,order_1456,Customer 22,2499,Payment received order order_1456 - Customer 22,9.0
+INV-1277,order_1277,Customer 16,999,Payment received order order_1277 - Customer 16,3.6
+INV-1496,order_1496,Customer 28,1499,Payment received order order_1496 - Customer 28,5.4
+INV-1213,order_1213,Customer 28,499,Payment received order order_1213 - Customer 28,1.8
+INV-1339,order_1339,Customer 25,9999,Payment received order order_1339 - Customer 25,36.0
+INV-1009,order_1009,Customer 12,2499,Payment received order order_1009 - Customer 12,9.0
+INV-1344,order_1344,Customer 11,499,Payment received order order_1344 - Customer 11,1.8
+INV-1415,order_1415,Customer 1,499,Payment received order order_1415 - Customer 1,1.8
+INV-1119,order_1119,Customer 21,499,Payment received order order_1119 - Customer 21,1.8
+INV-1438,order_1438,Customer 6,2499,Payment received order order_1438 - Customer 6,9.0
+INV-1073,order_1073,Customer 28,9999,Payment received order order_1073 - Customer 28,36.0
+INV-1431,order_1431,Customer 23,1499,Payment received order order_1431 - Customer 23,5.4
+INV-1348,order_1348,Customer 24,2499,Payment received order order_1348 - Customer 24,9.0
+INV-1207,order_1207,Customer 2,4999,Payment received order order_1207 - Customer 2,18.0
+INV-1165,order_1165,Customer 16,499,Payment received order order_1165 - Customer 16,1.8
+INV-1330,order_1330,Customer 19,1499,Payment received order order_1330 - Customer 19,5.4
+INV-1453,order_1453,Customer 26,499,Payment received order order_1453 - Customer 26,1.8
+INV-1039,,Customer 27,999,pymt rcvd 27 ord#1039 thx,3.6
+INV-1336,order_1336,Customer 2,1499,Payment received order order_1336 - Customer 2,5.4
+INV-1362,order_1362,Customer 21,4999,Payment received order order_1362 - Customer 21,18.0
+INV-1264,order_1264,Customer 26,499,Payment received order order_1264 - Customer 26,1.8
+INV-1471,order_1471,Customer 2,2499,Payment received order order_1471 - Customer 2,9.0
+INV-1343,order_1343,Customer 8,2499,Payment received order order_1343 - Customer 8,9.0
+INV-1036,order_1036,Customer 22,499,Payment received order order_1036 - Customer 22,1.8
+INV-1190,order_1190,Customer 3,999,Payment received order order_1190 - Customer 3,3.6
+INV-1181,order_1181,Customer 11,499,Payment received order order_1181 - Customer 11,1.8
+INV-1356,order_1356,Customer 13,4999,Payment received order order_1356 - Customer 13,18.0
+INV-1166,order_1166,Customer 25,4999,Payment received order order_1166 - Customer 25,18.0
+INV-1252,order_1252,Customer 6,2499,Payment received order order_1252 - Customer 6,9.0
+INV-1223,order_1223,Customer 9,9999,Payment received order order_1223 - Customer 9,36.0
+INV-1007,order_1007,Customer 22,1499,Payment received order order_1007 - Customer 22,5.4
+INV-1430,order_1430,Customer 6,2499,Payment received order order_1430 - Customer 6 PARTIAL REFUND 749.7,9.0
+INV-1246,order_1246,Customer 12,4999,Payment received order order_1246 - Customer 12,18.0
+INV-1481,order_1481,Customer 15,4999,Payment received order order_1481 - Customer 15,18.0
+INV-1262,order_1262,Customer 23,9999,Payment received order order_1262 - Customer 23,36.0
+INV-1444,order_1444,Customer 26,2499,Payment received order order_1444 - Customer 26,9.0
+INV-1418,order_1418,Customer 4,499,Payment received order order_1418 - Customer 4,1.8
+INV-1129,order_1129,Customer 23,1499,Payment received order order_1129 - Customer 23,5.4
+INV-1106,order_1106,Customer 26,9999,Payment received order order_1106 - Customer 26,36.0
+INV-1379,order_1379,Customer 7,1499,Payment received order order_1379 - Customer 7,5.4
+INV-1266,order_1266,Customer 12,2499,Payment received order order_1266 - Customer 12,9.0
+INV-1460,order_1460,Customer 3,4999,Payment received order order_1460 - Customer 3,18.0
+INV-1263,order_1263,Customer 11,499,Payment received order order_1263 - Customer 11,1.8
+INV-1059,order_1059,Customer 2,999,Payment received order order_1059 - Customer 2,3.6
+INV-1077,order_1077,Customer 11,9999,Payment received order order_1077 - Customer 11,36.0
+INV-1349,,Customer 20,2499,pymt rcvd 20 ord#1349 thx,9.0
+INV-1278,order_1278,Customer 29,9999,Payment received order order_1278 - Customer 29,36.0
+INV-1351,order_1351,Customer 26,1499,Payment received order order_1351 - Customer 26,5.4
+INV-1314,,Customer 6,499,pymt rcvd 6 ord#l314 thx,1.8
+INV-1325,order_1325,Customer 22,9999,Payment received order order_1325 - Customer 22,36.0
+INV-1353,order_1353,Customer 3,999,Payment received order order_1353 - Customer 3,3.6
+INV-1231,,Customer 17,9999,pymt rcvd 17 ord#l231 thx,36.0
+INV-1333,order_1333,Customer 19,2499,Payment received order order_1333 - Customer 19,9.0
+INV-1117,order_1117,Customer 20,1499,Payment received order order_1117 - Customer 20,5.4
+INV-1079,order_1079,Customer 1,9999,Payment received order order_1079 - Customer 1,36.0
+INV-1049,order_1049,Customer 16,4999,Payment received order order_1049 - Customer 16,18.0
+INV-1499,order_1499,Customer 7,999,Payment received order order_1499 - Customer 7,3.6
+INV-1219,order_1219,Customer 28,1499,Payment received order order_1219 - Customer 28 PARTIAL REFUND 449.7,5.4
+INV-1337,order_1337,Customer 28,999,Payment received order order_1337 - Customer 28 PARTIAL REFUND 299.7,3.6
+INV-1034,order_1034,Customer 12,9999,Payment received order order_1034 - Customer 12,36.0
+INV-1322,order_1322,Customer 15,9999,Payment received order order_1322 - Customer 15,36.0
+INV-1374,order_1374,Customer 12,1499,Payment received order order_1374 - Customer 12,5.4
+INV-1258,order_1258,Customer 23,2499,Payment received order order_1258 - Customer 23,9.0
+INV-1391,order_1391,Customer 21,4999,Payment received order order_1391 - Customer 21,18.0
+INV-1212,order_1212,Customer 16,1499,Payment received order order_1212 - Customer 16,5.4
+INV-1250,order_1250,Customer 29,1499,Payment received order order_1250 - Customer 29,5.4
+INV-1046,order_1046,Customer 3,9999,Payment received order order_1046 - Customer 3,36.0
+INV-1227,,Customer 1,9999,pymt rcvd 1 ord#l227 thx,36.0
+INV-1280,order_1280,Customer 12,1499,Payment received order order_1280 - Customer 12,5.4
+INV-1052,order_1052,Customer 10,2499,Payment received order order_1052 - Customer 10,9.0
+INV-1226,order_1226,Customer 22,999,Payment received order order_1226 - Customer 22,3.6
+INV-1490,order_1490,Customer 1,499,Payment received order order_1490 - Customer 1,1.8
+INV-1094,order_1094,Customer 8,999,Payment received order order_1094 - Customer 8 PARTIAL REFUND 299.7,3.6
+INV-1140,,Customer 15,9999,pymt rcvd 15 ord#114O thx,36.0
+INV-1318,order_1318,Customer 24,9999,Payment received order order_1318 - Customer 24,36.0
+INV-1239,order_1239,Customer 2,499,Payment received order order_1239 - Customer 2,1.8
+INV-1057,order_1057,Customer 21,499,Payment received order order_1057 - Customer 21,1.8
+INV-1018,order_1018,Customer 21,499,Payment received order order_1018 - Customer 21,1.8
+INV-1376,order_1376,Customer 26,999,Payment received order order_1376 - Customer 26,3.6
+INV-1393,order_1393,Customer 24,999,Payment received order order_1393 - Customer 24,3.6
+INV-1099,order_1099,Customer 4,999,Payment received order order_1099 - Customer 4,3.6
+INV-1429,order_1429,Customer 16,1499,Payment received order order_1429 - Customer 16,5.4
+INV-1083,order_1083,Customer 6,1499,Payment received order order_1083 - Customer 6,5.4
+INV-1377,order_1377,Customer 14,2499,Payment received order order_1377 - Customer 14,9.0
+INV-1352,order_1352,Customer 18,18500,Subscription renewal order order_1352 - Customer 18 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1048,order_1048,Customer 25,1499,Payment received order order_1048 - Customer 25,5.4
+INV-1076,order_1076,Customer 10,4999,Payment received order order_1076 - Customer 10,18.0
+INV-1346,order_1346,Customer 2,9999,Payment received order order_1346 - Customer 2,36.0
+INV-1092,order_1092,Customer 8,9999,Payment received order order_1092 - Customer 8,36.0
+INV-1491,order_1491,Customer 23,999,Payment received order order_1491 - Customer 23,3.6
+INV-1133,order_1133,Customer 19,999,Payment received order order_1133 - Customer 19,3.6
+INV-1493,order_1493,Customer 16,9999,Payment received order order_1493 - Customer 16,36.0
+INV-1323,order_1323,Customer 2,9999,Payment received order order_1323 - Customer 2,36.0
+INV-1382,order_1382,Customer 3,2499,Payment received order order_1382 - Customer 3,9.0
+INV-1220,order_1220,Customer 5,2499,Payment received order order_1220 - Customer 5,9.0
+INV-1001,order_1001,Customer 27,4999,Payment received order order_1001 - Customer 27,18.0
+INV-1312,order_1312,Customer 6,1499,Payment received order order_1312 - Customer 6,5.4
+INV-1454,order_1454,Customer 21,999,Payment received order order_1454 - Customer 21 PARTIAL REFUND 299.7,3.6
+INV-1364,order_1364,Customer 15,2499,Payment received order order_1364 - Customer 15,9.0
+INV-1097,order_1097,Customer 14,9999,Payment received order order_1097 - Customer 14,36.0
+INV-1200,,Customer 29,2499,pymt rcvd 29 ord#1200 thx,9.0
+INV-1275,order_1275,Customer 21,2499,Payment received order order_1275 - Customer 21,9.0
+INV-1372,order_1372,Customer 18,1499,Payment received order order_1372 - Customer 18,5.4
+INV-1170,order_1170,Customer 26,1499,Payment received order order_1170 - Customer 26,5.4
+INV-1389,order_1389,Customer 4,4999,Payment received order order_1389 - Customer 4,18.0
+INV-1104,order_1104,Customer 1,2499,Payment received order order_1104 - Customer 1,9.0
+INV-1307,order_1307,Customer 1,499,Payment received order order_1307 - Customer 1 PARTIAL REFUND 149.7,1.8
+INV-1069,order_1069,Customer 20,999,Payment received order order_1069 - Customer 20,3.6
+INV-1054,order_1054,Customer 15,999,Payment received order order_1054 - Customer 15,3.6
+INV-1182,order_1182,Customer 26,2499,Payment received order order_1182 - Customer 26,9.0
+INV-1072,,Customer 11,1499,pymt rcvd 11 ord#1072 thx,5.4
+INV-1014,order_1014,Customer 15,1499,Payment received order order_1014 - Customer 15 PARTIAL REFUND 449.7,5.4
+INV-1027,order_1027,Customer 3,499,Payment received order order_1027 - Customer 3,1.8
+INV-1332,order_1332,Customer 26,4999,Payment received order order_1332 - Customer 26,18.0
+INV-1075,order_1075,Customer 26,2499,Payment received order order_1075 - Customer 26,9.0
+INV-1032,order_1032,Customer 9,9999,Payment received order order_1032 - Customer 9,36.0
+INV-1195,order_1195,Customer 10,9999,Payment received order order_1195 - Customer 10,36.0
+INV-1155,order_1155,Customer 20,1499,Payment received order order_1155 - Customer 20,5.4
+INV-1221,order_1221,Customer 3,2499,Payment received order order_1221 - Customer 3,9.0
+INV-1142,order_1142,Customer 1,499,Payment received order order_1142 - Customer 1,1.8
+INV-1494,order_1494,Customer 26,2499,Payment received order order_1494 - Customer 26,9.0
+INV-1021,order_1021,Customer 23,499,Payment received order order_1021 - Customer 23,1.8
+INV-1005,order_1005,Customer 25,4999,Payment received order order_1005 - Customer 25,18.0
+INV-1350,order_1350,Customer 12,2499,Payment received order order_1350 - Customer 12,9.0
+INV-1428,order_1428,Customer 10,999,Payment received order order_1428 - Customer 10 PARTIAL REFUND 299.7,3.6
+INV-1064,order_1064,Customer 19,499,Payment received order order_1064 - Customer 19,1.8
+INV-1067,order_1067,Customer 3,2499,Payment received order order_1067 - Customer 3,9.0
+INV-1241,order_1241,Customer 18,999,Payment received order order_1241 - Customer 18 PARTIAL REFUND 299.7,3.6
+INV-1172,order_1172,Customer 6,2499,Payment received order order_1172 - Customer 6,9.0
+INV-1401,order_1401,Customer 5,2499,Payment received order order_1401 - Customer 5,9.0
+INV-1369,order_1369,Customer 16,9999,Payment received order order_1369 - Customer 16,36.0
+INV-1146,order_1146,Customer 9,1499,Payment received order order_1146 - Customer 9,5.4
+INV-1098,order_1098,Customer 10,4999,Payment received order order_1098 - Customer 10,18.0
+INV-1371,order_1371,Customer 7,999,Payment received order order_1371 - Customer 7,3.6
+INV-1265,order_1265,Customer 19,999,Payment received order order_1265 - Customer 19,3.6
+INV-1154,order_1154,Customer 20,1499,Payment received order order_1154 - Customer 20,5.4
+INV-1167,order_1167,Customer 9,1499,Payment received order order_1167 - Customer 9,5.4
+INV-1306,order_1306,Customer 20,2499,Payment received order order_1306 - Customer 20,9.0
+INV-1022,order_1022,Customer 8,499,Payment received order order_1022 - Customer 8,1.8
+INV-1476,order_1476,Customer 3,2499,Payment received order order_1476 - Customer 3,9.0
+INV-1058,order_1058,Customer 28,2499,Payment received order order_1058 - Customer 28,9.0
+INV-1088,order_1088,Customer 2,2499,Payment received order order_1088 - Customer 2,9.0
+INV-1031,order_1031,Customer 26,499,Payment received order order_1031 - Customer 26,1.8
+INV-1066,order_1066,Customer 18,2499,Payment received order order_1066 - Customer 18,9.0
+INV-1228,order_1228,Customer 17,9999,Payment received order order_1228 - Customer 17,36.0
+INV-1294,order_1294,Customer 23,999,Payment received order order_1294 - Customer 23 PARTIAL REFUND 299.7,3.6
+INV-1397,order_1397,Customer 14,1499,Payment received order order_1397 - Customer 14,5.4
+INV-1053,order_1053,Customer 8,999,Payment received order order_1053 - Customer 8,3.6
+INV-1080,order_1080,Customer 9,9999,Payment received order order_1080 - Customer 9,36.0
+INV-1127,order_1127,Customer 18,999,Payment received order order_1127 - Customer 18,3.6
+INV-1051,order_1051,Customer 2,1499,Payment received order order_1051 - Customer 2,5.4
+INV-1340,order_1340,Customer 3,2499,Payment received order order_1340 - Customer 3,9.0
+INV-1300,order_1300,Customer 1,999,Payment received order order_1300 - Customer 1,3.6
+INV-1267,order_1267,Customer 12,9999,Payment received order order_1267 - Customer 12,36.0
+INV-1273,order_1273,Customer 20,9999,Payment received order order_1273 - Customer 20,36.0
+INV-1341,order_1341,Customer 24,2499,Payment received order order_1341 - Customer 24,9.0
+INV-1111,order_1111,Customer 24,999,Payment received order order_1111 - Customer 24,3.6
+INV-1244,order_1244,Customer 9,2499,Payment received order order_1244 - Customer 9,9.0
+INV-1311,order_1311,Customer 7,499,Payment received order order_1311 - Customer 7,1.8
+INV-1065,order_1065,Customer 24,2499,Payment received order order_1065 - Customer 24,9.0
+INV-1468,order_1468,Customer 8,499,Payment received order order_1468 - Customer 8 PARTIAL REFUND 149.7,1.8
+INV-1256,order_1256,Customer 21,2499,Payment received order order_1256 - Customer 21,9.0
+INV-1168,order_1168,Customer 16,9999,Payment received order order_1168 - Customer 16,36.0
+INV-1400,order_1400,Customer 6,1499,Payment received order order_1400 - Customer 6,5.4
+INV-1024,,Customer 11,1499,pymt rcvd 11 ord#1O24 thx,5.4
+INV-1406,order_1406,Customer 22,1499,Payment received order order_1406 - Customer 22,5.4
+INV-1498,order_1498,Customer 2,1499,Payment received order order_1498 - Customer 2,5.4
+INV-1087,order_1087,Customer 11,2499,Payment received order order_1087 - Customer 11,9.0
+INV-1467,order_1467,Customer 19,4999,Payment received order order_1467 - Customer 19,18.0
+INV-1270,order_1270,Customer 3,1499,Payment received order order_1270 - Customer 3,5.4
+INV-1008,order_1008,Customer 14,999,Payment received order order_1008 - Customer 14,3.6
+INV-1135,order_1135,Customer 22,9999,Payment received order order_1135 - Customer 22,36.0
+INV-1209,order_1209,Customer 16,499,Payment received order order_1209 - Customer 16,1.8
+INV-1138,order_1138,Customer 18,1499,Payment received order order_1138 - Customer 18,5.4
+INV-1296,order_1296,Customer 10,9999,Payment received order order_1296 - Customer 10,36.0
+INV-1115,order_1115,Customer 28,2499,Payment received order order_1115 - Customer 28,9.0
+INV-1478,order_1478,Customer 8,499,Payment received order order_1478 - Customer 8,1.8
+INV-1451,order_1451,Customer 16,4999,Payment received order order_1451 - Customer 16,18.0
+INV-1298,order_1298,Customer 20,1499,Payment received order order_1298 - Customer 20,5.4
+INV-1141,order_1141,Customer 29,499,Payment received order order_1141 - Customer 29,1.8
+INV-1132,order_1132,Customer 20,1499,Payment received order order_1132 - Customer 20,5.4
+INV-1124,order_1124,Customer 25,2499,Payment received order order_1124 - Customer 25 PARTIAL REFUND 749.7,9.0
+INV-1313,order_1313,Customer 23,2499,Payment received order order_1313 - Customer 23,9.0
+INV-1435,order_1435,Customer 12,999,Payment received order order_1435 - Customer 12,3.6
+INV-1427,order_1427,Customer 6,4999,Payment received order order_1427 - Customer 6,18.0
+INV-1310,order_1310,Customer 24,2499,Payment received order order_1310 - Customer 24,9.0
+INV-1375,order_1375,Customer 17,999,Payment received order order_1375 - Customer 17,3.6
+INV-1464,,Customer 12,499,pymt rcvd 12 ord#1464 thx,1.8
+INV-1062,order_1062,Customer 1,4999,Payment received order order_1062 - Customer 1,18.0
+INV-1373,order_1373,Customer 1,999,Payment received order order_1373 - Customer 1,3.6
+INV-1463,order_1463,Customer 15,1499,Payment received order order_1463 - Customer 15,5.4
+INV-1037,order_1037,Customer 3,2499,Payment received order order_1037 - Customer 3 PARTIAL REFUND 749.7,9.0
+INV-1440,,Customer 20,499,pymt rcvd 20 ord#144O thx,1.8
+INV-1157,order_1157,Customer 3,4999,Payment received order order_1157 - Customer 3,18.0
+INV-1113,order_1113,Customer 29,2499,Payment received order order_1113 - Customer 29,9.0
+INV-1149,order_1149,Customer 13,4999,Payment received order order_1149 - Customer 13,18.0
+INV-1134,order_1134,Customer 17,4999,Payment received order order_1134 - Customer 17,18.0
+INV-1439,order_1439,Customer 26,9999,Payment received order order_1439 - Customer 26,36.0
+INV-1455,order_1455,Customer 18,4999,Payment received order order_1455 - Customer 18,18.0
+INV-1126,order_1126,Customer 10,4999,Payment received order order_1126 - Customer 10,18.0
+INV-1458,order_1458,Customer 19,499,Payment received order order_1458 - Customer 19,1.8
+INV-1338,order_1338,Customer 19,499,Payment received order order_1338 - Customer 19,1.8
+INV-1388,order_1388,Customer 2,9999,Payment received order order_1388 - Customer 2,36.0
+INV-1483,order_1483,Customer 8,9999,Payment received order order_1483 - Customer 8,36.0
+INV-1488,order_1488,Customer 12,499,Payment received order order_1488 - Customer 12,1.8
+INV-1201,order_1201,Customer 21,499,Payment received order order_1201 - Customer 21,1.8
+INV-1315,order_1315,Customer 7,9999,Payment received order order_1315 - Customer 7,36.0
+INV-1171,order_1171,Customer 12,1499,Payment received order order_1171 - Customer 12,5.4
+INV-1409,order_1409,Customer 7,4999,Payment received order order_1409 - Customer 7,18.0
+INV-1288,order_1288,Customer 1,4999,Payment received order order_1288 - Customer 1,18.0
+INV-1319,order_1319,Customer 5,999,Payment received order order_1319 - Customer 5,3.6
+INV-1269,order_1269,Customer 2,2499,Payment received order order_1269 - Customer 2,9.0
+INV-1148,order_1148,Customer 5,1499,Payment received order order_1148 - Customer 5,5.4
+INV-1316,order_1316,Customer 24,9999,Payment received order order_1316 - Customer 24,36.0
+INV-1160,order_1160,Customer 2,2499,Payment received order order_1160 - Customer 2,9.0
+INV-1417,order_1417,Customer 18,1499,Payment received order order_1417 - Customer 18,5.4
+INV-1120,order_1120,Customer 22,499,Payment received order order_1120 - Customer 22,1.8
+INV-1153,order_1153,Customer 16,4999,Payment received order order_1153 - Customer 16,18.0
+INV-1422,order_1422,Customer 11,1499,Payment received order order_1422 - Customer 11,5.4
+INV-1404,order_1404,Customer 14,999,Payment received order order_1404 - Customer 14,3.6
+INV-1347,order_1347,Customer 4,1499,Payment received order order_1347 - Customer 4,5.4
+INV-1211,order_1211,Customer 22,9999,Payment received order order_1211 - Customer 22,36.0
+INV-1236,order_1236,Customer 4,2499,Payment received order order_1236 - Customer 4,9.0
+INV-1459,order_1459,Customer 9,499,Payment received order order_1459 - Customer 9,1.8
+INV-1271,order_1271,Customer 10,4999,Payment received order order_1271 - Customer 10,18.0
+INV-1082,order_1082,Customer 2,1499,Payment received order order_1082 - Customer 2,5.4
+INV-1486,order_1486,Customer 1,2499,Payment received order order_1486 - Customer 1 PARTIAL REFUND 749.7,9.0
+INV-1179,order_1179,Customer 17,2499,Payment received order order_1179 - Customer 17,9.0
+INV-1188,order_1188,Customer 2,2499,Payment received order order_1188 - Customer 2,9.0
+INV-1091,order_1091,Customer 2,999,Payment received order order_1091 - Customer 2,3.6
+INV-1004,order_1004,Customer 7,999,Payment received order order_1004 - Customer 7,3.6
+INV-1370,order_1370,Customer 3,499,Payment received order order_1370 - Customer 3,1.8
+INV-1238,order_1238,Customer 3,2499,Payment received order order_1238 - Customer 3,9.0
+INV-1452,,Customer 2,1499,pymt rcvd 2 ord#1452 thx,5.4
+INV-1189,order_1189,Customer 12,4999,Payment received order order_1189 - Customer 12,18.0
+INV-1357,order_1357,Customer 16,4999,Payment received order order_1357 - Customer 16,18.0
+INV-1473,order_1473,Customer 1,4999,Payment received order order_1473 - Customer 1,18.0
+INV-1105,order_1105,Customer 7,499,Payment received order order_1105 - Customer 7 PARTIAL REFUND 149.7,1.8
+INV-1164,,Customer 25,2499,pymt rcvd 25 ord#l164 thx,9.0
+INV-1114,order_1114,Customer 7,18500,Subscription renewal order order_1114 - Customer 7 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1194,order_1194,Customer 12,9999,Payment received order order_1194 - Customer 12,36.0
+INV-1358,order_1358,Customer 10,4999,Payment received order order_1358 - Customer 10,18.0
+INV-1293,order_1293,Customer 22,999,Payment received order order_1293 - Customer 22,3.6
+INV-1070,order_1070,Customer 19,999,Payment received order order_1070 - Customer 19 PARTIAL REFUND 299.7,3.6
+INV-1183,,Customer 14,9999,pymt rcvd 14 ord#1183 thx,36.0
+INV-1334,order_1334,Customer 22,999,Payment received order order_1334 - Customer 22,3.6
+INV-1423,order_1423,Customer 7,4999,Payment received order order_1423 - Customer 7,18.0
+INV-1327,order_1327,Customer 7,499,Payment received order order_1327 - Customer 7,1.8
+INV-1056,order_1056,Customer 2,999,Payment received order order_1056 - Customer 2,3.6
+INV-1040,order_1040,Customer 17,9999,Payment received order order_1040 - Customer 17 PARTIAL REFUND 2999.7,36.0
+INV-1225,order_1225,Customer 25,499,Payment received order order_1225 - Customer 25,1.8
+INV-1465,order_1465,Customer 3,4999,Payment received order order_1465 - Customer 3,18.0
+INV-1095,order_1095,Customer 15,9999,Payment received order order_1095 - Customer 15 PARTIAL REFUND 2999.7,36.0
+INV-1317,order_1317,Customer 3,999,Payment received order order_1317 - Customer 3,3.6
+INV-1443,order_1443,Customer 6,1499,Payment received order order_1443 - Customer 6,5.4
+INV-1291,order_1291,Customer 18,1499,Payment received order order_1291 - Customer 18,5.4
+INV-1484,,Customer 5,2499,pymt rcvd 5 ord#1484 thx,9.0
+INV-1445,order_1445,Customer 18,999,Payment received order order_1445 - Customer 18,3.6
+INV-1380,order_1380,Customer 2,4999,Payment received order order_1380 - Customer 2,18.0
+INV-1303,order_1303,Customer 28,2499,Payment received order order_1303 - Customer 28,9.0
+INV-1019,order_1019,Customer 25,4999,Payment received order order_1019 - Customer 25,18.0
+INV-1101,order_1101,Customer 29,4999,Payment received order order_1101 - Customer 29,18.0
+INV-1240,order_1240,Customer 13,2499,Payment received order order_1240 - Customer 13,9.0
+INV-1112,order_1112,Customer 8,4999,Payment received order order_1112 - Customer 8,18.0
+INV-1359,order_1359,Customer 7,499,Payment received order order_1359 - Customer 7,1.8
+INV-1161,order_1161,Customer 11,4999,Payment received order order_1161 - Customer 11,18.0
+INV-1492,order_1492,Customer 2,2499,Payment received order order_1492 - Customer 2,9.0
+INV-1125,order_1125,Customer 18,9999,Payment received order order_1125 - Customer 18,36.0
+INV-1208,,Customer 9,999,pymt rcvd 9 ord#1208 thx,3.6
+INV-1011,order_1011,Customer 3,9999,Payment received order order_1011 - Customer 3 PARTIAL REFUND 2999.7,36.0
+INV-1016,order_1016,Customer 15,4999,Payment received order order_1016 - Customer 15 PARTIAL REFUND 1499.7,18.0
+INV-1169,order_1169,Customer 6,9999,Payment received order order_1169 - Customer 6,36.0
+INV-1131,order_1131,Customer 3,9999,Payment received order order_1131 - Customer 3,36.0
+INV-1017,order_1017,Customer 23,499,Payment received order order_1017 - Customer 23,1.8
+INV-1355,order_1355,Customer 16,999,Payment received order order_1355 - Customer 16,3.6
+INV-1218,order_1218,Customer 10,499,Payment received order order_1218 - Customer 10,1.8
+INV-1177,order_1177,Customer 10,1499,Payment received order order_1177 - Customer 10 PARTIAL REFUND 449.7,5.4
+INV-1197,order_1197,Customer 24,2499,Payment received order order_1197 - Customer 24,9.0
+INV-1103,order_1103,Customer 26,999,Payment received order order_1103 - Customer 26,3.6
+INV-1420,order_1420,Customer 24,1499,Payment received order order_1420 - Customer 24,5.4
+INV-1214,order_1214,Customer 10,499,Payment received order order_1214 - Customer 10,1.8
+INV-1045,order_1045,Customer 28,9999,Payment received order order_1045 - Customer 28,36.0
+INV-1462,order_1462,Customer 26,9999,Payment received order order_1462 - Customer 26,36.0
+INV-1230,order_1230,Customer 4,499,Payment received order order_1230 - Customer 4,1.8
+INV-1305,order_1305,Customer 8,499,Payment received order order_1305 - Customer 8,1.8
+INV-1229,order_1229,Customer 25,2499,Payment received order order_1229 - Customer 25,9.0
+INV-1295,order_1295,Customer 28,499,Payment received order order_1295 - Customer 28,1.8
+INV-1152,order_1152,Customer 27,999,Payment received order order_1152 - Customer 27,3.6
+INV-1205,order_1205,Customer 13,9999,Payment received order order_1205 - Customer 13,36.0
+INV-1254,order_1254,Customer 5,1499,Payment received order order_1254 - Customer 5,5.4
+INV-1222,order_1222,Customer 17,4999,Payment received order order_1222 - Customer 17,18.0
+INV-1392,order_1392,Customer 3,4999,Payment received order order_1392 - Customer 3,18.0
+INV-1342,order_1342,Customer 11,1499,Payment received order order_1342 - Customer 11,5.4
+INV-1279,order_1279,Customer 9,999,Payment received order order_1279 - Customer 9,3.6
+INV-1158,order_1158,Customer 5,999,Payment received order order_1158 - Customer 5,3.6
+INV-1156,,Customer 20,9999,pymt rcvd 20 ord#1156 thx,36.0
+INV-1202,order_1202,Customer 4,499,Payment received order order_1202 - Customer 4,1.8
+INV-1237,order_1237,Customer 24,999,Payment received order order_1237 - Customer 24,3.6
+INV-1289,order_1289,Customer 15,999,Payment received order order_1289 - Customer 15,3.6
+INV-1215,order_1215,Customer 8,499,Payment received order order_1215 - Customer 8,1.8
+INV-1071,order_1071,Customer 11,499,Payment received order order_1071 - Customer 11,1.8
 INV-1000,order_1000,Customer 15,1499,Payment received order order_1000 - Customer 15,5.4
-INV-1064,order_1064,Customer 17,4999,Payment received order order_1064 - Customer 17,18.0
-INV-1307,order_1307,Customer 26,4999,Payment received order order_1307 - Customer 26,18.0
-INV-1357,order_1357,Customer 3,1499,Payment received order order_1357 - Customer 3,5.4
-INV-1012,order_1012,Customer 29,999,Payment received order order_1012 - Customer 29 PARTIAL REFUND 299.7,3.6
-INV-1458,order_1458,Customer 21,499,Payment received order order_1458 - Customer 21,1.8
-INV-1238,order_1238,Customer 2,2499,Payment received order order_1238 - Customer 2,9.0
-INV-1237,order_1237,Customer 7,1499,Payment received order order_1237 - Customer 7,5.4
-INV-1131,order_1131,Customer 10,2499,Payment received order order_1131 - Customer 10,9.0
-INV-1039,order_1039,Customer 22,9999,Payment received order order_1039 - Customer 22,36.0
-INV-1096,order_1096,Customer 12,2499,Payment received order order_1096 - Customer 12,9.0
-INV-1267,order_1267,Customer 11,1499,Payment received order order_1267 - Customer 11,5.4
+INV-1025,order_1025,Customer 21,4999,Payment received order order_1025 - Customer 21,18.0
+INV-1366,order_1366,Customer 10,9999,Payment received order order_1366 - Customer 10,36.0
+INV-1003,order_1003,Customer 3,499,Payment received order order_1003 - Customer 3,1.8
+INV-1245,order_1245,Customer 3,499,Payment received order order_1245 - Customer 3,1.8
+INV-1145,order_1145,Customer 26,1499,Payment received order order_1145 - Customer 26,5.4
+INV-1477,order_1477,Customer 14,9999,Payment received order order_1477 - Customer 14,36.0
+INV-1411,order_1411,Customer 16,9999,Payment received order order_1411 - Customer 16,36.0
+INV-1233,order_1233,Customer 12,1499,Payment received order order_1233 - Customer 12,5.4
+INV-1329,order_1329,Customer 26,499,Payment received order order_1329 - Customer 26,1.8
+INV-1290,order_1290,Customer 19,9999,Payment received order order_1290 - Customer 19 PARTIAL REFUND 2999.7,36.0
+INV-1144,,Customer 16,4999,pymt rcvd 16 ord#l144 thx,18.0
+INV-1139,order_1139,Customer 6,999,Payment received order order_1139 - Customer 6,3.6
+INV-1193,order_1193,Customer 25,2499,Payment received order order_1193 - Customer 25,9.0
+INV-1416,order_1416,Customer 22,499,Payment received order order_1416 - Customer 22 PARTIAL REFUND 149.7,1.8
+INV-1248,order_1248,Customer 22,9999,Payment received order order_1248 - Customer 22,36.0
+INV-1178,order_1178,Customer 25,2499,Payment received order order_1178 - Customer 25,9.0
+INV-1398,order_1398,Customer 8,1499,Payment received order order_1398 - Customer 8,5.4
+INV-1012,order_1012,Customer 25,9999,Payment received order order_1012 - Customer 25,36.0
+INV-1434,order_1434,Customer 24,9999,Payment received order order_1434 - Customer 24,36.0
+INV-1180,order_1180,Customer 20,2499,Payment received order order_1180 - Customer 20 PARTIAL REFUND 749.7,9.0
+INV-1035,order_1035,Customer 20,1499,Payment received order order_1035 - Customer 20,5.4
+INV-1302,order_1302,Customer 8,1499,Payment received order order_1302 - Customer 8,5.4
+INV-1061,order_1061,Customer 15,18500,Subscription renewal order order_1061 - Customer 15 - AFA_MANDATE_HOLD pending step-up auth,66.6
+INV-1081,,Customer 4,499,pymt rcvd 4 ord#1081 thx,1.8
+INV-1023,order_1023,Customer 18,4999,Payment received order order_1023 - Customer 18,18.0
+INV-1074,order_1074,Customer 17,999,Payment received order order_1074 - Customer 17,3.6
+INV-1063,order_1063,Customer 14,1499,Payment received order order_1063 - Customer 14,5.4
 INV-9001,order_9001,Customer Trap A,2499,Payment received order order_9001 - Customer Trap A,9.0
 INV-9002,order_9002,Customer Trap B,2499,Payment received order order_9002 - Customer Trap B,9.0

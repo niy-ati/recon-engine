@@ -59,6 +59,16 @@ def normalize_recon_line(raw: dict) -> dict:
         "utr": raw.get("settlement_utr"),
         "settlement_date": settlement_date,
         "on_hold": bool(raw.get("on_hold", False)),
+        # Both real fields on the recon line (see module docstring), never
+        # mapped into the canonical schema before now -- method is what
+        # Razorpay's own 2026 "Settlement Transparency" merchant playbook
+        # names as a required field on a reconciliation-ready report
+        # (razorpay.com/blog/settlement-transparency-...); dispute_id is
+        # what closes this project's own previously-disclosed gap (see
+        # settlement_qa.py's GLOSSARY: "this batch doesn't track
+        # chargebacks as their own category today").
+        "method": raw.get("method"),
+        "dispute_id": raw.get("dispute_id"),
     }
 
 

@@ -172,7 +172,7 @@ def _normalize(question: str) -> str:
 
 KNOWN_CATEGORIES = [
     "UNEXPLAINED", "DUPLICATE", "PARTIAL_PAYMENT", "TAX_DEDUCTION", "ROUNDING",
-    "FUZZY_MATCH_NEEDS_REVIEW", "AFA_MANDATE_HOLD", "ON_HOLD_BY_RAZORPAY",
+    "FUZZY_MATCH_NEEDS_REVIEW", "AFA_MANDATE_HOLD", "ON_HOLD_BY_RAZORPAY", "DISPUTED",
 ]
 
 # MATCHED_LOW_CONFIDENCE deliberately excluded: it's an arbiter's proposed
@@ -255,6 +255,16 @@ CATEGORY_GUIDANCE = {
         "this amount from your available cash and cash flow forecast until "
         "the hold clears -- it's a status your books should reflect "
         "honestly, not lost money."
+    ),
+    "DISPUTED": (
+        "Razorpay's own settlement recon line reports an active dispute_id "
+        "for this transaction. The bank credit itself may look completely "
+        "clean -- that's exactly why this needs a separate flag, not "
+        "folded into a normal match. Check the dispute on the Razorpay "
+        "dashboard and respond with evidence before it expires. While "
+        "it's open: don't treat this amount as safely booked -- a "
+        "chargeback can claw it back even after settlement, so exclude it "
+        "from cash you'd rely on until the dispute resolves in your favor."
     ),
 }
 
@@ -369,7 +379,9 @@ GLOSSARY = [
         ("what is a chargeback", "what does chargeback mean", "define chargeback", "explain chargeback"),
         "A chargeback is a payment reversal a customer's bank or card network initiates after "
         "the money has already settled -- different from a refund, which the merchant initiates "
-        "itself. This batch doesn't track chargebacks as their own category today."
+        "itself. This system tracks the step before that: an active dispute on a settlement's own "
+        "recon line (category DISPUTED) -- the money hasn't been reversed yet, but is provisionally "
+        "at risk until the dispute resolves. A chargeback is what happens if it resolves against you."
     ),
     (
         ("what is t+2", "what does t+2 mean", "what is a settlement cycle",

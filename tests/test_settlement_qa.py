@@ -19,10 +19,11 @@ import settlement_qa as qa  # noqa: E402
 
 
 def make_result(order_id, status, category=None, narration="", net=100.0,
-                 gross=None, mdr=None, utr=None, settlement_date=None):
+                 gross=None, mdr=None, utr=None, settlement_date=None, method=None, dispute_id=None):
     return {
         "order_id": order_id, "settlement_id": f"setl_{order_id}", "net": net,
         "gross": gross, "mdr": mdr, "utr": utr, "settlement_date": settlement_date,
+        "method": method, "dispute_id": dispute_id,
         "match_key": f"settlement:setl_{order_id}",
         "status": status, "category": category, "reason": f"test reason for {order_id}",
         "narration": narration, "stage": ["test stage"],
@@ -166,6 +167,43 @@ class TestCategoryCount(SettlementQaTestCase):
         result = qa.answer("how many exceptions are surrounding this batch, in general")
         self.assertIn(qa._plural(expected, "row"), result)
         self.assertNotIn("ROUNDING", result)
+
+
+class TestDisputedCategory(SettlementQaTestCase):
+    """DISPUTED is answered by the exact same generic category machinery
+    every other category already uses (_category_count, _resolution_
+    guidance, _extract_category's word-boundary match) -- these tests
+    confirm wiring a new category into KNOWN_CATEGORIES/CATEGORY_GUIDANCE
+    was enough, no DISPUTED-specific code was needed."""
+
+    def setUp(self):
+        super().setUp()
+        db.persist_results([
+            make_result("order_60", "EXCEPTION", category="DISPUTED",
+                        net=500.0, method="UPI", dispute_id="disp_abc123"),
+        ], run_id="run-2")
+
+    def test_count(self):
+        result = qa.answer("how many DISPUTED exceptions")
+        self.assertIn("1 row", result)
+
+    def test_list(self):
+        result = qa.answer("list DISPUTED orders")
+        self.assertIn("order_60", result)
+
+    def test_word_boundary_does_not_match_undisputed(self):
+        """Same discipline as ROUNDING/surrounding: DISPUTED must not fire
+        on a word that merely contains it as a substring."""
+        result = qa.answer("is this transaction undisputed or not")
+        self.assertNotIn("1 row", result)
+
+    def test_resolution_guidance(self):
+        result = qa.answer("how can order_60 be resolved")
+        self.assertIn("dispute", result.lower())
+
+    def test_glossary_distinguishes_dispute_from_chargeback(self):
+        result = qa.answer("what is a chargeback")
+        self.assertIn("DISPUTED", result)
 
 
 class TestOpenCount(SettlementQaTestCase):

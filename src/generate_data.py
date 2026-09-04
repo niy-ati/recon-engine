@@ -3,7 +3,8 @@ Generates three synthetic data sources that mirror what a merchant on
 Razorpay reconciles every settlement cycle:
 
   1. settlement_report.csv  -- Razorpay's dashboard export
-       (settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settlement_date, on_hold)
+       (settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settlement_date, on_hold,
+        method, dispute_id)
   2. bank_statement.csv     -- the merchant's bank statement
        (utr, credited_amount, value_date, narration)
   3. internal_ledger.csv    -- the merchant's Tally/QuickBooks-style export
@@ -29,6 +30,11 @@ Injected failure modes:
     UTR is genuinely two-tier -- batch-level vs. per-line -- see README)
     -- the money arrived, just filed under a different UTR than the
     settlement line claims
+  - DISPUTED: the settlement recon line carries a real, non-null
+    dispute_id -- money genuinely arrived (the bank credit still matches
+    cleanly), but is provisionally at risk of a chargeback clawback, a
+    fact reconciliation must surface even though the underlying bank
+    posting itself looks clean
 
 Known limitation: the overall resolved percentage varies by seed. Held-out
 re-measurement against the current code (2026-08-24), five fresh seeds not
@@ -64,6 +70,14 @@ ledger_rows = []
 
 customers = [f"Customer {i}" for i in range(1, 30)]
 
+# Real field on Razorpay's own settlement recon line (see ingest.py's
+# module docstring), not tracked anywhere in this project until now.
+# Weights are a plausible Indian checkout mix (UPI dominant), not a cited
+# Razorpay statistic -- the point is a real, displayable field per row,
+# not a claim about the actual market split.
+PAYMENT_METHODS = ["UPI", "Card", "Netbanking", "Wallet"]
+METHOD_WEIGHTS = [55, 30, 10, 5]
+
 
 def money(x: float) -> float:
     return round(x, 2)
@@ -89,19 +103,21 @@ for i in range(N_ORDERS):
     settle_date = txn_date + timedelta(days=2)  # T+2
     utr = f"UTR{random.randint(10**9, 10**10-1)}"
     customer = random.choice(customers)
+    method = random.choices(PAYMENT_METHODS, weights=METHOD_WEIGHTS)[0]
+    dispute_id = ""  # overridden only in the DISPUTED branch below
 
     case = random.random()
 
     # --- 65%: clean match ---
     if case < 0.65:
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
     # --- 8%: bank credit lands a day late ---
     elif case < 0.73:
         bank_date = settle_date + timedelta(days=1)
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, bank_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
@@ -109,27 +125,27 @@ for i in range(N_ORDERS):
     elif case < 0.79:
         refund = money(gross * 0.3)
         net_after_refund = money(net - refund)
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net_after_refund, utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net_after_refund, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net_after_refund, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer} PARTIAL REFUND {refund}", gst_on_mdr])
 
     # --- 4%: GST-on-MDR rounding drift ---
     elif case < 0.83:
         drift = random.choice([-0.5, 0.5, 1.0])
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, money(gst_on_mdr + drift), money(net - drift), utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, money(gst_on_mdr + drift), money(net - drift), utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, money(net - drift), settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
     # --- 4%: messy ledger narration, digits intact -- resolves in Pass 2.75 ---
     elif case < 0.87:
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         messy = f"pymt rcvd {customer.split()[1]} ord#{1000+i} thx"
         ledger_rows.append([f"INV-{1000+i}", "", customer, gross, messy, gst_on_mdr])
 
     # --- 3%: OCR/typo-corrupted order reference -- needs Pass 3/4 ---
     elif case < 0.90:
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         digits = str(1000 + i)
         corrupted = digits.replace("0", "O", 1) if "0" in digits else digits.replace("1", "l", 1)
@@ -138,8 +154,8 @@ for i in range(N_ORDERS):
 
     # --- 3%: duplicated settlement row ---
     elif case < 0.93:
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False])
-        settlement_rows.append([settlement_id + "_dup", payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
+        settlement_rows.append([settlement_id + "_dup", payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
@@ -154,16 +170,24 @@ for i in range(N_ORDERS):
     elif case < 0.96:
         reported_utr = utr
         actual_bank_utr = f"UTR{random.randint(10**9, 10**10-1)}"
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, reported_utr, settle_date, False])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, reported_utr, settle_date, False, method, dispute_id])
         bank_rows.append([actual_bank_utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
     # --- 2%: on_hold=true settlement -- fulfilled but no bank credit yet ---
     elif case < 0.98:
-        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, True])
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, True, method, dispute_id])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
-    # --- 2%: AFA/mandate-hold (subscription charge blocked at >15k) ---
+    # --- 1%: settlement carries an active dispute -- see the DISPUTED
+    # entry in the module docstring above ---
+    elif case < 0.99:
+        dispute_id = f"disp_{random_hex(14)}"
+        settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
+        bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
+        ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+
+    # --- 1%: AFA/mandate-hold (subscription charge blocked at >15k) ---
     else:
         gross = 18500  # over the RBI AFA threshold
         mdr = money(gross * MDR_RATE)
@@ -178,7 +202,7 @@ random.shuffle(ledger_rows)
 
 with open(DATA_DIR / "settlement_report.csv", "w", newline="") as f:
     w = csv.writer(f)
-    w.writerow(["settlement_id", "payment_id", "order_id", "gross", "mdr", "gst_on_mdr", "net", "utr", "settlement_date", "on_hold"])
+    w.writerow(["settlement_id", "payment_id", "order_id", "gross", "mdr", "gst_on_mdr", "net", "utr", "settlement_date", "on_hold", "method", "dispute_id"])
     w.writerows(settlement_rows)
 
 with open(DATA_DIR / "bank_statement.csv", "w", newline="") as f:

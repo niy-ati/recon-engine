@@ -94,6 +94,7 @@ def generate(settlement_source: str = "synthetic") -> None:
         "AFA_MANDATE_HOLD": "Subscription charge blocked by RBI e-mandate AFA threshold (>Rs.15,000) -- needs compliant step-up re-auth, not a blind retry",
         "ON_HOLD_BY_RAZORPAY": "Razorpay's own API reports on_hold=true for this settlement -- known, held for a reason, not a lost transaction or a normal delay",
         "UTR_LEVEL_MISMATCH": "Money arrived, but under a different UTR than the settlement report claims -- Razorpay's UTR is two-tier (batch vs. line), not a missing payout",
+        "DISPUTED": "Settlement recon line carries an active dispute_id -- money arrived but is provisionally at risk of a chargeback clawback",
     }
     for cat, count in summary["exceptions_by_category"].items():
         lines.append(f"| {cat} | {count} | {meanings.get(cat, '')} |")

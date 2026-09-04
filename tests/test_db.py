@@ -14,10 +14,11 @@ import db  # noqa: E402
 
 
 def make_result(order_id, status, category=None, narration="", net=100.0, match_key=None,
-                 gross=None, mdr=None, utr=None, settlement_date=None):
+                 gross=None, mdr=None, utr=None, settlement_date=None, method=None, dispute_id=None):
     return {
         "order_id": order_id, "settlement_id": f"setl_{order_id}", "net": net,
         "gross": gross, "mdr": mdr, "utr": utr, "settlement_date": settlement_date,
+        "method": method, "dispute_id": dispute_id,
         "match_key": match_key or f"settlement:setl_{order_id}",
         "status": status, "category": category, "reason": "test reason",
         "narration": narration, "stage": ["test stage"],
@@ -130,6 +131,26 @@ class TestPersistResults(DbTestCase):
         self.assertIsNone(row["mdr_amount"])
         self.assertIsNone(row["utr"])
         self.assertIsNone(row["settlement_date"])
+
+    def test_method_and_dispute_id_round_trip(self):
+        """Real fields on Razorpay's own settlement recon line (see
+        ingest.py's module docstring), newly threaded through -- method is
+        what Razorpay's own 2026 Settlement Transparency merchant playbook
+        names as a required field on a reconciliation-ready report;
+        dispute_id is what backs the new DISPUTED category."""
+        db.persist_results(
+            [make_result("order_1", "EXCEPTION", category="DISPUTED", method="UPI", dispute_id="disp_abc123")],
+            run_id="run-1",
+        )
+        row = db.get_all_exceptions()[0]
+        self.assertEqual(row["method"], "UPI")
+        self.assertEqual(row["dispute_id"], "disp_abc123")
+
+    def test_method_and_dispute_id_default_to_none(self):
+        db.persist_results([make_result("order_1", "MATCHED")], run_id="run-1")
+        row = db.get_all_exceptions()[0]
+        self.assertIsNone(row["method"])
+        self.assertIsNone(row["dispute_id"])
 
 
 class TestResolveException(DbTestCase):
@@ -344,13 +365,18 @@ class TestMigration(DbTestCase):
         rows = db.get_all_exceptions()
         self.assertEqual(len(rows), 1)
         self.assertIsNone(rows[0]["utr"])
+        self.assertIsNone(rows[0]["method"])
+        self.assertIsNone(rows[0]["dispute_id"])
 
         db.persist_results(
-            [make_result("order_new", "MATCHED", utr="UTR002", settlement_date="2026-08-06")],
+            [make_result("order_new", "MATCHED", utr="UTR002", settlement_date="2026-08-06",
+                          method="Card", dispute_id="disp_xyz")],
             run_id="run-new",
         )
         new_row = next(r for r in db.get_all_exceptions() if r["order_id"] == "order_new")
         self.assertEqual(new_row["utr"], "UTR002")
+        self.assertEqual(new_row["method"], "Card")
+        self.assertEqual(new_row["dispute_id"], "disp_xyz")
         self.assertEqual(new_row["settlement_date"], "2026-08-06")
 
 

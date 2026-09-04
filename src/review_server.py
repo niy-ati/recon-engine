@@ -1804,6 +1804,7 @@ CATEGORY_TONES = {
     "AFA_MANDATE_HOLD": "information",
     "DUPLICATE": "negative",
     "UNEXPLAINED": "negative",
+    "DISPUTED": "negative",
 }
 
 # Hand-written display labels -- the raw category values are enum-style
@@ -1824,6 +1825,7 @@ CATEGORY_LABELS = {
     "AFA_MANDATE_HOLD": "AFA mandate hold",
     "DUPLICATE": "Duplicate",
     "UNEXPLAINED": "Unexplained",
+    "DISPUTED": "Disputed",
 }
 
 # Collapses the 7 granular statuses into the one comparison that actually
@@ -1874,6 +1876,7 @@ CATEGORY_ICONS = {
     "UTR_LEVEL_MISMATCH": ICON_BANK,
     "ON_HOLD_BY_RAZORPAY": ICON_ALERT, "FUZZY_MATCH_NEEDS_REVIEW": ICON_ALERT,
     "AFA_MANDATE_HOLD": ICON_KEY, "DUPLICATE": ICON_GATEWAY, "UNEXPLAINED": ICON_ALERT,
+    "DISPUTED": ICON_ALERT,
 }
 
 
@@ -2402,6 +2405,8 @@ def render_row(r: dict, show_actions: bool = True) -> str:
         utr_bits.append(f"UTR {escape(r['utr'])}")
     if r.get("settlement_date"):
         utr_bits.append(escape(r["settlement_date"]))
+    if r.get("method"):
+        utr_bits.append(escape(r["method"]))
     utr_html = f'<div class="narration">{" &middot; ".join(utr_bits)}</div>' if utr_bits else ""
     net = "" if r["net_amount"] is None else f'{r["net_amount"]:,.2f}'
     search_blob = escape(" ".join(str(v) for v in [

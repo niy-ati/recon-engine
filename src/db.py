@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS exceptions (
     mdr_amount REAL,
     utr TEXT,
     settlement_date TEXT,
+    method TEXT,
+    dispute_id TEXT,
     status TEXT NOT NULL,
     category TEXT,
     reason TEXT,
@@ -97,7 +99,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # newly carried through. A DB created before this column existed just
     # gets it backfilled as NULL on next persist_results(), same as every
     # other pre-existing row this migration doesn't try to fabricate data for.
-    for column in ("gross_amount", "mdr_amount", "utr", "settlement_date"):
+    for column in ("gross_amount", "mdr_amount", "utr", "settlement_date", "method", "dispute_id"):
         if column not in columns:
             column_type = "REAL" if column.endswith("_amount") else "TEXT"
             conn.execute(f"ALTER TABLE exceptions ADD COLUMN {column} {column_type}")
@@ -131,9 +133,9 @@ def persist_results(results: list[dict], run_id: str) -> None:
                 conn.execute(
                     """INSERT INTO exceptions
                        (match_key, run_id, order_id, settlement_id, net_amount, gross_amount,
-                        mdr_amount, utr, settlement_date, status, category,
+                        mdr_amount, utr, settlement_date, method, dispute_id, status, category,
                         reason, narration, needs_action, replay_log)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                        ON CONFLICT(match_key) DO UPDATE SET
                            run_id = excluded.run_id,
                            order_id = excluded.order_id,
@@ -143,6 +145,8 @@ def persist_results(results: list[dict], run_id: str) -> None:
                            mdr_amount = excluded.mdr_amount,
                            utr = excluded.utr,
                            settlement_date = excluded.settlement_date,
+                           method = excluded.method,
+                           dispute_id = excluded.dispute_id,
                            status = excluded.status,
                            category = excluded.category,
                            reason = excluded.reason,
@@ -152,6 +156,7 @@ def persist_results(results: list[dict], run_id: str) -> None:
                        WHERE exceptions.resolution_status = 'OPEN'""",
                     (match_key, run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
                      r.get("gross"), r.get("mdr"), r.get("utr"), r.get("settlement_date"),
+                     r.get("method"), r.get("dispute_id"),
                      r["status"], r.get("category"), r.get("reason"), r.get("narration", ""),
                      needs_action, json.dumps(r.get("stage", []))),
                 )

@@ -136,6 +136,7 @@ def reconcile(
                   "net": float(s["net"]), "gst_on_mdr": float(s["gst_on_mdr"]),
                   "gross": float(s["gross"]), "mdr": float(s["mdr"]),
                   "utr": s["utr"], "settlement_date": s["settlement_date"],
+                  "method": s.get("method") or None, "dispute_id": s.get("dispute_id") or None,
                   "match_key": f"settlement:{s['settlement_id']}",
                   "status": None, "category": None, "reason": None, "stage": []}
 
@@ -256,6 +257,30 @@ def reconcile(
 
         if record["status"] is None:
             record["status"] = "MATCHED"
+
+        # A real dispute overrides whatever the bank-matching logic above
+        # decided, deliberately checked here rather than earlier: the
+        # matched_bank_rows bookkeeping above must still run unchanged (a
+        # disputed transaction's bank credit is real money that arrived,
+        # so skipping the match entirely would wrongly leave its bank row
+        # looking like an unclaimed orphan). Unlike ON_HOLD_BY_RAZORPAY --
+        # where the payout hasn't moved at all -- a dispute typically
+        # lands on an otherwise cleanly settled transaction: the money is
+        # provisionally at risk of a chargeback clawback, a fact this
+        # system has to surface even though the underlying bank posting
+        # itself is clean. See generate_data.py's DISPUTED case and
+        # ingest.py's module docstring for the real dispute_id field this
+        # reads off Razorpay's own settlement recon line.
+        if s.get("dispute_id"):
+            record["category"] = "DISPUTED"
+            record["reason"] = (
+                f"This settlement carries an active dispute (dispute_id={s['dispute_id']}) on Razorpay's "
+                f"own recon line. The bank credit itself may still be clean -- this flag exists regardless "
+                f"of that -- because the net amount can be reversed if the dispute resolves against you. "
+                f"Track it separately from a normal reconciliation match; do not treat it as safely booked."
+            )
+            record["status"] = "EXCEPTION"
+            record["stage"].append(log("1", "disputed", f"recon line reports a non-null dispute_id ({s['dispute_id']})"))
 
         # ---------- PASS 2: settlement -> ledger via order_id ----------
         ledger_match = None

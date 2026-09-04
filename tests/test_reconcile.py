@@ -21,7 +21,13 @@ from llm_matcher import ArbiterResult  # noqa: E402
 
 
 SETTLEMENT_HEADER = ["settlement_id", "payment_id", "order_id", "gross", "mdr",
-                      "gst_on_mdr", "net", "utr", "settlement_date", "on_hold"]
+                      "gst_on_mdr", "net", "utr", "settlement_date", "on_hold",
+                      "method", "dispute_id"]
+# method/dispute_id trail every existing fixture row above -- a row with
+# fewer values than the header reads back as None for those columns
+# (csv.DictReader's own documented behavior), so no existing fixture in
+# this file needs updating; only a test that cares about method/dispute_id
+# passes those two extra positional values explicitly.
 BANK_HEADER = ["utr", "credited_amount", "value_date", "narration"]
 LEDGER_HEADER = ["invoice_id", "order_ref", "customer", "amount", "narration", "gst_line"]
 
@@ -238,6 +244,108 @@ class TestOnHold(unittest.TestCase):
             r = find(results, "order_1")
             self.assertEqual(r["category"], "ON_HOLD_BY_RAZORPAY")
             self.assertEqual(r["status"], "EXCEPTION")
+
+
+class TestDisputed(unittest.TestCase):
+    def test_dispute_id_overrides_a_clean_bank_match(self):
+        """A disputed settlement typically still has a real, clean bank
+        credit -- the money genuinely arrived. DISPUTED must still win over
+        the plain MATCHED outcome the bank-matching logic would otherwise
+        produce, since the dispute is the more urgent fact a merchant
+        needs surfaced."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001",
+                                   "2026-08-15", False, "UPI", "disp_abc123"]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["category"], "DISPUTED")
+            self.assertEqual(r["status"], "EXCEPTION")
+            self.assertIn("disp_abc123", r["reason"])
+
+    def test_disputed_row_still_carries_a_stage_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001",
+                                   "2026-08-15", False, "UPI", "disp_abc123"]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertTrue(r["stage"], "DISPUTED row must have a non-empty replay log")
+
+    def test_disputed_bank_row_is_still_claimed_not_left_as_a_phantom_orphan(self):
+        """Regression guard: the dispute override must run AFTER the normal
+        bank-matching logic, not instead of it -- otherwise the disputed
+        settlement's own bank row never gets added to matched_bank_rows and
+        would wrongly resurface as a second, phantom UNEXPLAINED orphan for
+        money that has already been accounted for once."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001",
+                                   "2026-08-15", False, "UPI", "disp_abc123"]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            orphans = [r for r in results if r.get("settlement_id") is None and r.get("category") == "UNEXPLAINED"]
+            self.assertEqual(orphans, [])
+
+    def test_no_dispute_id_is_unaffected(self):
+        """An empty dispute_id (the CSV default for every non-disputed row)
+        must not trip the override -- confirms falsy-but-present values
+        ("" from the synthetic generator, not just a missing column) are
+        handled the same as a genuinely absent one."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001",
+                                   "2026-08-15", False, "UPI", ""]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["status"], "MATCHED")
+            self.assertIsNone(r["category"])
+
+
+class TestPaymentMethod(unittest.TestCase):
+    def test_method_is_carried_through_to_the_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001",
+                                   "2026-08-15", False, "UPI", ""]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertEqual(r["method"], "UPI")
+
+    def test_missing_method_column_is_none_not_a_crash(self):
+        """Every pre-existing fixture in this file writes rows without a
+        method column at all -- confirms that keeps working exactly like
+        it already implicitly does everywhere else in this file, not a new
+        behavior introduced only for the tests that pass it explicitly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            write_fixture(
+                tmp,
+                settlement_rows=[["setl_1", "pay_1", "order_1", 999, 19.98, 3.60, 975.42, "UTR001", "2026-08-15", False]],
+                bank_rows=[["UTR001", 975.42, "2026-08-15", "NEFT CR RAZORPAY SETTLEMENT setl_1"]],
+                ledger_rows=[["INV-1", "order_1", "Alice", 999, "Payment received order order_1 - Alice", 3.60]],
+            )
+            results = reconcile(data_dir=tmp)
+            r = find(results, "order_1")
+            self.assertIsNone(r["method"])
 
 
 class TestUnexplained(unittest.TestCase):
