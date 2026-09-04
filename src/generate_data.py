@@ -130,11 +130,17 @@ for i in range(N_ORDERS):
         bank_rows.append([utr, net_after_refund, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer} PARTIAL REFUND {refund}", gst_on_mdr])
 
-    # --- 4%: GST-on-MDR rounding drift ---
+    # --- 4%: GST-on-MDR rounding drift -- bank credits the TRUE net; the
+    # settlement report's own stated net differs by the drift amount, the
+    # actual discrepancy Pass 1's near-match branch (reconcile.py) checks
+    # bank-credited-vs-settlement-net for. Found live: bank and settlement
+    # used to both carry the drifted value, so they always agreed with
+    # each other and this branch silently produced a clean MATCHED row --
+    # neither ROUNDING nor TAX_DEDUCTION ever actually fired.
     elif case < 0.83:
         drift = random.choice([-0.5, 0.5, 1.0])
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, money(gst_on_mdr + drift), money(net - drift), utr, settle_date, False, method, dispute_id])
-        bank_rows.append([utr, money(net - drift), settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
+        bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
 
     # --- 4%: messy ledger narration, digits intact -- resolves in Pass 2.75 ---

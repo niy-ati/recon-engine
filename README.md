@@ -229,7 +229,7 @@ Razorpay already ships a real, production Cashflow Forecaster, a time-series pre
 
 What it answers instead is a different, fully honest question: not *when* will this resolve, but *how much unlocks the moment someone acts on what's already been verified*. `db.compute_cash_clarity()`'s `pending_review` figure is exactly that, cash sitting on a match this engine has already computed and proposed, waiting only on a human's confirm, not on new information. Projecting it forward is arithmetic over real, already-computed numbers, not a guess about the future.
 
-On the real batch: confirming everything currently in the queue moves resolved cash from **32.5% to 45.0%**, an extra **Rs.40,999.00** unlocked with zero new matching work. The remaining still-open cash has no proposed match yet, and is disclosed as exactly that rather than forecast forward without new information.
+On the real batch: confirming everything currently in the queue moves resolved cash from **47.2% to 57.0%**, an extra **Rs.40,999.00** unlocked with zero new matching work. The remaining still-open cash has no proposed match yet, and is disclosed as exactly that rather than forecast forward without new information.
 
 Shown on the **Overview** page, right under Cash-position clarity, and answerable directly, "forecast my cash," "what if I confirm everything," through Settlement Q&A.
 
