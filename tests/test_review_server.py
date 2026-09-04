@@ -56,6 +56,43 @@ class TestRenderDonut(unittest.TestCase):
         self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
 
 
+class TestRenderResolutionTrend(unittest.TestCase):
+    """See render_resolution_trend()'s own docstring: the one chart on this
+    page backed by real run_history data rather than the current batch."""
+
+    def _run(self, run_id, resolved, pending, open_pct, total_rows=525):
+        return {"run_id": run_id, "total_rows": total_rows, "resolved_pct": resolved,
+                "pending_review_pct": pending, "open_pct": open_pct}
+
+    def test_renders_nothing_for_fewer_than_two_runs(self):
+        """A single point has no trend -- must not draw a fabricated line
+        from one real point to nowhere."""
+        self.assertEqual(review_server.render_resolution_trend([]), "")
+        self.assertEqual(review_server.render_resolution_trend([self._run("run-1", 85.0, 3.0, 12.0)]), "")
+
+    def test_renders_a_point_per_run_with_real_values(self):
+        history = [
+            self._run("run-1", 85.0, 3.0, 12.0),
+            self._run("run-2", 87.6, 1.9, 10.5),
+        ]
+        html = review_server.render_resolution_trend(history)
+        self.assertIn("87.6%", html)  # the most recent run's end-label
+        self.assertIn("run-1", html)  # earlier run's own id, in its marker tooltip
+        self.assertIn("run-2", html)
+
+    def test_includes_a_legend_for_all_three_series(self):
+        history = [self._run("run-1", 85.0, 3.0, 12.0), self._run("run-2", 87.6, 1.9, 10.5)]
+        html = review_server.render_resolution_trend(history)
+        self.assertIn("Resolved", html)
+        self.assertIn("Pending review", html)
+        self.assertIn("Open", html)
+
+    def test_states_the_real_run_count_not_a_fixed_number(self):
+        history = [self._run(f"run-{i}", 80.0 + i, 2.0, 18.0 - i) for i in range(4)]
+        html = review_server.render_resolution_trend(history)
+        self.assertIn("4 real runs", html)
+
+
 class TestRenderMaterialityBreakdown(unittest.TestCase):
     """See render_materiality_breakdown()'s own docstring: every other
     Overview chart slices by category or status, never by rupee size --

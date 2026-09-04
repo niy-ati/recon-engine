@@ -388,6 +388,13 @@ PAGE_STYLE = """
   .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:17px; font-weight:700; color:var(--ink); }
   .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
+  /* Resolution trend line chart -- a legend is mandatory at 2+ series
+     (never rely on color-matching alone), so every point stays
+     identifiable even for a viewer who can't distinguish the three hues. */
+  .trend-legend { display:flex; gap:var(--sp-6); margin-bottom:var(--sp-5); flex-wrap:wrap; }
+  .trend-legend-item { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--muted); }
+  .trend-dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+
   /* Cash-value-by-category chart -- same four semantic tones the category
      cards already use (never a separate categorical palette), so a bar
      here reads as the same category a viewer already recognizes from the
@@ -2199,6 +2206,91 @@ def render_cash_forecast(all_rows: list[dict]) -> str:
     </div>"""
 
 
+def render_resolution_trend(history: list[dict]) -> str:
+    """A real line chart over db.run_history -- one point per actual past
+    run of this tool, not simulated or backfilled data. Every other chart
+    on this page answers a question about the CURRENT batch; this is the
+    one place a trend, resolved/pending/open percentage over time, is
+    honestly answerable, because run_history is the one table that
+    survives reset_batch() (see both functions' own docstrings in db.py).
+
+    Renders nothing (not a broken one-point chart) until at least 2 runs
+    exist -- a single point has no trend to show, and a fabricated second
+    point would be exactly the kind of invented data this whole codebase
+    refuses to show."""
+    if len(history) < 2:
+        return ""
+
+    W, H = 800, 220
+    PAD_L, PAD_R, PAD_T, PAD_B = 40, 60, 16, 28
+    plot_w, plot_h = W - PAD_L - PAD_R, H - PAD_T - PAD_B
+
+    SERIES = [
+        ("resolved_pct", "Resolved", SWATCH_HEX["positive"]),
+        ("pending_review_pct", "Pending review", SWATCH_HEX["notice"]),
+        ("open_pct", "Open", SWATCH_HEX["negative"]),
+    ]
+    n = len(history)
+
+    def x_at(i: int) -> float:
+        return PAD_L + (i / (n - 1)) * plot_w
+
+    def y_at(pct: float) -> float:
+        return PAD_T + (1 - pct / 100) * plot_h
+
+    # Hairline gridlines at 0/25/50/75/100 -- one-step-off-surface, never
+    # dashed, recessive (marks-and-anatomy.md).
+    gridlines = "".join(
+        f'<line x1="{PAD_L}" y1="{y_at(p):.1f}" x2="{W - PAD_R}" y2="{y_at(p):.1f}" '
+        f'stroke="var(--border-subtle)" stroke-width="1"/>'
+        f'<text x="{PAD_L - 8}" y="{y_at(p) + 4:.1f}" font-size="10.5" fill="var(--faint)" text-anchor="end">{p}%</text>'
+        for p in (0, 25, 50, 75, 100)
+    )
+
+    lines_svg = []
+    for key, label, color in SERIES:
+        points = [(x_at(i), y_at(r[key])) for i, r in enumerate(history)]
+        path = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in points)
+        markers = "".join(
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{color}" '
+            f'stroke="var(--panel)" stroke-width="2">'
+            f'<title>{label}: {history[i][key]}% (run {history[i]["run_id"]})</title>'
+            f'</circle>'
+            for i, (x, y) in enumerate(points)
+        )
+        last_x, last_y = points[-1]
+        end_label = (
+            f'<text x="{last_x + 10:.1f}" y="{last_y + 4:.1f}" font-size="12.5" font-weight="700" '
+            f'fill="{color}">{history[-1][key]}%</text>'
+        )
+        lines_svg.append(
+            f'<path d="{path}" fill="none" stroke="{color}" stroke-width="2" '
+            f'stroke-linejoin="round" stroke-linecap="round"/>{markers}{end_label}'
+        )
+
+    legend = "".join(
+        f'<span class="trend-legend-item"><span class="trend-dot" style="background:{color}"></span>{label}</span>'
+        for _, label, color in SERIES
+    )
+
+    return f"""
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Resolution trend, across real runs</h2></div>
+      <div class="panel-body">
+        <div class="trend-legend">{legend}</div>
+        <svg viewBox="0 0 {W} {H}" width="100%" height="auto" role="img"
+             aria-label="Resolved, pending review, and open percentages across {n} real pipeline runs">
+          {gridlines}
+          {"".join(lines_svg)}
+        </svg>
+        <p style="margin:var(--sp-4) 0 0;color:var(--faint);font-size:12.5px">
+          {n} real runs of this pipeline, oldest to newest -- never simulated or backfilled.
+          A run appends here the moment `report.py` finishes, whether or not the batch itself was reset.
+        </p>
+      </div>
+    </div>"""
+
+
 def render_cash_by_category(by_category_value: dict, by_category_count: dict) -> str:
     """Horizontal bar chart, one bar per category, sized by rupee value --
     not just row count. The category cards above already answer "which
@@ -2340,6 +2432,7 @@ def render_overview() -> str:
       </div>
     </div>
     {render_pass_bar(all_rows)}
+    {render_resolution_trend(db.get_run_history())}
     <div class="panel">
       <div class="panel-head"><h2 style="margin:0">Exceptions by category</h2></div>
       <div class="panel-body"><div class="category-grid">{category_cards}</div></div>

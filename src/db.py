@@ -75,6 +75,22 @@ CREATE TABLE IF NOT EXISTS narration_templates (
     confirmed_at TEXT NOT NULL,
     source TEXT NOT NULL
 );
+
+-- One row per pipeline run, appended, never overwritten or reset by
+-- reset_batch() -- this tracks this TOOL's own real usage history across
+-- runs, a genuinely different thing from `exceptions`, which is the
+-- current batch's own per-row state. The Overview page's trend chart
+-- reads this directly: real data points from real runs, not a
+-- simulated or backfilled history.
+CREATE TABLE IF NOT EXISTS run_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    total_rows INTEGER NOT NULL,
+    resolved_pct REAL NOT NULL,
+    pending_review_pct REAL NOT NULL,
+    open_pct REAL NOT NULL
+);
 """
 
 
@@ -192,6 +208,41 @@ def reset_batch() -> None:
             conn.execute("DELETE FROM exceptions")
     finally:
         conn.close()
+
+
+def record_run_summary(run_id: str, total_rows: int, resolved_pct: float,
+                        pending_review_pct: float, open_pct: float) -> None:
+    """Appends one row to run_history -- called by report.py on every run,
+    regardless of --fresh-batch, since this tracks real usage of the tool
+    itself over time, not the current batch's own state. Never updated or
+    deleted (unlike `exceptions`, this has no match_key to upsert on and no
+    reason to overwrite a past run's real numbers with a later one's)."""
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO run_history (run_id, recorded_at, total_rows, resolved_pct, "
+                "pending_review_pct, open_pct) VALUES (?, ?, ?, ?, ?, ?)",
+                (run_id, datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 total_rows, resolved_pct, pending_review_pct, open_pct),
+            )
+    finally:
+        conn.close()
+
+
+def get_run_history(limit: int = 20) -> list[dict]:
+    """The most recent `limit` runs, oldest first (chart-ready order) --
+    real data points from real past runs of this tool, never backfilled or
+    simulated to fill out a nicer-looking trend."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM (SELECT * FROM run_history ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
+            (limit,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_open_exceptions() -> list[dict]:
