@@ -56,6 +56,57 @@ class TestRenderDonut(unittest.TestCase):
         self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
 
 
+class TestRenderMaterialityBreakdown(unittest.TestCase):
+    """See render_materiality_breakdown()'s own docstring: every other
+    Overview chart slices by category or status, never by rupee size --
+    this is the one that answers "which open rows are actually worth
+    working first," a genuinely different question a count can't answer."""
+
+    def _row(self, net_amount, category="UNEXPLAINED"):
+        return {"net_amount": net_amount, "category": category}
+
+    def test_buckets_rows_by_amount(self):
+        rows = [self._row(100), self._row(1500), self._row(5000), self._row(15000)]
+        html = review_server.render_materiality_breakdown(rows)
+        self.assertIn("Under Rs.500", html)
+        self.assertIn("Rs.500 to Rs.2,000", html)
+        self.assertIn("Rs.2,000 to Rs.10,000", html)
+        self.assertIn("Rs.10,000 and up", html)
+        # one row landed in each bucket
+        self.assertEqual(html.count(">1 row<"), 4)
+
+    def test_boundary_values_land_in_the_higher_bucket(self):
+        """Buckets are [lo, hi) -- exactly Rs.500 belongs to the 500-2000
+        bucket, not the under-500 one, same convention a tax bracket uses."""
+        rows = [self._row(500), self._row(2000), self._row(10000)]
+        html = review_server.render_materiality_breakdown(rows)
+        self.assertIn('title="Rs.500.00 across 1 row(s)"', html)
+        self.assertIn('title="Rs.2,000.00 across 1 row(s)"', html)
+        self.assertIn('title="Rs.10,000.00 across 1 row(s)"', html)
+
+    def test_duplicate_rows_are_excluded(self):
+        """Same reasoning as db.compute_cash_clarity: a DUPLICATE row's
+        money already cleared under its sibling, so it must not be counted
+        here as if it were real at-risk cash needing triage."""
+        rows = [self._row(50000, category="DUPLICATE"), self._row(100, category="ROUNDING")]
+        html = review_server.render_materiality_breakdown(rows)
+        self.assertIn('title="Rs.100.00 across 1 row(s)"', html)
+        self.assertIn('title="Rs.0.00 across 0 row(s)"', html)  # the Rs.10,000+ bucket, empty once DUPLICATE is excluded
+        self.assertNotIn("50,000", html)
+
+    def test_rows_with_no_net_amount_are_skipped_not_crashed_on(self):
+        rows = [self._row(None), self._row(100)]
+        html = review_server.render_materiality_breakdown(rows)  # must not raise
+        self.assertIn('title="Rs.100.00 across 1 row(s)"', html)
+
+    def test_no_open_rows_renders_nothing(self):
+        self.assertEqual(review_server.render_materiality_breakdown([]), "")
+
+    def test_only_duplicate_rows_renders_nothing(self):
+        rows = [self._row(500, category="DUPLICATE")]
+        self.assertEqual(review_server.render_materiality_breakdown(rows), "")
+
+
 class TestRenderPassBar(unittest.TestCase):
     """Regression test for a real bug found live: this bar's middle bucket
     was labeled "AI-assisted", the exact same word the Records page's own

@@ -2228,6 +2228,60 @@ def render_cash_by_category(by_category_value: dict, by_category_count: dict) ->
     </div>"""
 
 
+# (low, high, label, tone) -- low inclusive, high exclusive, last bucket
+# unbounded. Tone climbs with size: a Rs.50,000 open row is not the same
+# triage priority as a Rs.50 one, even if both are "1 row, UNEXPLAINED."
+MATERIALITY_BUCKETS = [
+    (0, 500, "Under Rs.500", "information"),
+    (500, 2000, "Rs.500 to Rs.2,000", "information"),
+    (2000, 10000, "Rs.2,000 to Rs.10,000", "notice"),
+    (10000, float("inf"), "Rs.10,000 and up", "negative"),
+]
+
+
+def render_materiality_breakdown(open_rows: list[dict]) -> str:
+    """Every other chart on this page slices open exceptions by CATEGORY
+    (what kind of problem) or STATUS (how the pipeline classified it) --
+    neither answers a recon lead's actual first triage question: which of
+    these rows are worth enough in rupees to work first. A Rs.50 ROUNDING
+    row and a Rs.50,000 UNEXPLAINED row get equal visual weight everywhere
+    else on this page; they don't here.
+
+    DUPLICATE rows are excluded, same reasoning as db.compute_cash_clarity:
+    that money already cleared under its sibling row, so counting it here
+    would flag cash that isn't actually at risk as if it were."""
+    scoped = [r for r in open_rows if r["category"] != "DUPLICATE" and r["net_amount"] is not None]
+    if not scoped:
+        return ""
+
+    counts = [0] * len(MATERIALITY_BUCKETS)
+    values = [0.0] * len(MATERIALITY_BUCKETS)
+    for r in scoped:
+        amt = r["net_amount"]
+        for i, (lo, hi, _, _) in enumerate(MATERIALITY_BUCKETS):
+            if lo <= amt < hi:
+                counts[i] += 1
+                values[i] += amt
+                break
+
+    max_value = max(values) or 1.0
+    rows_html = "".join(
+        f"""<div class="hbar-row">
+              <span class="hbar-label">{label}</span>
+              <div class="hbar-track" title="Rs.{values[i]:,.2f} across {counts[i]} row(s)">
+                <div class="hbar-fill tone-{tone}" style="width:{max(values[i] / max_value * 100, 2):.1f}%"></div>
+              </div>
+              <span class="hbar-value">{counts[i]} row{'s' if counts[i] != 1 else ''}</span>
+            </div>"""
+        for i, (lo, hi, label, tone) in enumerate(MATERIALITY_BUCKETS)
+    )
+    return f"""
+    <div class="panel">
+      <div class="panel-head"><h2 style="margin:0">Open exceptions by materiality</h2></div>
+      <div class="panel-body"><div class="hbar-chart">{rows_html}</div></div>
+    </div>"""
+
+
 def render_overview() -> str:
     all_rows = db.get_all_exceptions()
     open_rows = db.get_open_exceptions()
@@ -2253,6 +2307,7 @@ def render_overview() -> str:
     ) or '<div class="empty-state">No categorized exceptions.</div>'
 
     cash_by_category_html = render_cash_by_category(by_category_value, by_category)
+    materiality_html = render_materiality_breakdown(open_rows)
 
     report_info = parse_last_report()
     throughput_stat = ""
@@ -2287,6 +2342,7 @@ def render_overview() -> str:
       <div class="panel-body"><div class="category-grid">{category_cards}</div></div>
     </div>
     {cash_by_category_html}
+    {materiality_html}
     {render_cash_clarity(all_rows)}
     {render_cash_forecast(all_rows)}"""
     return render_shell("overview", "Overview", "", body)
