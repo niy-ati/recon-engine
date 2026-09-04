@@ -81,7 +81,7 @@ ASSET_CONTENT_TYPES = {".png": "image/png", ".svg": "image/svg+xml", ".jpg": "im
 SHARE_DESCRIPTION = (
     "A deterministic-first reconciliation engine that resolves 87.6% of a real 525-row "
     "settlement batch with zero AI auto-applied -- plus a settlement Q&A agent, tax-line "
-    "matcher, and forward cash forecast. Built for Razorpay's AI Buildathon 2026, Track 04."
+    "matcher, and forward cash forecast."
 )
 SHARE_IMAGE_URL = "https://reconcile-engine-demo.vercel.app/assets/og-image.png"
 
@@ -388,12 +388,24 @@ PAGE_STYLE = """
   .stack-legend b { font-family:var(--font-heading); font-variant-numeric:tabular-nums; font-size:17px; font-weight:700; color:var(--ink); }
   .stack-legend .item-label { font-size:12.5px; color:var(--muted); display:block; }
 
-  /* Resolution trend line chart -- a legend is mandatory at 2+ series
-     (never rely on color-matching alone), so every point stays
-     identifiable even for a viewer who can't distinguish the three hues. */
-  .trend-legend { display:flex; gap:var(--sp-6); margin-bottom:var(--sp-5); flex-wrap:wrap; }
-  .trend-legend-item { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--muted); }
-  .trend-dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .trend-dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+
+  /* Materiality donut -- ring + center hero figure, legend alongside
+     rather than below so the two read as one composition, not a chart
+     plus a caption. */
+  .donut-layout { display:flex; align-items:center; gap:var(--sp-8); flex-wrap:wrap; }
+  .donut-wrap { position:relative; width:200px; height:200px; flex-shrink:0; }
+  .donut-wrap svg { display:block; }
+  .donut-center {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; pointer-events:none;
+  }
+  .donut-center-value { font-size:22px; font-weight:800; color:var(--ink); letter-spacing:-0.01em; }
+  .donut-center-label { font-size:12px; color:var(--muted); margin-top:2px; }
+  .donut-legend { display:flex; flex-direction:column; gap:var(--sp-4); flex:1; min-width:220px; }
+  .donut-legend-row { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .donut-legend-label { color:var(--ink); font-weight:600; flex:1; }
+  .donut-legend-value { color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
   /* Cash-value-by-category chart -- same four semantic tones the category
      cards already use (never a separate categorical palette), so a bar
@@ -2165,8 +2177,7 @@ def render_cash_clarity(all_rows: list[dict]) -> str:
 
 
 def render_cash_forecast(all_rows: list[dict]) -> str:
-    """Track 4 names a "forward cash forecaster" as its own use case.
-    Razorpay already ships a real Cashflow Forecaster (see README's
+    """Razorpay already ships a real Cashflow Forecaster (see README's
     comparison section) -- this is deliberately NOT a second one. A
     time-series prediction needs a history of past resolutions this
     project has no honest way to claim (there's no tracked
@@ -2206,91 +2217,6 @@ def render_cash_forecast(all_rows: list[dict]) -> str:
     </div>"""
 
 
-def render_resolution_trend(history: list[dict]) -> str:
-    """A real line chart over db.run_history -- one point per actual past
-    run of this tool, not simulated or backfilled data. Every other chart
-    on this page answers a question about the CURRENT batch; this is the
-    one place a trend, resolved/pending/open percentage over time, is
-    honestly answerable, because run_history is the one table that
-    survives reset_batch() (see both functions' own docstrings in db.py).
-
-    Renders nothing (not a broken one-point chart) until at least 2 runs
-    exist -- a single point has no trend to show, and a fabricated second
-    point would be exactly the kind of invented data this whole codebase
-    refuses to show."""
-    if len(history) < 2:
-        return ""
-
-    W, H = 800, 220
-    PAD_L, PAD_R, PAD_T, PAD_B = 40, 60, 16, 28
-    plot_w, plot_h = W - PAD_L - PAD_R, H - PAD_T - PAD_B
-
-    SERIES = [
-        ("resolved_pct", "Resolved", SWATCH_HEX["positive"]),
-        ("pending_review_pct", "Pending review", SWATCH_HEX["notice"]),
-        ("open_pct", "Open", SWATCH_HEX["negative"]),
-    ]
-    n = len(history)
-
-    def x_at(i: int) -> float:
-        return PAD_L + (i / (n - 1)) * plot_w
-
-    def y_at(pct: float) -> float:
-        return PAD_T + (1 - pct / 100) * plot_h
-
-    # Hairline gridlines at 0/25/50/75/100 -- one-step-off-surface, never
-    # dashed, recessive (marks-and-anatomy.md).
-    gridlines = "".join(
-        f'<line x1="{PAD_L}" y1="{y_at(p):.1f}" x2="{W - PAD_R}" y2="{y_at(p):.1f}" '
-        f'stroke="var(--border-subtle)" stroke-width="1"/>'
-        f'<text x="{PAD_L - 8}" y="{y_at(p) + 4:.1f}" font-size="10.5" fill="var(--faint)" text-anchor="end">{p}%</text>'
-        for p in (0, 25, 50, 75, 100)
-    )
-
-    lines_svg = []
-    for key, label, color in SERIES:
-        points = [(x_at(i), y_at(r[key])) for i, r in enumerate(history)]
-        path = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in points)
-        markers = "".join(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{color}" '
-            f'stroke="var(--panel)" stroke-width="2">'
-            f'<title>{label}: {history[i][key]}% (run {history[i]["run_id"]})</title>'
-            f'</circle>'
-            for i, (x, y) in enumerate(points)
-        )
-        last_x, last_y = points[-1]
-        end_label = (
-            f'<text x="{last_x + 10:.1f}" y="{last_y + 4:.1f}" font-size="12.5" font-weight="700" '
-            f'fill="{color}">{history[-1][key]}%</text>'
-        )
-        lines_svg.append(
-            f'<path d="{path}" fill="none" stroke="{color}" stroke-width="2" '
-            f'stroke-linejoin="round" stroke-linecap="round"/>{markers}{end_label}'
-        )
-
-    legend = "".join(
-        f'<span class="trend-legend-item"><span class="trend-dot" style="background:{color}"></span>{label}</span>'
-        for _, label, color in SERIES
-    )
-
-    return f"""
-    <div class="panel">
-      <div class="panel-head"><h2 style="margin:0">Resolution trend, across real runs</h2></div>
-      <div class="panel-body">
-        <div class="trend-legend">{legend}</div>
-        <svg viewBox="0 0 {W} {H}" width="100%" height="auto" role="img"
-             aria-label="Resolved, pending review, and open percentages across {n} real pipeline runs">
-          {gridlines}
-          {"".join(lines_svg)}
-        </svg>
-        <p style="margin:var(--sp-4) 0 0;color:var(--faint);font-size:12.5px">
-          {n} real runs of this pipeline, oldest to newest -- never simulated or backfilled.
-          A run appends here the moment `report.py` finishes, whether or not the batch itself was reset.
-        </p>
-      </div>
-    </div>"""
-
-
 def render_cash_by_category(by_category_value: dict, by_category_count: dict) -> str:
     """Horizontal bar chart, one bar per category, sized by rupee value --
     not just row count. The category cards above already answer "which
@@ -2323,28 +2249,25 @@ def render_cash_by_category(by_category_value: dict, by_category_count: dict) ->
     </div>"""
 
 
-# (low, high, label, tone) -- low inclusive, high exclusive, last bucket
-# unbounded. Tone climbs with size: a Rs.50,000 open row is not the same
-# triage priority as a Rs.50 one, even if both are "1 row, UNEXPLAINED."
+# (low, high, label, hex) -- low inclusive, high exclusive, last bucket
+# unbounded. Colors step from muted to the site's own --negative red, an
+# ordinal severity ramp (this is a size TIER, not an unordered category),
+# so the ring itself reads low-to-high priority without a legend lookup.
 MATERIALITY_BUCKETS = [
-    (0, 500, "Under Rs.500", "information"),
-    (500, 2000, "Rs.500 to Rs.2,000", "information"),
-    (2000, 10000, "Rs.2,000 to Rs.10,000", "notice"),
-    (10000, float("inf"), "Rs.10,000 and up", "negative"),
+    (0, 500, "Under Rs.500", "#a8b2c2"),
+    (500, 2000, "Rs.500 to Rs.2,000", "#4f8fd1"),
+    (2000, 10000, "Rs.2,000 to Rs.10,000", "#e08a1e"),
+    (10000, float("inf"), "Rs.10,000 and up", "#d33a2f"),
 ]
 
 
 def render_materiality_breakdown(open_rows: list[dict]) -> str:
-    """Every other chart on this page slices open exceptions by CATEGORY
-    (what kind of problem) or STATUS (how the pipeline classified it) --
-    neither answers a recon lead's actual first triage question: which of
-    these rows are worth enough in rupees to work first. A Rs.50 ROUNDING
-    row and a Rs.50,000 UNEXPLAINED row get equal visual weight everywhere
-    else on this page; they don't here.
-
-    DUPLICATE rows are excluded, same reasoning as db.compute_cash_clarity:
-    that money already cleared under its sibling row, so counting it here
-    would flag cash that isn't actually at risk as if it were."""
+    """Donut chart, ring segments sized by the same rupee value the center
+    hero figure totals -- open exceptions by size tier, not by category or
+    status, so a Rs.50,000 row and a Rs.50 one finally get different
+    visual weight. DUPLICATE excluded, same reasoning as
+    db.compute_cash_clarity: that money already cleared under its sibling
+    row."""
     scoped = [r for r in open_rows if r["category"] != "DUPLICATE" and r["net_amount"] is not None]
     if not scoped:
         return ""
@@ -2359,21 +2282,52 @@ def render_materiality_breakdown(open_rows: list[dict]) -> str:
                 values[i] += amt
                 break
 
-    max_value = max(values) or 1.0
-    rows_html = "".join(
-        f"""<div class="hbar-row">
-              <span class="hbar-label">{label}</span>
-              <div class="hbar-track" title="Rs.{values[i]:,.2f} across {counts[i]} row(s)">
-                <div class="hbar-fill tone-{tone}" style="width:{max(values[i] / max_value * 100, 2):.1f}%"></div>
-              </div>
-              <span class="hbar-value">{counts[i]} row{'s' if counts[i] != 1 else ''}</span>
-            </div>"""
-        for i, (lo, hi, label, tone) in enumerate(MATERIALITY_BUCKETS)
-    )
+    total_value = sum(values) or 1.0
+    total_count = sum(counts)
+
+    R, STROKE = 74, 30
+    CX, CY = 100, 100
+    CIRC = 2 * 3.14159265 * R
+
+    segments_svg = []
+    legend_items = []
+    cursor = 0.0
+    for i, (lo, hi, label, color) in enumerate(MATERIALITY_BUCKETS):
+        frac = values[i] / total_value
+        seg_len = frac * CIRC
+        gap = 2  # surface gap between adjacent ring segments
+        segments_svg.append(
+            f'<circle cx="{CX}" cy="{CY}" r="{R}" fill="none" stroke="{color}" '
+            f'stroke-width="{STROKE}" stroke-dasharray="{max(seg_len - gap, 0):.2f} {CIRC:.2f}" '
+            f'stroke-dashoffset="{-cursor:.2f}" transform="rotate(-90 {CX} {CY})">'
+            f'<title>{label}: Rs.{values[i]:,.2f} across {counts[i]} row(s)</title>'
+            f'</circle>'
+        )
+        cursor += seg_len
+        legend_items.append(
+            f'<div class="donut-legend-row"><span class="trend-dot" style="background:{color}"></span>'
+            f'<span class="donut-legend-label">{label}</span>'
+            f'<span class="donut-legend-value">Rs.{values[i]:,.0f} &middot; {counts[i]} row{"s" if counts[i] != 1 else ""}</span></div>'
+        )
+
     return f"""
     <div class="panel">
       <div class="panel-head"><h2 style="margin:0">Open exceptions by materiality</h2></div>
-      <div class="panel-body"><div class="hbar-chart">{rows_html}</div></div>
+      <div class="panel-body">
+        <div class="donut-layout">
+          <div class="donut-wrap">
+            <svg viewBox="0 0 200 200" width="200" height="200" role="img"
+                 aria-label="Open exceptions by size tier, Rs.{total_value:,.2f} total across {total_count} rows">
+              {"".join(segments_svg)}
+            </svg>
+            <div class="donut-center">
+              <span class="donut-center-value">Rs.{total_value:,.0f}</span>
+              <span class="donut-center-label">{total_count} open row{'s' if total_count != 1 else ''}</span>
+            </div>
+          </div>
+          <div class="donut-legend">{"".join(legend_items)}</div>
+        </div>
+      </div>
     </div>"""
 
 
@@ -2432,7 +2386,6 @@ def render_overview() -> str:
       </div>
     </div>
     {render_pass_bar(all_rows)}
-    {render_resolution_trend(db.get_run_history())}
     <div class="panel">
       <div class="panel-head"><h2 style="margin:0">Exceptions by category</h2></div>
       <div class="panel-body"><div class="category-grid">{category_cards}</div></div>
@@ -2688,9 +2641,9 @@ def render_sources() -> str:
           <div class="label">{label}</div>
         </div>"""
 
-    # Track 4 names a tax-line matcher as its own use case, distinct from
-    # settlement<->bank<->ledger reconciliation above -- see tax_audit.py's
-    # module docstring. Belongs on this page, not the exception queue:
+    # A tax-line matcher is a distinct capability from settlement<->bank<->
+    # ledger reconciliation above -- see tax_audit.py's module docstring.
+    # Belongs on this page, not the exception queue:
     # every row checked here can be (and on the real batch, is) a plain
     # MATCHED row with no exception at all -- this isn't about matching,
     # it's about whether each settlement's own numbers are correct against

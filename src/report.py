@@ -47,12 +47,6 @@ def generate(settlement_source: str = "synthetic", fresh_batch: bool = False) ->
     summary = summarize(results)
 
     db.persist_results(results, run_id)
-    # Recorded unconditionally, even under --fresh-batch: run_history tracks
-    # this tool's own real usage over time, a genuinely different thing
-    # from the current batch reset_batch() just cleared. See its own
-    # docstring in db.py.
-    db.record_run_summary(run_id, summary["total_rows"], summary["overall_resolved_pct"],
-                           summary["fuzzy_matched_needs_review_pct"], summary["unresolved_exception_pct"])
     print(f"Persisted {len(results)} rows to SQLite (run_id={run_id}, "
           f"settlement_source={settlement_source}) -- "
           f"open with review_server.py for the live queue.")

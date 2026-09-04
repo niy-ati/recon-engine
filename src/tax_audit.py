@@ -1,6 +1,6 @@
 """
-Tax-line matcher -- Track 4 names this as its own example use case,
-distinct from settlement<->bank<->ledger reconciliation. reconcile.py's
+Tax-line matcher -- a distinct capability from settlement<->bank<->ledger
+reconciliation. reconcile.py's
 existing TAX_DEDUCTION category only checks that the settlement report and
 the internal ledger AGREE with each other on the GST-on-MDR figure -- an
 internal-consistency check between this project's own two numbers, not a

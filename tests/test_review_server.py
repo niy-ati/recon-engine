@@ -56,43 +56,6 @@ class TestRenderDonut(unittest.TestCase):
         self.assertIn("<b>50.0%</b>", html)  # 2 of 4 rows genuinely resolved, not 3 of 4
 
 
-class TestRenderResolutionTrend(unittest.TestCase):
-    """See render_resolution_trend()'s own docstring: the one chart on this
-    page backed by real run_history data rather than the current batch."""
-
-    def _run(self, run_id, resolved, pending, open_pct, total_rows=525):
-        return {"run_id": run_id, "total_rows": total_rows, "resolved_pct": resolved,
-                "pending_review_pct": pending, "open_pct": open_pct}
-
-    def test_renders_nothing_for_fewer_than_two_runs(self):
-        """A single point has no trend -- must not draw a fabricated line
-        from one real point to nowhere."""
-        self.assertEqual(review_server.render_resolution_trend([]), "")
-        self.assertEqual(review_server.render_resolution_trend([self._run("run-1", 85.0, 3.0, 12.0)]), "")
-
-    def test_renders_a_point_per_run_with_real_values(self):
-        history = [
-            self._run("run-1", 85.0, 3.0, 12.0),
-            self._run("run-2", 87.6, 1.9, 10.5),
-        ]
-        html = review_server.render_resolution_trend(history)
-        self.assertIn("87.6%", html)  # the most recent run's end-label
-        self.assertIn("run-1", html)  # earlier run's own id, in its marker tooltip
-        self.assertIn("run-2", html)
-
-    def test_includes_a_legend_for_all_three_series(self):
-        history = [self._run("run-1", 85.0, 3.0, 12.0), self._run("run-2", 87.6, 1.9, 10.5)]
-        html = review_server.render_resolution_trend(history)
-        self.assertIn("Resolved", html)
-        self.assertIn("Pending review", html)
-        self.assertIn("Open", html)
-
-    def test_states_the_real_run_count_not_a_fixed_number(self):
-        history = [self._run(f"run-{i}", 80.0 + i, 2.0, 18.0 - i) for i in range(4)]
-        html = review_server.render_resolution_trend(history)
-        self.assertIn("4 real runs", html)
-
-
 class TestRenderMaterialityBreakdown(unittest.TestCase):
     """See render_materiality_breakdown()'s own docstring: every other
     Overview chart slices by category or status, never by rupee size --
@@ -109,17 +72,17 @@ class TestRenderMaterialityBreakdown(unittest.TestCase):
         self.assertIn("Rs.500 to Rs.2,000", html)
         self.assertIn("Rs.2,000 to Rs.10,000", html)
         self.assertIn("Rs.10,000 and up", html)
-        # one row landed in each bucket
-        self.assertEqual(html.count(">1 row<"), 4)
+        # one row landed in each bucket -- legend shows "1 row" once per bucket
+        self.assertEqual(html.count("&middot; 1 row<"), 4)
 
     def test_boundary_values_land_in_the_higher_bucket(self):
         """Buckets are [lo, hi) -- exactly Rs.500 belongs to the 500-2000
         bucket, not the under-500 one, same convention a tax bracket uses."""
         rows = [self._row(500), self._row(2000), self._row(10000)]
         html = review_server.render_materiality_breakdown(rows)
-        self.assertIn('title="Rs.500.00 across 1 row(s)"', html)
-        self.assertIn('title="Rs.2,000.00 across 1 row(s)"', html)
-        self.assertIn('title="Rs.10,000.00 across 1 row(s)"', html)
+        self.assertIn("Rs.500.00 across 1 row(s)", html)
+        self.assertIn("Rs.2,000.00 across 1 row(s)", html)
+        self.assertIn("Rs.10,000.00 across 1 row(s)", html)
 
     def test_duplicate_rows_are_excluded(self):
         """Same reasoning as db.compute_cash_clarity: a DUPLICATE row's
@@ -127,14 +90,14 @@ class TestRenderMaterialityBreakdown(unittest.TestCase):
         here as if it were real at-risk cash needing triage."""
         rows = [self._row(50000, category="DUPLICATE"), self._row(100, category="ROUNDING")]
         html = review_server.render_materiality_breakdown(rows)
-        self.assertIn('title="Rs.100.00 across 1 row(s)"', html)
-        self.assertIn('title="Rs.0.00 across 0 row(s)"', html)  # the Rs.10,000+ bucket, empty once DUPLICATE is excluded
+        self.assertIn("Rs.100.00 across 1 row(s)", html)
+        self.assertIn("Rs.0.00 across 0 row(s)", html)  # the Rs.10,000+ bucket, empty once DUPLICATE is excluded
         self.assertNotIn("50,000", html)
 
     def test_rows_with_no_net_amount_are_skipped_not_crashed_on(self):
         rows = [self._row(None), self._row(100)]
         html = review_server.render_materiality_breakdown(rows)  # must not raise
-        self.assertIn('title="Rs.100.00 across 1 row(s)"', html)
+        self.assertIn("Rs.100.00 across 1 row(s)", html)
 
     def test_no_open_rows_renders_nothing(self):
         self.assertEqual(review_server.render_materiality_breakdown([]), "")

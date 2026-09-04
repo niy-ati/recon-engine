@@ -57,7 +57,6 @@ def make_og_image():
     draw.line([(pad, 480), (W - pad, 480)], fill=(220, 228, 238), width=2)
     draw.text((pad, 510), "Multi-source reconciliation \u00b7 Settlement Q&A \u00b7 Tax-line matcher \u00b7 Cash forecast",
                font=font("segoeui.ttf", 24), fill=MUTED)
-    draw.text((pad, 552), "Razorpay AI Buildathon 2026 \u00b7 Track 04", font=font("segoeuib.ttf", 24), fill=PRIMARY_STRONG)
 
     out = ASSETS / "og-image.png"
     img.save(out, "PNG")

@@ -186,19 +186,6 @@ class TestFreshBatch(unittest.TestCase):
 
         self.assertEqual(len(db.get_all_exceptions()), 2)
 
-    def test_run_history_records_on_every_generate_even_with_fresh_batch(self):
-        """run_history must NOT be cleared by --fresh-batch -- it tracks
-        real usage of this tool over time, a different thing from the
-        current batch reset_batch() clears. See db.py's own docstrings."""
-        with patch("report.reconcile", return_value=FIXTURE_RESULTS):
-            report.generate()
-            report.generate(fresh_batch=True)
-        history = db.get_run_history()
-        self.assertEqual(len(history), 2)
-        expected = summarize(FIXTURE_RESULTS)
-        self.assertEqual(history[-1]["resolved_pct"], expected["overall_resolved_pct"])
-        self.assertEqual(history[-1]["total_rows"], expected["total_rows"])
-
 
 class TestExceptionsCsvMatchesResults(ReportTestCase):
     def test_matched_rows_excluded(self):

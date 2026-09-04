@@ -5,11 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![No paid API keys](https://img.shields.io/badge/paid%20API%20keys-0-brightgreen)](#ai-usage-and-validation)
 
-A reconciliation system for Razorpay merchants that matches settlement, bank, and ledger records, resolves what it can prove deterministically, and only reaches for a narrowly scoped, confidence-gated AI layer when deterministic logic can't resolve a row. Everything else goes to a human, with a full audit trail explaining why it didn't resolve on its own. Built for **Razorpay AI Buildathon 2026, Track 04: AI Finance Controller**.
+A reconciliation system for Razorpay merchants that matches settlement, bank, and ledger records, resolves what it can prove deterministically, and only reaches for a narrowly scoped, confidence-gated AI layer when deterministic logic can't resolve a row. Everything else goes to a human, with a full audit trail explaining why it didn't resolve on its own.
 
-**Governing principle:** every action traces back to a verifiable rule, a verifiable data field, or a human decision. Nothing is inferred or shown as resolved unless the data proves it.
-
-Track 04's own stated bar, verified directly from [razorpay.com/buildathon](https://razorpay.com/buildathon/), not a paraphrase: close a finance-ops loop across "a 50+ record batch of synthetic data, reporting its match rate and the exceptions it could not resolve." Judged on "throughput plus measured accuracy plus an honest exception list," because "one cherry-picked match proves nothing." This system runs on a 525-row batch, reports its real match rate every time, names every exception it can't resolve, and backs the accuracy claim with a 5-seed sweep (`extras/seed_sweep.py`) and a persisted evaluation harness (`src/arbiter_eval.py`), not one lucky run.
+**Governing principle:** every action traces back to a verifiable rule, a verifiable data field, or a human decision. Nothing is inferred or shown as resolved unless the data proves it. Every accuracy claim here is measured on the full batch and backed by a 5-seed sweep (`extras/seed_sweep.py`) and a persisted evaluation harness (`src/arbiter_eval.py`), never one cherry-picked example.
 
 Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments customer reports that automatic reconciliation cut booking cancellations from 18% to 5%, cut payment failures by 40%, and saved staff 15 hours a week. ([Source](https://www.linkedin.com/posts/aeijaz-sodawala-a2202a64_hoteltech-hospitalitytechnology-payments-share-7500577134541713408-vsug/)) That's the exact kind of manual-matching time this system exists to eliminate.
 
@@ -137,7 +135,7 @@ Every unmatched row gets a specific, named category and a stated reason, not a g
 
 **The governance is a real file, not a policy doc.** [`agent_manifest.json`](agent_manifest.json) states exactly what the agent reads and writes, every action it can and can't take, and what a human can revoke, machine-readable, not prose.
 
-**This isn't an isolated position.** Four separate teams at the same buildathon, four different problems, converged on the same rule: a model proposes, a deterministic layer or a human decides.
+**This isn't an isolated position.** Four separate teams, four different problems, converged on the same rule: a model proposes, a deterministic layer or a human decides.
 
 | Project | Problem | Restraint mechanism |
 |---|---|---|
@@ -227,7 +225,7 @@ Shown on the **Sources** page, and answerable directly, "check tax rates" for th
 
 ## Forward Cash Forecast
 
-Track 4's fourth named use case. Razorpay already ships a real, production Cashflow Forecaster, a time-series prediction over transaction history. This is deliberately **not** a second one: a genuine forward prediction needs a history of past resolution times this project has no honest way to claim, so it doesn't claim one.
+Razorpay already ships a real, production Cashflow Forecaster, a time-series prediction over transaction history. This is deliberately **not** a second one: a genuine forward prediction needs a history of past resolution times this project has no honest way to claim, so it doesn't claim one.
 
 What it answers instead is a different, fully honest question: not *when* will this resolve, but *how much unlocks the moment someone acts on what's already been verified*. `db.compute_cash_clarity()`'s `pending_review` figure is exactly that, cash sitting on a match this engine has already computed and proposed, waiting only on a human's confirm, not on new information. Projecting it forward is arithmetic over real, already-computed numbers, not a guess about the future.
 

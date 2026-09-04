@@ -4,7 +4,7 @@
 
 **Total rows processed:** 525
 
-**Throughput:** 525 rows in 4.74s (110.8 rows/sec) -- includes LLM arbiter call(s); Pass 1/2/2.5/2.75 alone are sub-second, the arbiter call dominates this number when present
+**Throughput:** 525 rows in 4.67s (112.5 rows/sec) -- includes LLM arbiter call(s); Pass 1/2/2.5/2.75 alone are sub-second, the arbiter call dominates this number when present
 
 **Clean deterministic match:** 76.4%
 **Matched with explained variance:** 8.6%

@@ -153,44 +153,6 @@ class TestPersistResults(DbTestCase):
         self.assertIsNone(row["dispute_id"])
 
 
-class TestRunHistory(DbTestCase):
-    """run_history is the one table reset_batch() deliberately never
-    touches -- see both functions' own docstrings. Real per-run data
-    points for the Overview page's trend chart, not simulated ones."""
-
-    def test_records_and_reads_back_in_chronological_order(self):
-        db.record_run_summary("run-1", total_rows=500, resolved_pct=85.0,
-                               pending_review_pct=3.0, open_pct=12.0)
-        db.record_run_summary("run-2", total_rows=525, resolved_pct=87.6,
-                               pending_review_pct=1.9, open_pct=10.5)
-        history = db.get_run_history()
-        self.assertEqual(len(history), 2)
-        self.assertEqual(history[0]["run_id"], "run-1")
-        self.assertEqual(history[1]["run_id"], "run-2")
-        self.assertEqual(history[1]["resolved_pct"], 87.6)
-
-    def test_survives_reset_batch(self):
-        """The exact property that makes this table useful: a fresh
-        synthetic batch wipes `exceptions` but must never erase the
-        history of past runs used to build it."""
-        db.record_run_summary("run-1", total_rows=500, resolved_pct=85.0,
-                               pending_review_pct=3.0, open_pct=12.0)
-        db.reset_batch()
-        history = db.get_run_history()
-        self.assertEqual(len(history), 1)
-        self.assertEqual(history[0]["run_id"], "run-1")
-
-    def test_limit_keeps_only_the_most_recent_runs_but_still_chronological(self):
-        for i in range(5):
-            db.record_run_summary(f"run-{i}", total_rows=500, resolved_pct=float(80 + i),
-                                   pending_review_pct=2.0, open_pct=18.0 - i)
-        history = db.get_run_history(limit=3)
-        self.assertEqual([r["run_id"] for r in history], ["run-2", "run-3", "run-4"])
-
-    def test_no_runs_yet_returns_empty_list(self):
-        self.assertEqual(db.get_run_history(), [])
-
-
 class TestResetBatch(DbTestCase):
     """See reset_batch()'s own docstring for the real bug this exists to
     prevent: generate_data.py draws every ID from one seeded random

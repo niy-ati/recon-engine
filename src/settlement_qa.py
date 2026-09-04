@@ -720,7 +720,7 @@ def _cash_value(question: str) -> str | None:
 
 
 def _cash_forecast(question: str) -> str | None:
-    """Track 4's named "forward cash forecaster" use case. See
+    """The forward cash forecaster. See
     render_cash_forecast()'s docstring in review_server.py -- same
     function, same number, same reasoning, just answered here instead of
     read off the Overview page. Deliberately checked with its own
@@ -1327,7 +1327,7 @@ def _recurring_patterns(question: str) -> str | None:
 
 
 def _tax_line_audit(question: str) -> str | None:
-    """Track 4 names a "tax-line matcher" as its own use case, separate
+    """A tax-line matcher is a distinct capability, separate
     from settlement<->bank<->ledger reconciliation -- see tax_audit.py's
     module docstring for why that's a genuinely different check (agreeing
     with our own ledger says nothing about agreeing with the actual GST

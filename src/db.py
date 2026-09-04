@@ -75,22 +75,6 @@ CREATE TABLE IF NOT EXISTS narration_templates (
     confirmed_at TEXT NOT NULL,
     source TEXT NOT NULL
 );
-
--- One row per pipeline run, appended, never overwritten or reset by
--- reset_batch() -- this tracks this TOOL's own real usage history across
--- runs, a genuinely different thing from `exceptions`, which is the
--- current batch's own per-row state. The Overview page's trend chart
--- reads this directly: real data points from real runs, not a
--- simulated or backfilled history.
-CREATE TABLE IF NOT EXISTS run_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL,
-    recorded_at TEXT NOT NULL,
-    total_rows INTEGER NOT NULL,
-    resolved_pct REAL NOT NULL,
-    pending_review_pct REAL NOT NULL,
-    open_pct REAL NOT NULL
-);
 """
 
 
@@ -181,68 +165,22 @@ def persist_results(results: list[dict], run_id: str) -> None:
 
 
 def reset_batch() -> None:
-    """Deletes every row from `exceptions` -- a deliberate, explicit "start
-    over," never called from persist_results() itself. That function's own
-    upsert-on-match_key is correct for re-running the SAME batch (a code
-    change to the matching logic, say) without losing a human's earlier
-    confirm/reject. But generate_data.py draws every ID from one seeded
-    random stream, so touching that file (adding a field, a new case
-    bucket, anything that changes how many random values are drawn before
-    another) shifts every ID after that point -- the batch is still fully
-    reproducible under its seed, just a DIFFERENT batch, with settlement_ids
-    that share nothing with whatever's already persisted. Found live: five
-    small, unrelated edits to generate_data.py during one session each
-    left the previous run's rows behind under now-orphaned match_keys,
-    silently growing data/reconcile.db from one real batch's ~525 rows to
-    3,104 rows across 6 forgotten runs -- report.py calling persist_results()
-    dutifully, correctly, upserting rows that could never collide with the
-    old ones because their IDs were never going to match again.
-
-    narration_rules/narration_templates are deliberately NOT touched here:
-    those are cross-batch learned memory by design (a human confirming a
-    narration pattern once should keep working on a future batch with the
-    same recurring template), not per-batch state the way `exceptions` is."""
+    """Deletes every row from `exceptions`. Needed because generate_data.py
+    draws every ID from one seeded random stream, so any edit to that file
+    shifts every ID drawn after it -- a different batch under the same
+    seed, sharing no settlement_ids with whatever's already persisted.
+    Without this, persist_results()'s upsert-on-match_key (correct for
+    re-running the SAME batch) leaves the old batch's rows behind under
+    orphaned match_keys instead of replacing them. Found live: this grew
+    data/reconcile.db to 3,104 rows across 6 forgotten runs before being
+    caught. narration_rules/narration_templates are untouched -- cross-batch
+    learned memory, not per-batch state."""
     conn = get_connection()
     try:
         with conn:
             conn.execute("DELETE FROM exceptions")
     finally:
         conn.close()
-
-
-def record_run_summary(run_id: str, total_rows: int, resolved_pct: float,
-                        pending_review_pct: float, open_pct: float) -> None:
-    """Appends one row to run_history -- called by report.py on every run,
-    regardless of --fresh-batch, since this tracks real usage of the tool
-    itself over time, not the current batch's own state. Never updated or
-    deleted (unlike `exceptions`, this has no match_key to upsert on and no
-    reason to overwrite a past run's real numbers with a later one's)."""
-    conn = get_connection()
-    try:
-        with conn:
-            conn.execute(
-                "INSERT INTO run_history (run_id, recorded_at, total_rows, resolved_pct, "
-                "pending_review_pct, open_pct) VALUES (?, ?, ?, ?, ?, ?)",
-                (run_id, datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 total_rows, resolved_pct, pending_review_pct, open_pct),
-            )
-    finally:
-        conn.close()
-
-
-def get_run_history(limit: int = 20) -> list[dict]:
-    """The most recent `limit` runs, oldest first (chart-ready order) --
-    real data points from real past runs of this tool, never backfilled or
-    simulated to fill out a nicer-looking trend."""
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT * FROM (SELECT * FROM run_history ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
-            (limit,),
-        ).fetchall()
-    finally:
-        conn.close()
-    return [dict(r) for r in rows]
 
 
 def get_open_exceptions() -> list[dict]:

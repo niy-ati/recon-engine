@@ -783,9 +783,9 @@ class TestCashValue(SettlementQaTestCase):
 
 
 class TestCashForecast(SettlementQaTestCase):
-    """Track 4 names a "forward cash forecaster" as its own use case --
-    this is deliberately a projection over already-verified data (what
-    unlocks if the queue gets confirmed), not a time-series prediction."""
+    """The forward cash forecaster -- deliberately a projection over
+    already-verified data (what unlocks if the queue gets confirmed), not
+    a time-series prediction."""
 
     def test_projects_resolved_pct_forward_by_the_pending_amount(self):
         """order_5 (net=100.0, MATCHED_LOW_CONFIDENCE) is the fixture's
@@ -1043,9 +1043,9 @@ class TestRecurringPatterns(SettlementQaTestCase):
 
 
 class TestTaxLineAudit(SettlementQaTestCase):
-    """Track 4 names a "tax-line matcher" as its own use case. Mocks
+    """The tax-line matcher. Mocks
     tax_audit.audit_tax_lines() with controlled fixture data -- the real
-    finding (order_1210/order_1151, Rs.1 overcharged each) is verified
+    finding (Rs.1 overcharged per flagged row) is verified
     directly against tax_audit.py's own tests, not re-asserted here
     against numbers that would break if the real batch is regenerated."""
 
