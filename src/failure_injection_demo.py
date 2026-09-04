@@ -5,7 +5,9 @@ reconciler would cross-wire these.
 
 Run after reconcile.py to confirm the engine tells them apart correctly,
 since matching keys on UTR first and amount only as a secondary tolerance
-check.
+check. run_all.py runs this as a real pipeline step, right before
+report.py, so the trap rows it appends are meant to persist into the
+committed data/ snapshot and the final report -- not a throwaway probe.
 """
 import csv
 from pathlib import Path

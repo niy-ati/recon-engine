@@ -46,6 +46,11 @@ is a guaranteed constant. Reproduce
 the range yourself with `python extras/seed_sweep.py`, which drives this
 via the RECON_SEED environment variable below and restores data/ and
 output/ to their committed state afterward, whatever seed it's given.
+
+Also writes data/ground_truth.csv: one hand-verified expected outcome per
+row, keyed by reconcile.py's own match_key scheme, so
+src/reconciliation_eval.py can score a real reconcile() run against actual
+known-correct labels instead of trusting the resolved percentage alone.
 """
 import csv
 import os
@@ -68,6 +73,18 @@ START = date(2026, 8, 1)
 settlement_rows = []
 bank_rows = []
 ledger_rows = []
+
+# Per-row expected outcome, keyed the same way reconcile.py keys its own
+# results (match_key), so reconciliation_eval.py can score a real run
+# against this without re-deriving reconcile.py's decision logic a second,
+# independently-fallible time. "expected" is a single label normally, or a
+# pipe-joined set when the true outcome depends on a live, not-fully-
+# deterministic arbiter call (see the OCR-typo case below). The duplicate
+# case is the one outcome no single row can state alone -- which of the
+# pair gets flagged depends on shuffled file order, not anything about the
+# row itself -- so those two rows carry a shared `group` id instead of an
+# `expected` value, and reconciliation_eval.py checks the pair together.
+ground_truth = []
 
 customers = [f"Customer {i}" for i in range(1, 30)]
 
@@ -114,6 +131,7 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "MATCHED", "group": ""})
 
     # --- 8%: bank credit lands a day late ---
     elif case < 0.73:
@@ -121,6 +139,7 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, bank_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "MATCHED", "group": ""})
 
     # --- 6%: partial refund netted into settlement ---
     elif case < 0.79:
@@ -129,6 +148,7 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net_after_refund, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net_after_refund, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer} PARTIAL REFUND {refund}", gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "PARTIAL_PAYMENT", "group": ""})
 
     # --- 4%: GST-on-MDR rounding drift -- bank credits the TRUE net; the
     # settlement report's own stated net differs by the drift amount, the
@@ -142,6 +162,11 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, money(gst_on_mdr + drift), money(net - drift), utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        # Matches reconcile.py's own live condition (Pass 1's near-match
+        # branch) exactly, using the same `drift` value already in scope --
+        # not a re-derived duplicate of that logic.
+        expected = "ROUNDING" if abs(drift) < 1.0 else "TAX_DEDUCTION"
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": expected, "group": ""})
 
     # --- 4%: messy ledger narration, digits intact -- resolves in Pass 2.75 ---
     elif case < 0.87:
@@ -149,6 +174,7 @@ for i in range(N_ORDERS):
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         messy = f"pymt rcvd {customer.split()[1]} ord#{1000+i} thx"
         ledger_rows.append([f"INV-{1000+i}", "", customer, gross, messy, gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "MATCHED_EXACT_REFERENCE", "group": ""})
 
     # --- 3%: OCR/typo-corrupted order reference -- needs Pass 3/4 ---
     elif case < 0.90:
@@ -158,6 +184,15 @@ for i in range(N_ORDERS):
         corrupted = digits.replace("0", "O", 1) if "0" in digits else digits.replace("1", "l", 1)
         typo_narration = f"pymt rcvd {customer.split()[1]} ord#{corrupted} thx"
         ledger_rows.append([f"INV-{1000+i}", "", customer, gross, typo_narration, gst_on_mdr])
+        # Outcome genuinely depends on a live arbiter call (confidence-gated
+        # auto-apply vs. held for review), so this is scored against an
+        # allowed set, not one exact value -- UNEXPLAINED covers the rare
+        # case the arbiter finds no shortlist hit at all.
+        ground_truth.append({
+            "match_key": f"settlement:{settlement_id}",
+            "expected": "MATCHED_AI_ASSISTED|FUZZY_MATCH_NEEDS_REVIEW|UNEXPLAINED",
+            "group": "",
+        })
 
     # --- 3%: duplicated settlement row ---
     elif case < 0.93:
@@ -165,10 +200,19 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id + "_dup", payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        # Which twin wins the single real bank credit depends on shuffled
+        # file order, not anything about the row -- reconcile.py's own
+        # duplicate test is named for exactly this symmetry. Scored as a
+        # pair: exactly one MATCHED, one DUPLICATE, not a fixed per-key
+        # prediction.
+        dup_group = f"dup_{i}"
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "", "group": dup_group})
+        ground_truth.append({"match_key": f"settlement:{settlement_id}_dup", "expected": "", "group": dup_group})
 
     # --- 1%: genuinely orphan / UNEXPLAINED ---
     elif case < 0.94:
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
+        ground_truth.append({"match_key": f"bank_orphan:{utr}", "expected": "UNEXPLAINED", "group": ""})
 
     # --- 2%: two-tier UTR mismatch -- the bank posts the exact amount on
     # the exact date, but under a different UTR than the settlement
@@ -180,11 +224,13 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, reported_utr, settle_date, False, method, dispute_id])
         bank_rows.append([actual_bank_utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "UTR_LEVEL_MISMATCH", "group": ""})
 
     # --- 2%: on_hold=true settlement -- fulfilled but no bank credit yet ---
     elif case < 0.98:
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, True, method, dispute_id])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "ON_HOLD_BY_RAZORPAY", "group": ""})
 
     # --- 1%: settlement carries an active dispute -- see the DISPUTED
     # entry in the module docstring above ---
@@ -193,6 +239,7 @@ for i in range(N_ORDERS):
         settlement_rows.append([settlement_id, payment_id, order_id, gross, mdr, gst_on_mdr, net, utr, settle_date, False, method, dispute_id])
         bank_rows.append([utr, net, settle_date, f"NEFT CR RAZORPAY SETTLEMENT {settlement_id}"])
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross, f"Payment received order {order_id} - {customer}", gst_on_mdr])
+        ground_truth.append({"match_key": f"settlement:{settlement_id}", "expected": "DISPUTED", "group": ""})
 
     # --- 1%: AFA/mandate-hold (subscription charge blocked at >15k) ---
     else:
@@ -202,6 +249,7 @@ for i in range(N_ORDERS):
         ledger_rows.append([f"INV-{1000+i}", order_id, customer, gross,
                              f"Subscription renewal order {order_id} - {customer} - AFA_MANDATE_HOLD pending step-up auth",
                              gst_on_mdr])
+        ground_truth.append({"match_key": f"order_only:{order_id}", "expected": "AFA_MANDATE_HOLD", "group": ""})
 
 random.shuffle(settlement_rows)
 random.shuffle(bank_rows)
@@ -222,4 +270,10 @@ with open(DATA_DIR / "internal_ledger.csv", "w", newline="") as f:
     w.writerow(["invoice_id", "order_ref", "customer", "amount", "narration", "gst_line"])
     w.writerows(ledger_rows)
 
+with open(DATA_DIR / "ground_truth.csv", "w", newline="") as f:
+    w = csv.writer(f)
+    w.writerow(["match_key", "expected", "group"])
+    w.writerows([g["match_key"], g["expected"], g["group"]] for g in ground_truth)
+
 print(f"Generated {len(settlement_rows)} settlement rows, {len(bank_rows)} bank rows, {len(ledger_rows)} ledger rows.")
+print(f"Ground truth: {len(ground_truth)} labeled rows -> data/ground_truth.csv")
