@@ -19,6 +19,6 @@ psycopg[binary]==3.2.3
 # (see README) -- exactly the same kind of optional local dependency
 # Ollama already is for the LLM arbiter; without it, document_qa.py
 # degrades to an honest "OCR isn't available" instead of failing.
-pypdf==6.13.1
+pypdf>=4.0.0
 pytesseract==0.3.13
 Pillow>=10.0
