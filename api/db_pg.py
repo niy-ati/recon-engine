@@ -34,6 +34,12 @@ SCHEMA_STATEMENTS = [
         order_id TEXT,
         settlement_id TEXT,
         net_amount DOUBLE PRECISION,
+        gross_amount DOUBLE PRECISION,
+        mdr_amount DOUBLE PRECISION,
+        utr TEXT,
+        settlement_date TEXT,
+        method TEXT,
+        dispute_id TEXT,
         status TEXT NOT NULL,
         category TEXT,
         reason TEXT,
@@ -82,6 +88,14 @@ def get_connection() -> psycopg.Connection:
         # explicitly instead and leave the connection open for the caller.
         for stmt in SCHEMA_STATEMENTS:
             conn.execute(stmt)
+        # Migrate: add columns that may not exist on older databases
+        for col, col_type in (("gross_amount", "DOUBLE PRECISION"), ("mdr_amount", "DOUBLE PRECISION"),
+                              ("utr", "TEXT"), ("settlement_date", "TEXT"), ("method", "TEXT"),
+                              ("dispute_id", "TEXT")):
+            try:
+                conn.execute(f"ALTER TABLE exceptions ADD COLUMN {col} {col_type}")
+            except Exception:
+                pass  # column already exists
         conn.commit()
         _schema_ready = True
     return conn
@@ -98,14 +112,21 @@ def persist_results(results: list[dict], run_id: str) -> None:
                 needs_action = "yes" if r["status"] in ("EXCEPTION", "MATCHED_LOW_CONFIDENCE") else "no"
                 conn.execute(
                     """INSERT INTO exceptions
-                       (match_key, run_id, order_id, settlement_id, net_amount, status, category,
+                       (match_key, run_id, order_id, settlement_id, net_amount, gross_amount,
+                        mdr_amount, utr, settlement_date, method, dispute_id, status, category,
                         reason, narration, needs_action, replay_log)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                        ON CONFLICT (match_key) DO UPDATE SET
                            run_id = EXCLUDED.run_id,
                            order_id = EXCLUDED.order_id,
                            settlement_id = EXCLUDED.settlement_id,
                            net_amount = EXCLUDED.net_amount,
+                           gross_amount = EXCLUDED.gross_amount,
+                           mdr_amount = EXCLUDED.mdr_amount,
+                           utr = EXCLUDED.utr,
+                           settlement_date = EXCLUDED.settlement_date,
+                           method = EXCLUDED.method,
+                           dispute_id = EXCLUDED.dispute_id,
                            status = EXCLUDED.status,
                            category = EXCLUDED.category,
                            reason = EXCLUDED.reason,
@@ -114,6 +135,8 @@ def persist_results(results: list[dict], run_id: str) -> None:
                            replay_log = EXCLUDED.replay_log
                        WHERE exceptions.resolution_status = 'OPEN'""",
                     (match_key, run_id, r.get("order_id"), r.get("settlement_id"), r.get("net"),
+                     r.get("gross"), r.get("mdr"), r.get("utr"), r.get("settlement_date"),
+                     r.get("method"), r.get("dispute_id"),
                      r["status"], r.get("category"), r.get("reason"), r.get("narration", ""),
                      needs_action, json.dumps(r.get("stage", []))),
                 )
@@ -236,6 +259,15 @@ def resolve_exception(exception_id: int, action: str, note: str | None = None) -
                     )
     finally:
         conn.close()
+
+
+def summarize_replay(replay_log: list) -> str:
+    """Identical copy of src/db.py's summarize_replay() -- pure list
+    processing over an already-parsed replay log, no SQL involved."""
+    details = [entry.get("detail", "") for entry in replay_log if isinstance(entry, dict) and entry.get("detail")]
+    if not details:
+        return ""
+    return "; ".join(d[0].upper() + d[1:] for d in details if d)
 
 
 def compute_cash_clarity(all_rows: list[dict]) -> dict:
