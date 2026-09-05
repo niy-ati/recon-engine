@@ -91,12 +91,15 @@ def main() -> None:
         for r in exceptions:
             pconn.execute(
                 """INSERT INTO exceptions
-                   (match_key, run_id, order_id, settlement_id, net_amount, status, category,
+                   (match_key, run_id, order_id, settlement_id, net_amount, gross_amount, mdr_amount,
+                    utr, settlement_date, method, dispute_id, status, category,
                     reason, narration, needs_action, replay_log, resolution_status,
                     resolution_note, resolved_at)
                    VALUES (%(match_key)s, %(run_id)s, %(order_id)s, %(settlement_id)s, %(net_amount)s,
-                           %(status)s, %(category)s, %(reason)s, %(narration)s, %(needs_action)s,
-                           %(replay_log)s, %(resolution_status)s, %(resolution_note)s, %(resolved_at)s)""",
+                           %(gross_amount)s, %(mdr_amount)s, %(utr)s, %(settlement_date)s, %(method)s,
+                           %(dispute_id)s, %(status)s, %(category)s, %(reason)s, %(narration)s,
+                           %(needs_action)s, %(replay_log)s, %(resolution_status)s, %(resolution_note)s,
+                           %(resolved_at)s)""",
                 r,
             )
 
