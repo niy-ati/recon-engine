@@ -87,12 +87,14 @@ Every unmatched row gets a specific, named category and a stated reason, not a g
 | `UTR_LEVEL_MISMATCH` | Bank credit matches amount/date under a different, unclaimed UTR | **The money arrived**, only the reference diverged. |
 | `DUPLICATE` | A settlement ID appears twice, one bank credit exists | **The real money already cleared** under the sibling entry. |
 | `ON_HOLD_BY_RAZORPAY` | Recon line reports `on_hold: true` | Razorpay is **deliberately holding** the payout. |
-| `AFA_MANDATE_HOLD` | Subscription renewal above the RBI [₹15,000 e-mandate threshold](https://www.business-standard.com/amp/article/finance/new-e-mandate-guidelines-rbi-enhances-limit-for-e-mandates-on-credit-debit-cards-to-rs-15-000-122060800417_1.html) | Needs a **compliant step-up re-auth**, not a blind retry. |
+| `AFA_MANDATE_HOLD` | Subscription renewal above the RBI's standard [₹15,000 e-mandate threshold](https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=13374) | Needs a **compliant step-up re-auth**, not a blind retry. |
 | `FUZZY_MATCH_NEEDS_REVIEW` | Arbiter proposed a candidate, didn't clear the trust gate | A ranked candidate exists, **one click** confirms or rejects. |
 | `UNEXPLAINED` | No counterpart anywhere after every pass runs | Genuinely unexplained. **Expected to stay above zero**, a perfect match rate is a red flag, not a win. |
 | `DISPUTED` | Settlement recon line carries an active `dispute_id` | The bank credit can still look clean. **Don't treat it as booked** until the dispute resolves. |
 
 `DISPUTED` is the newest category, and the reason the headline resolved percentage is lower than it used to be: a disputed settlement with an otherwise clean bank match used to count as plain `MATCHED`. It shouldn't have, the money can still be clawed back, so it no longer does. See [AI Usage and Validation](#ai-usage-and-validation) for what this cost the number, on purpose.
+
+RBI's April 2026 "Digital Payments -- E-Mandate Framework" ([RBI/DPSS/2026-27/396](https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=13374), consolidating every prior e-mandate circular into one) is the current source for that ₹15,000 figure, not the standard threshold alone: it also carves out a ₹1,00,000 limit for insurance premiums, mutual fund subscriptions, and credit card bill payments specifically. This batch's `AFA_MANDATE_HOLD` case is a plain subscription renewal, none of those three, so it's correctly modeled against the ₹15,000 figure, not the higher one -- the distinction actually matters, not a rounding-off detail.
 
 ## Metrics
 
