@@ -83,7 +83,7 @@ SHARE_DESCRIPTION = (
     "settlement batch with zero AI auto-applied -- plus a settlement Q&A agent, tax-line "
     "matcher, and forward cash forecast."
 )
-SHARE_IMAGE_URL = "https://reconcile-engine-demo.vercel.app/assets/og-image.png"
+SHARE_IMAGE_URL = "https://reconcile-engine.vercel.app/assets/og-image.png"
 
 # ~8MB original file: base64 adds ~33% (~10.9MB) plus a little JSON overhead.
 MAX_UPLOAD_CONTENT_LENGTH = 12 * 1024 * 1024

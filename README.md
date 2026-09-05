@@ -11,7 +11,7 @@ A reconciliation system for Razorpay merchants that matches settlement, bank, an
 
 Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments customer reports that automatic reconciliation cut booking cancellations from 18% to 5%, cut payment failures by 40%, and saved staff 15 hours a week. ([Source](https://www.linkedin.com/posts/aeijaz-sodawala-a2202a64_hoteltech-hospitalitytechnology-payments-share-7500577134541713408-vsug/)) That's the exact kind of manual-matching time this system exists to eliminate.
 
-**Live demo:** [reconcile-engine-demo.vercel.app](https://reconcile-engine-demo.vercel.app), the real review dashboard and Settlement Q&A, running against a persisted batch.
+**Live demo:** [reconcile-engine.vercel.app](https://reconcile-engine.vercel.app), the real review dashboard and Settlement Q&A, running against a persisted batch.
 **Video, screenshots:** [Google Drive folder](https://drive.google.com/drive/folders/1OBS8dvLnuLHjImn6XZF13Ev96iextn2g?usp=sharing)
 
 ## At a glance
