@@ -58,6 +58,8 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
+import nodal_reconciliation
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -277,3 +279,12 @@ with open(DATA_DIR / "ground_truth.csv", "w", newline="") as f:
 
 print(f"Generated {len(settlement_rows)} settlement rows, {len(bank_rows)} bank rows, {len(ledger_rows)} ledger rows.")
 print(f"Ground truth: {len(ground_truth)} labeled rows -> data/ground_truth.csv")
+
+# A fourth synthetic source, independent of the three above: the escrow/
+# nodal account's own daily balance, the check src/nodal_reconciliation.py
+# runs against them. See that module's docstring for what this represents
+# and why it's a genuinely different reconciliation from settlement<->bank<->
+# ledger -- this is Razorpay's own obligation as a Payment Aggregator, not
+# anything a merchant-facing tool would check.
+nodal_reconciliation.write_synthetic_balance_csv(DATA_DIR)
+print("Wrote data/nodal_balance.csv (escrow/nodal account daily balance)")

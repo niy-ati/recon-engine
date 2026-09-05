@@ -17,7 +17,7 @@ Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments cu
 ## At a glance
 
 - **87.6% resolved with zero human input**, versus roughly 51% for manual spreadsheet reconciliation. Measured on a real 525-row batch, holding 86 to 88% across five other untuned batches.
-- **9 named exception categories**, including `DISPUTED`, which exists precisely because it's the reason this number isn't higher: a settlement with an active dispute used to count as a plain clean match. It doesn't anymore, on purpose. See [Exception Categories](#exception-categories).
+- **10 named exception categories**, including `DISPUTED`, which exists precisely because it's the reason this number isn't higher: a settlement with an active dispute used to count as a plain clean match. It doesn't anymore, on purpose. See [Exception Categories](#exception-categories).
 - **7-pass deterministic matcher**: UTR, order ID, learned patterns, exact digit references, fuzzy narrowing, all before a model is ever consulted.
 - **One AI step, tightly gated**: a model picks between candidates a deterministic pass already shortlisted, at 90%+ confidence, and only auto-applies from a trust list that's empty until a tier proves itself. Nothing has ever auto-applied.
 - **Full audit trail**: every automatic and human decision is a real, replayable SQLite record.
@@ -44,6 +44,7 @@ Reconciliation isn't a hypothetical line item. A real Razorpay hotel-payments cu
 - [Settlement Q&A](#settlement-qa)
 - [Tax Line Matcher](#tax-line-matcher)
 - [Forward Cash Forecast](#forward-cash-forecast)
+- [Escrow / Nodal Account Compliance](#escrow--nodal-account-compliance)
 - [Scope](#scope)
 - [Setup](#setup)
 - [Testing](#testing)
@@ -167,7 +168,7 @@ Independently cross-checked against Razorpay's own official [`razorpay-cli`](htt
 
 Razorpay's own [Intelligent Reconciliation Agent](https://razorpay.com/blog/razorpay-agentic-platform/) is real and shipped, in their own words: "upload a screenshot of your bank statement. The agent extracts UTR numbers and amounts instantly, cross-referencing them against Razorpay records to flag discrepancies." Two sources, ending at "flag a discrepancy." The same claim was repeated at their FTX'26 Agent Studio launch: "match this with my Razorpay settlements...reads the file, finds payment details, and matches them instantly. What once took finance teams hours of manual work can now be done in seconds." ([Source](https://razorpay.com/newsroom/razorpay-launches-the-worlds-first-ai-native-agent-studio-for-payments-at-ftx26-powered-by-anthropics-claude/)) Still two sources, still stopping at a match, not a taxonomy.
 
-**What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **65 of 523 rows (12.4%) are resolved or explained only because the ledger got read**, including 3 rows with a perfectly clean UTR, amount, and date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
+**What this adds:** a third source (the merchant's own ledger), a named exception taxonomy, a confidence-gated AI layer, and a loop where a human correction generalizes to the next similarly worded row. [`src/three_source_advantage_demo.py`](src/three_source_advantage_demo.py) proves the third source matters against the real batch: **65 of 525 rows (12.4%) are resolved or explained only because the ledger got read**, including 3 rows with a perfectly clean UTR, amount, and date match that a two-source tool would call done, which this system still flags because the merchant's own ledger has no record of the order at all.
 
 The same gap holds even for Razorpay's own multi-gateway product. [Optimizer's Single View Recon](https://razorpay.com/blog/single-view-recon/) consolidates settlements across payment gateways into one dashboard, but it's a consolidated view, not a matching engine: no AI matching, no exception taxonomy, no merchant ledger as a source, and it only works on payments already routed through Optimizer.
 
@@ -238,11 +239,23 @@ On the real batch: confirming everything currently in the queue moves resolved c
 
 Shown on the **Overview** page, right under Cash-position clarity, and answerable directly, "forecast my cash," "what if I confirm everything," through Settlement Q&A.
 
+## Escrow / Nodal Account Compliance
+
+A genuinely different reconciliation from everything above, because it isn't the merchant's problem to solve, it's Razorpay's own, as a Payment Aggregator. Every rupee a customer pays sits in Razorpay's escrow (nodal) account before it reaches the merchant, T+2 in this batch's own pipeline. [RBI's Master Direction on Regulation of Payment Aggregators](https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12896) (RBI/DPSS/2025-26/141, 15 Sep 2025, Chapter V) states the escrow balance "shall not be less than the amount realised in escrow towards funds payable to the merchants, but not settled to them" -- a floor, not an exact target. [`src/nodal_reconciliation.py`](src/nodal_reconciliation.py) checks exactly that, every day, against this batch's own settlement data.
+
+This isn't invented demand: Razorpay's own [Senior Analyst, Financial Operations](https://prosple.com/graduate-employers/razorpay/jobs-internships/analyst-financial-operations) listing names "day-to-day reconciliation of deposits and withdrawals into the Nodal account" and "bank MIS reconciliation with system data...on a daily basis" as an active job function, run by a human today, not a hypothetical.
+
+**A floor, not an equality -- corrected against the primary source, not a paraphrase.** An earlier pass at this feature read a secondary practitioner blog describing a balance above obligation as "commingling," a compliance violation. Fetching RBI's actual Master Direction directly showed that's wrong: the clause is a floor ("shall not be less than"), so a surplus day is reported as an informational note here, never dressed up as a violation it isn't.
+
+Found live on this batch: **2 days flagged** out of the batch's full date range -- one real **SHORTFALL** (2026-08-23, escrow balance Rs.19,164.20 against Rs.34,164.20 owed, short by Rs.15,000.00) and one **SURPLUS_NOTE** (2026-08-13, Rs.164,548.60 against Rs.139,548.60 owed, Rs.25,000.00 over -- informational, not a violation of the floor rule). Both deliberately injected the same way [`src/failure_injection_demo.py`](src/failure_injection_demo.py) injects its own adversarial case, a real gap to find rather than a clean batch with nothing to check. `DUPLICATE` settlement pairs are deduplicated before summing the obligation figure, same reasoning as everywhere else in this project: only one real bank credit exists per pair.
+
+Shown on the **Sources** page and the **About** page.
+
 ## Scope
 
 ### In Scope
 
-Reconciliation of settlement, bank, and ledger data for a single direct-to-consumer merchant on Razorpay, using either the live Settlement Recon API or an equivalent CSV export. Nine named exception categories. A complete, replayable audit trail for every automatic or human decision.
+Reconciliation of settlement, bank, and ledger data for a single direct-to-consumer merchant on Razorpay, using either the live Settlement Recon API or an equivalent CSV export. Ten named exception categories. A complete, replayable audit trail for every automatic or human decision.
 
 ### Out of Scope
 

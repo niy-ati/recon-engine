@@ -53,6 +53,7 @@ from urllib.parse import parse_qs, urlparse
 
 import db
 import document_qa
+import nodal_reconciliation
 import settlement_qa
 import tax_audit
 from config import load_dotenv
@@ -2744,14 +2745,68 @@ def render_sources() -> str:
           </div>
         </div>"""
 
+    nodal_count = count_csv_rows(DATA_DIR / "nodal_balance.csv")
+
+    # A fourth, independent source from the three above -- Razorpay's own
+    # obligation as a Payment Aggregator, not anything a merchant-facing
+    # tool checks. See nodal_reconciliation.py's module docstring for the
+    # real RBI Master Direction clause this is built against, and why a
+    # surplus day is reported as a note, not a manufactured violation.
+    nodal_findings = nodal_reconciliation.audit_nodal_balance()
+    if nodal_findings:
+        nodal_rows_html = "".join(
+            f'<div class="finding-row tone-{"negative" if n["kind"] == "SHORTFALL" else "information"}">'
+            f'<div class="icon-badge">{ICON_ALERT if n["kind"] == "SHORTFALL" else ICON_BANK}</div>'
+            f'<div class="finding-text">'
+            f'<b>{n["date"]} -- {"SHORTFALL" if n["kind"] == "SHORTFALL" else "surplus (informational)"}</b>'
+            f'<span>Escrow balance Rs.{n["balance"]:,.2f} vs Rs.{n["obligation"]:,.2f} owed to merchants -- '
+            f'{"below the floor by" if n["kind"] == "SHORTFALL" else "above obligation by"} Rs.{n["diff"]:,.2f}. '
+            f'{"A real compliance breach: the escrow doesn&#39;t hold enough to cover what&#39;s owed." if n["kind"] == "SHORTFALL" else "Not itself a violation of the floor rule -- RBI&#39;s clause is a minimum, not an exact target -- but worth a human check."}</span>'
+            f'</div></div>'
+            for n in nodal_findings
+        )
+        nodal_panel = f"""
+        <div class="panel">
+          <div class="panel-head"><h2 style="margin:0">Escrow / nodal account balance</h2></div>
+          <div class="panel-body">
+            <p style="margin:0 0 var(--sp-7);color:var(--muted)">
+              Razorpay's own obligation as a Payment Aggregator, checked daily the same way its
+              Financial Operations team does: RBI's Master Direction on Regulation of Payment
+              Aggregators (RBI/DPSS/2025-26/141, 15 Sep 2025) requires the escrow balance to never
+              fall below what's collected but not yet settled to merchants. {len(nodal_findings)} day(s)
+              flagged against this batch's own settlement data.
+            </p>
+            <div class="finding-list">{nodal_rows_html}</div>
+          </div>
+        </div>"""
+    else:
+        nodal_panel = f"""
+        <div class="panel">
+          <div class="panel-head"><h2 style="margin:0">Escrow / nodal account balance</h2></div>
+          <div class="panel-body">
+            <div class="finding-list">
+              <div class="finding-row tone-positive">
+                <div class="icon-badge">{ICON_CHECK}</div>
+                <div class="finding-text">
+                  <b>All clear</b>
+                  <span>Every day's recorded escrow balance covers what's owed to merchants, per RBI's
+                  Master Direction on Regulation of Payment Aggregators.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>"""
+
     body = f"""
     <div class="source-grid">
       {card(ICON_ROWS, "Settlements", settlement_count)}
       {card(ICON_BANK, "Bank rows", bank_count)}
       {card(ICON_LEDGER, "Ledger rows", ledger_count)}
+      {card(ICON_DB, "Nodal balance rows", nodal_count)}
     </div>
     {tax_panel}
-    {monthly_panel}"""
+    {monthly_panel}
+    {nodal_panel}"""
     return render_shell("sources", "Data sources", "", body)
 
 
@@ -2879,6 +2934,7 @@ def render_about() -> str:
         {stat(ICON_CHECK, "0", "paid API keys, anywhere", "positive", "https://github.com/niy-ati/recon-engine")}
         {stat(ICON_BANK, "-40%", "payment failures after automatic reconciliation, a real Razorpay customer", "notice", "https://www.linkedin.com/posts/aeijaz-sodawala-a2202a64_hoteltech-hospitalitytechnology-payments-share-7500577134541713408-vsug/")}
         {stat(ICON_ROWS, "96.3%", "held-out accuracy against real ground truth, full batch", "primary", "#accuracy")}
+        {stat(ICON_BANK, "4", "reconciliation surfaces: settlement, tax, cash, and escrow", "information", "#nodal")}
       </div>
     </div>
 
@@ -2917,6 +2973,18 @@ def render_about() -> str:
         <div class="finding-list">
           {finding(ICON_KEY, "Every row scored against a real, independent answer", '<code>src/reconciliation_eval.py</code> checks a fresh <code>reconcile()</code> run against <code>data/ground_truth.csv</code>, an expected outcome <code>generate_data.py</code> records for every row at the moment it generates it, before reconcile() ever sees it. Result: <mark>96.3% overall accuracy</mark> across all 519 labeled rows, 8 of 10 categories at 1.00 precision and 1.00 recall.', "tone-positive")}
           {finding(ICON_ALERT, "The gap is diagnosed, not hidden", 'The cross-UTR fallback in Pass 1 only resolves when exactly one bank row uniquely matches on amount and date. This batch&#39;s gross amounts are drawn from just 6 fixed price points over a ~20-day window, narrow enough that 500+ rows produce a handful of genuine coincidences. Pass 1 correctly declines to guess rather than risk a wrong match -- a synthetic-data diversity limit, not a defect in the matching logic. Run <code>python src/reconciliation_eval.py</code> to reproduce the full per-category breakdown.', "tone-information")}
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="nodal">
+      <div class="panel-head"><h2 style="margin:0">Beyond merchant reconciliation: Razorpay's own obligation</h2></div>
+      <div class="panel-body">
+        <div class="finding-list">
+          {finding(ICON_BANK, "A different reconciliation, checked against the actual regulation", 'Every rupee a customer pays sits in Razorpay&#39;s own escrow/nodal account before it reaches a merchant, T+2 in this batch&#39;s own pipeline. RBI&#39;s <a href="https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12896" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Master Direction on Regulation of Payment Aggregators</a> (RBI/DPSS/2025-26/141, 15 Sep 2025) states the escrow balance "shall not be less than the amount realised in escrow towards funds payable to the merchants, but not settled to them" -- a floor, not an exact target. <code>src/nodal_reconciliation.py</code> checks exactly that, every day, against this batch&#39;s own settlement data.', "tone-information")}
+          {finding(ICON_KEY, "Modeled on a real, current job function, not invented", 'Razorpay&#39;s own <a href="https://prosple.com/graduate-employers/razorpay/jobs-internships/analyst-financial-operations" target="_blank" rel="noopener" style="color:var(--primary-strong);font-weight:600">Senior Analyst, Financial Operations</a> listing names "day-to-day reconciliation of deposits and withdrawals into the Nodal account" and "bank MIS reconciliation with system data...on a daily basis" as an active responsibility, run by a human today. This is that check, automated.', "tone-positive")}
+          {finding(ICON_ALERT, "A floor, not an equality -- the honest correction", 'An earlier pass at this feature read a secondary practitioner blog as saying a balance above obligation is "commingling," a compliance violation. Fetching the primary Direction directly showed that&#39;s wrong: the clause is a floor ("shall not be less than"), so a surplus day is reported here as an informational note, never a manufactured violation -- the same rigor this project already applies everywhere else.', "tone-information")}
+          {finding(ICON_LEDGER, f"Found live on this batch: {len(nodal_reconciliation.audit_nodal_balance())} day(s) flagged", 'One real SHORTFALL (the escrow doesn&#39;t cover that day&#39;s obligation) and one SURPLUS_NOTE (informational only), both deliberately injected into the synthetic data the same way <code>failure_injection_demo.py</code> injects its own adversarial case -- a real gap to find, not a clean batch with nothing to check. See the <a href="/sources#nodal" style="color:var(--primary-strong);font-weight:600">Sources page</a> for the day-by-day detail.', "tone-positive")}
         </div>
       </div>
     </div>
